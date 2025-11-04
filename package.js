@@ -1,0 +1,12 @@
+{
+  "name": "alphastream-dashboard",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.14.2",
+    "node-fetch": "^2.6.7"
+  }
+}
