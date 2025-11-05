@@ -9,50 +9,30 @@
   <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
   <style>
-    body { background: #0a0e17; color: #00ff88; font-family: 'Courier New'; }
-    .card { background: #1a1f2e; border: 1px solid #00ff88; }
-    .scanner-item { transition: 0.2s; cursor: pointer; }
-    .scanner-item:hover { background: #00ff8820; transform: scale(1.02); }
-    .ross-pattern { position: absolute; border: 2px dashed #00ff88; pointer-events: none; z-index: 10; }
-    .badge-hot { background: #ff4500; }
-    .badge-cold { background: #00bfff; }
-    .pattern-img { max-width: 100%; height: 140px; object-fit: contain; border-radius: 6px; background: #111; }
-    .pattern-label { font-size: 0.7rem; color: #00ff88; text-align: center; }
+    body { background:#0a0e17; color:#00ff88; font-family:'Courier New'; }
+    .card { background:#1a1f2e; border:1px solid #00ff88; }
+    .scanner-item:hover { background:#00ff8820; transform:scale(1.02); }
+    .badge-hot { background:#ff4500; }
+    .badge-cold { background:#00bfff; }
+    .pattern-img { max-width:100%; height:140px; object-fit:contain; border-radius:6px; background:#111; }
   </style>
 </head>
 <body>
 <div class="container-fluid p-3">
   <div class="row">
     <div class="col-lg-8">
-      <div class="card p-3 mb-3">
-        <h3>SCANNER <span id="mode-badge" class="badge"></span></h3>
-        <div id="scanner" class="row">Loading...</div>
-      </div>
-      <div class="card p-3">
-        <h4>CHART: <span id="chart-symbol">—</span></h4>
-        <div style="position:relative; height: 420px;">
-          <canvas id="chart"></canvas>
-          <div id="pattern-overlay"></div>
-        </div>
+      <div class="card p-3 mb-3"><h3>SCANNER <span id="mode-badge" class="badge"></span></h3><div id="scanner" class="row"></div></div>
+      <div class="card p-3"><h4>CHART: <span id="chart-symbol">—</span></h4>
+        <div style="position:relative;height:420px;"><canvas id="chart"></canvas></div>
       </div>
     </div>
     <div class="col-lg-4">
-      <div class="card p-3 mb-3">
-        <h5>STATS</h5>
-        <div id="stats" class="small">Loading...</div>
-      </div>
-      <div class="card p-3 mb-3">
-        <h5>RECENT TRADES</h5>
-        <div id="trades" class="small">No trades yet</div>
-      </div>
-      <div class="card p-3">
-        <h5>ROSS PATTERN GUIDE (12 Patterns)</h5>
-        <div class="row g-2" id="pattern-guide">Loading...</div>
-      </div>
+      <div class="card p-3 mb-3"><h5>STATS</h5><div id="stats" class="small"></div></div>
+      <div class="card p-3 mb-3"><h5>RECENT TRADES</h5><div id="trades" class="small"></div></div>
+      <div class="card p-3"><h5>ROSS PATTERN GUIDE (12)</h5><div class="row g-2" id="pattern-guide"></div></div>
     </div>
   </div>
 </div>
-
-<script src="app.js"></script>
+<script src="/app.js"></script>
 </body>
 </html>
