@@ -1,9 +1,8 @@
 // server.js
-import axios from "axios";
 import express from "express";
+import axios from "axios";
 import { PATTERNS } from "./public/patterns.js";
 
-const PORT = process.env.PORT || 3000;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const REPO_OWNER = "kevin-phan-25";
 const REPO_NAME = "alphastream-dashboard";
@@ -15,7 +14,7 @@ app.use(express.static("public"));
 async function fetchPatternCommits() {
   try {
     const { data } = await axios.get(
-      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits?per_page=30`,
+      `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits?per_page=50`,
       { headers: { Authorization: `Bearer ${GITHUB_TOKEN}` } }
     );
 
@@ -35,7 +34,6 @@ async function fetchPatternCommits() {
         });
       }
     }
-
     return results;
   } catch (err) {
     console.error("⚠️ GitHub fetch failed:", err.message);
@@ -49,5 +47,5 @@ app.get("/patterns", async (req, res) => {
   res.json({ count: data.length, patterns: data });
 });
 
-// --- Start Server (Vercel handles the listener) ---
+// --- Export Express App for Vercel ---
 export default app;
