@@ -1,4 +1,3 @@
-// server.js
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -15,12 +14,10 @@ app.use(express.static('public'));
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// === DATA ===
 let scanner = [];
 let trades = [];
 let stats = { winRate: 0, pnl: 0, mode: 'COLD', lastUpdate: new Date() };
 
-// === BROADCAST ===
 function broadcast(type, data) {
   const payload = JSON.stringify({ type, data, timestamp: new Date() });
   wss.clients.forEach(client => {
@@ -28,25 +25,19 @@ function broadcast(type, data) {
   });
 }
 
-// === WEBSOCKET ===
 wss.on('connection', ws => {
   ws.send(JSON.stringify({ type: 'INIT', scanner, trades, stats }));
 });
 
-// === WEBHOOK FROM GOOGLE APPS SCRIPT ===
 app.post('/webhook', (req, res) => {
   const { type, data } = req.body;
-  console.log(`[WEBHOOK] ${type}`, data);
-
   if (type === 'SCANNER') scanner = data;
   if (type === 'TRADE') trades = [data, ...trades].slice(0, 20);
   if (type === 'STATS') stats = { ...stats, ...data };
-
   broadcast(type, data);
   res.sendStatus(200);
 });
 
-// === POLYGON CHART API ===
 app.get('/chart/:symbol', async (req, res) => {
   const { symbol } = req.params;
   const today = new Date().toISOString().split('T')[0];
@@ -69,5 +60,5 @@ app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.ht
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`DASHBOARD LIVE → http://localhost:${PORT}`);
+  console.log(`LIVE → ${PORT}`);
 });
