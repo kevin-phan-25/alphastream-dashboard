@@ -1,36 +1,35 @@
-// webhook.gs — Add to your main script
-const WEBHOOK_URL = 'https://yourdomain.com/webhook'; // ← CHANGE
+const WEBHOOK_URL = 'https://YOUR-RAILWAY-APP.up.railway.app/webhook'; // ← CHANGE THIS
 
 function pushToDashboard(type, data) {
+  if (!WEBHOOK_URL) return;
   const payload = { type, data };
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true
-  };
   try {
-    UrlFetchApp.fetch(WEBHOOK_URL, options);
-  } catch (e) {
-    Logger.log('WEBHOOK FAILED: ' + e);
-  }
+    UrlFetchApp.fetch(WEBHOOK_URL, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+  } catch (e) { Logger.log('WEBHOOK ERR: ' + e); }
 }
 
-// Hook into your existing functions
+// Example: In your scanner
 function scanRossMicroPullback() {
-  const candidates = /* your logic */;
+  const candidates = [ /* your logic */ ];
   pushToDashboard('SCANNER', candidates);
   return candidates;
 }
 
-function logTrade(stock, event, exitPrice, notes) {
-  // ... existing
-  pushToDashboard('TRADE', {
-    symbol: stock.symbol,
-    strategy: stock.strategy,
-    entry: stock.price,
-    exit: exitPrice,
-    pnl: exitPrice ? (exitPrice - stock.price) * stock.qty : 0,
-    result: exitPrice > stock.price ? 'WIN' : 'LOSS'
-  });
+// Example: In trade exit
+function logTrade(event, stock, exitPrice) {
+  if (event === 'EXIT') {
+    pushToDashboard('TRADE', {
+      symbol: stock.symbol,
+      strategy: stock.strategy,
+      entry: stock.price,
+      exit: exitPrice,
+      pnl: (exitPrice - stock.price) * stock.qty,
+      result: exitPrice > stock.price ? 'WIN' : 'LOSS'
+    });
+  }
 }
