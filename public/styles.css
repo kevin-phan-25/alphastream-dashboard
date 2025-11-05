@@ -1,0 +1,44 @@
+body {
+  font-family: system-ui, sans-serif;
+  background: #0e1117;
+  color: #e5e5e5;
+  padding: 2rem;
+}
+h1, h2 {
+  color: #00bcd4;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+td, th {
+  padding: 0.5rem;
+  border-bottom: 1px solid #333;
+}
+.win { color: #00e676; }
+.loss { color: #ff1744; }
+
+.pattern-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  margin-top: 1rem;
+}
+.pattern-card {
+  background: #1a1a1a;
+  border-radius: 10px;
+  border: 1px solid #333;
+  padding: 10px;
+}
+.pattern-card h3 {
+  color: #00bcd4;
+  margin-bottom: 0.3rem;
+}
+.pattern-card a {
+  color: #4fc3f7;
+  text-decoration: none;
+}
+.pattern-card a:hover {
+  text-decoration: underline;
+}
