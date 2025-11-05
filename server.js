@@ -1,58 +1,68 @@
-require('dotenv').config();
-const express = require('express');
-const http = require('http');
-const WebSocket = require('ws');
-const path = require('path');
-const cors = require('cors');
+// server.js
+import express from "express";
+import axios from "axios";
+import path from "path";
+import { fileURLToPath } from "url";
+import { PATTERNS } from "./public/patterns.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || "";
+const REPO_OWNER = "kevin-phan-25";
+const REPO_NAME = "alphastream-dashboard";
 
 const app = express();
-app.use(cors());
-app.use(express.json());
 
-let scanner = [], trades = [], stats = { winRate: 0, pnl: 0, mode: 'COLD' };
-const wss = new WebSocket.Server({ noServer: true });
+// Serve static files from public/
+app.use(express.static(path.join(__dirname, "public")));
 
-function broadcast(type, data) {
-  const payload = JSON.stringify({ type, data, timestamp: new Date() });
-  wss.clients.forEach(c => c.readyState === WebSocket.OPEN && c.send(payload));
+// --- GitHub Pattern Fetcher ---
+async function fetchPatternCommits() {
+  if (!GITHUB_TOKEN) {
+    console.warn("GITHUB_TOKEN not set - returning empty patterns");
+    return [];
+  }
+
+  try {
+    const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits?per_page=50`;
+    const { data } = await axios.get(url, {
+      headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: "application/vnd.github.v3+json" },
+      timeout: 10000
+    });
+
+    const results = [];
+    for (const c of data) {
+      const message = (c.commit?.message || "").toLowerCase();
+      const matched = PATTERNS.find(p => p.keywords.some(k => message.includes(k)));
+      if (matched) {
+        results.push({
+          name: matched.name,
+          message: c.commit.message,
+          date: c.commit.author?.date?.split("T")[0] || "",
+          url: c.html_url,
+          sha: c.sha?.substring(0, 7) || ""
+        });
+      }
+    }
+    return results;
+  } catch (err) {
+    console.error("GitHub fetch failed:", (err && err.message) || err);
+    return [];
+  }
 }
 
-wss.on('connection', ws => {
-  ws.send(JSON.stringify({ type: 'INIT', scanner, trades, stats }));
+// REST endpoint: /patterns
+app.get("/patterns", async (req, res) => {
+  const items = await fetchPatternCommits();
+  res.setHeader("Content-Type", "application/json");
+  res.json({ count: items.length, patterns: items });
 });
 
-app.post('/webhook', (req, res) => {
-  const { type, data } = req.body;
-  if (type === 'SCANNER') scanner = data;
-  if (type === 'TRADE') trades = [data, ...trades].slice(0, 20);
-  if (type === 'STATS') stats = { ...stats, ...data };
-  broadcast(type, data);
-  res.sendStatus(200);
+// fallback to index.html for SPA (optional)
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.get('/chart/:symbol', async (req, res) => {
-  const { symbol } = req.params;
-  const key = process.env.POLYGON_KEY;
-  if (!key) return res.json([]);
-  const today = new Date().toISOString().split('T')[0];
-  const url = `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/minute/${today}/${today}?adjusted=true&limit=500&apiKey=${key}`;
-  try {
-    const r = await fetch(url);
-    const j = await r.json();
-    const bars = j.results?.map(b => ({ t: new Date(b.t), o: b.o, h: b.h, l: b.l, c: b.c, v: b.v })) || [];
-    res.json(bars);
-  } catch (e) {
-    res.json([]);
-  }
-});
-
-app.use(express.static('public'));
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-
-const server = http.createServer(app);
-server.on('upgrade', (req, socket, head) => {
-  wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Dashboard LIVE on port ${PORT}`));
+// Export the express app for Vercel
+export default app;
