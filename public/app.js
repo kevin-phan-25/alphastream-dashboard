@@ -1,30 +1,39 @@
 // public/app.js
-
 async function loadPatterns() {
   try {
-    const res = await fetch('/patterns');
+    const res = await fetch('/patterns', { cache: "no-store" });
+    if (!res.ok) throw new Error(`Status ${res.status}`);
     const json = await res.json();
-    renderPatterns(json.patterns);
+    renderPatterns(json.patterns || []);
   } catch (err) {
     console.error('Pattern fetch failed:', err);
+    const container = document.getElementById('patterns');
+    if (container) container.innerHTML = `<div class="error">Pattern fetch failed: ${err.message}</div>`;
   }
 }
 
-// Initial load + 5-minute refresh
-loadPatterns();
-setInterval(loadPatterns, 300000);
-
-// Existing trade/scanner/stat functions can stay if needed
 function renderPatterns(list) {
   const container = document.getElementById('patterns');
   if (!container) return;
-
+  if (!list || list.length === 0) {
+    container.innerHTML = '<div class="no-patterns">No recent patterns detected</div>';
+    return;
+  }
   container.innerHTML = list.map(p => `
     <div class="pattern-card">
-      <h3>${p.name}</h3>
-      <p>${p.message}</p>
-      <small>${p.date}</small><br>
-      <a href="${p.url}" target="_blank">View Commit (${p.sha})</a>
+      <h3>${escapeHtml(p.name)}</h3>
+      <p>${escapeHtml(p.message)}</p>
+      <small>${escapeHtml(p.date)}</small><br/>
+      <a href="${p.url}" target="_blank" rel="noopener noreferrer">View Commit (${p.sha})</a>
     </div>
-  `).join('') || '<p>No recent patterns detected</p>';
+  `).join('');
 }
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+
+// initial load + 5 min poll
+loadPatterns();
+setInterval(loadPatterns, 300000);
