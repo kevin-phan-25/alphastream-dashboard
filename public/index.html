@@ -10,12 +10,30 @@
   <main>
     <h1>AlphaStream Live Dashboard</h1>
 
+    <!-- STATS -->
+    <section>
+      <h2>Performance</h2>
+      <div id="stats" class="stats-grid">Loading...</div>
+    </section>
+
+    <!-- SCANNER -->
+    <section>
+      <h2>Live Scanner</h2>
+      <div id="scanner" class="pattern-grid">Connecting...</div>
+    </section>
+
+    <!-- TRADES -->
+    <section>
+      <h2>Recent Trades</h2>
+      <div id="trades" class="trades-list"></div>
+    </section>
+
+    <!-- PATTERNS (keep your old one) -->
     <section>
       <h2>Detected Chart Patterns</h2>
       <div id="patterns" class="pattern-grid">Loading patterns...</div>
     </section>
   </main>
-
   <script type="module" src="app.js"></script>
 </body>
 </html>
