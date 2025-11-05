@@ -1,5 +1,5 @@
+// public/app.js
 const ws = new WebSocket('wss://' + location.host);
-let chart;
 
 ws.onmessage = e => {
   const { type, data } = JSON.parse(e.data);
@@ -13,16 +13,28 @@ ws.onmessage = e => {
     renderTrades([data, ...getTrades()].slice(0, 10));
   } else if (type === 'STATS') {
     renderStats(data);
+  } else if (type === 'PATTERNS') {
+    renderPatterns(data);
   }
 };
 
 function renderScanner(list) {
-  document.getElementById('scanner').innerHTML = list.map(s => `<div>${s.symbol} | ${s.strategy} | Score: ${s.score}</div>`).join('') || 'No signals';
+  document.getElementById('scanner').innerHTML =
+    list.map(s => `<div>${s.symbol} | ${s.strategy} | Score: ${s.score}</div>`).join('') || 'No signals';
 }
 
 function renderTrades(list) {
   const tbody = document.getElementById('trades');
-  tbody.innerHTML = list.map(t => `<tr><td>${new Date(t.time).toLocaleTimeString()}</td><td>${t.symbol}</td><td>${t.strategy}</td><td class="${t.pnl > 0 ? 'win' : 'loss'}">${t.result}</td><td class="${t.pnl > 0 ? 'win' : 'loss'}">${t.pnl}</td></tr>`).join('') || '<tr><td colspan="5">No trades</td></tr>';
+  tbody.innerHTML =
+    list.map(t => `
+      <tr>
+        <td>${new Date(t.time).toLocaleTimeString()}</td>
+        <td>${t.symbol}</td>
+        <td>${t.strategy}</td>
+        <td class="${t.pnl > 0 ? 'win' : 'loss'}">${t.result}</td>
+        <td class="${t.pnl > 0 ? 'win' : 'loss'}">${t.pnl}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="5">No trades</td></tr>';
 }
 
 function renderStats(s) {
@@ -35,7 +47,16 @@ function getTrades() {
   return JSON.parse(localStorage.getItem('trades') || '[]');
 }
 
-function loadChart(symbol) {
-  // Placeholder for chart
-  console.log('Loading chart for', symbol);
+function renderPatterns(list) {
+  const container = document.getElementById('patterns');
+  if (!container) return;
+
+  container.innerHTML = list.map(p => `
+    <div class="pattern-card">
+      <h3>${p.name}</h3>
+      <p>${p.message}</p>
+      <small>${p.date}</small><br>
+      <a href="${p.url}" target="_blank">View Commit (${p.sha})</a>
+    </div>
+  `).join('') || '<p>No recent patterns detected</p>';
 }
