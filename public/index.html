@@ -1,39 +1,43 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>ALPHASTREAM v5.9 — ROSS CAMERON</title>
-  <style>
-    body { background: #0a1a2e; color: #fff; font-family: 'Courier New'; padding: 20px; }
-    .container { max-width: 1200px; margin: auto; }
-    .card { background: #1e293b; padding: 20px; border-radius: 12px; margin: 20px 0; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
-    .metric { font-size: 1.5rem; font-weight: bold; }
-    .label { font-size: 0.9rem; color: #94a3b8; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 8px; text-align: left; border-bottom: 1px solid #334155; }
-    th { background: #334155; }
-    .win { color: #10b981; }
-    .loss { color: #ef4444; }
-    #scanner { height: 200px; overflow-y: auto; }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AlphaStream Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="container">
-    <h1 style="text-align: center; color: #00d4ff;">ALPHASTREAM v5.9 DASHBOARD</h1>
-    <div class="grid">
-      <div class="card"><div class="label">Mode</div><div class="metric" id="mode">COLD</div></div>
-      <div class="card"><div class="label">Win Rate</div><div class="metric" id="winrate">0%</div></div>
-      <div class="card"><div class="label">P&L</div><div class="metric" id="pnl">$0</div></div>
-    </div>
-    <div class="card">
-      <h3>Scanner</h3>
-      <div id="scanner">Loading...</div>
-    </div>
-    <div class="card">
-      <h3>Recent Trades</h3>
-      <table><thead><tr><th>Time</th><th>Symbol</th><th>Strategy</th><th>Result</th><th>PnL</th></tr></thead><tbody id="trades"></tbody></table>
-    </div>
-  </div>
-  <script src="app.js"></script>
+  <h1>AlphaStream Live Dashboard</h1>
+
+  <section>
+    <h2>Scanner Signals</h2>
+    <div id="scanner">Loading...</div>
+  </section>
+
+  <section>
+    <h2>Recent Trades</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th><th>Symbol</th><th>Strategy</th><th>Result</th><th>PnL</th>
+        </tr>
+      </thead>
+      <tbody id="trades"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Performance Stats</h2>
+    <p>Mode: <span id="mode">COLD</span></p>
+    <p>Win Rate: <span id="winrate">0%</span></p>
+    <p>Total PnL: <span id="pnl">$0.00</span></p>
+  </section>
+
+  <section>
+    <h2>Detected Chart Patterns</h2>
+    <div id="patterns" class="pattern-grid"></div>
+  </section>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>
