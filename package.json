@@ -9,9 +9,10 @@
   "dependencies": {
     "axios": "^1.7.2",
     "express": "^4.19.2",
-    "chart.js": "^4.4.0"  // For charts
+    "chart.js": "^4.4.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
-  }
+  },
+  "license": "MIT"
 }
