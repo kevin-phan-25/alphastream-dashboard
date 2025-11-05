@@ -1,3 +1,4 @@
+// server.js
 import express from "express";
 import { WebSocketServer } from "ws";
 import axios from "axios";
@@ -9,10 +10,14 @@ const REPO_OWNER = "kevin-phan-25";
 const REPO_NAME = "alphastream-dashboard";
 
 const app = express();
-const server = app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+app.use(express.static("public"));
+
+const server = app.listen(PORT, () =>
+  console.log(`🚀 Server running on port ${PORT}`)
+);
 const wss = new WebSocketServer({ server });
 
-// --- Load Pattern Commits from GitHub ---
+// --- GitHub Pattern Scanner ---
 async function fetchPatternCommits() {
   try {
     const { data } = await axios.get(
@@ -21,13 +26,14 @@ async function fetchPatternCommits() {
     );
 
     const results = [];
-
     for (const c of data) {
       const message = c.commit.message.toLowerCase();
-      const match = PATTERNS.find(p => p.keywords.some(k => message.includes(k)));
-      if (match) {
+      const matched = PATTERNS.find(p =>
+        p.keywords.some(k => message.includes(k))
+      );
+      if (matched) {
         results.push({
-          name: match.name,
+          name: matched.name,
           message: c.commit.message,
           date: c.commit.author.date.split("T")[0],
           url: c.html_url,
@@ -35,28 +41,29 @@ async function fetchPatternCommits() {
         });
       }
     }
-
     return results;
   } catch (err) {
-    console.error("GitHub fetch failed:", err.message);
+    console.error("⚠️ GitHub fetch failed:", err.message);
     return [];
   }
 }
 
-// --- WebSocket Flow ---
+// --- WebSocket Updates ---
 wss.on("connection", async ws => {
-  console.log("Client connected");
+  console.log("🟢 Client connected");
 
+  // Initial load
   const patternData = await fetchPatternCommits();
+  ws.send(JSON.stringify({ type: "PATTERNS", data: patternData }));
 
-  ws.send(JSON.stringify({
-    type: "PATTERNS",
-    data: patternData
-  }));
-
-  // Optional: periodically refresh every 5 min
-  setInterval(async () => {
+  // Periodic updates every 5 minutes
+  const interval = setInterval(async () => {
     const updates = await fetchPatternCommits();
     ws.send(JSON.stringify({ type: "PATTERNS", data: updates }));
   }, 300000);
+
+  ws.on("close", () => {
+    console.log("🔴 Client disconnected");
+    clearInterval(interval);
+  });
 });
