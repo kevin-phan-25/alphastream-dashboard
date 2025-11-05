@@ -7,18 +7,6 @@ body {
 h1, h2 {
   color: #00bcd4;
 }
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-}
-td, th {
-  padding: 0.5rem;
-  border-bottom: 1px solid #333;
-}
-.win { color: #00e676; }
-.loss { color: #ff1744; }
-
 .pattern-grid {
   display: grid;
   gap: 1rem;
@@ -30,6 +18,7 @@ td, th {
   border-radius: 10px;
   border: 1px solid #333;
   padding: 10px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 .pattern-card h3 {
   color: #00bcd4;
