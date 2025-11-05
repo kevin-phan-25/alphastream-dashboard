@@ -1,8 +1,5 @@
-body { font-family: system-ui, sans-serif; background: #0e1117; color: #e5e5e5; margin: 2rem; }
-h1,h2 { color: #00bcd4; }
-.pattern-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-.pattern-card { background: #141414; border-radius: 8px; padding: 12px; border: 1px solid #222; }
-.pattern-card h3 { color: #4fc3f7; margin: 0 0 6px 0; }
-.no-patterns { color: #888; }
-.error { color: #ff8a80; }
-a { color: #80d1ff; }
+.stats-grid { display: grid; gap: 0.5rem; font-size: 1.1rem; }
+.trades-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.trade-row { padding: 0.5rem; background: #1a1a1a; border-radius: 6px; }
+.WIN { color: #4ade80; }
+.LOSS { color: #f87171; }
