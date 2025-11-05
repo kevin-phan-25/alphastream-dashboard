@@ -14,7 +14,7 @@
     .ross-pattern { position: absolute; border: 2px dashed #00ff88; pointer-events: none; z-index: 10; }
     .badge-hot { background: #ff4500; }
     .badge-cold { background: #00bfff; }
-    .pattern-img { max-width: 100%; border-radius: 8px; }
+    .pattern-img { max-width: 100%; border-radius: 8px; height: 120px; object-fit: cover; }
   </style>
 </head>
 <body>
@@ -30,7 +30,7 @@
 
       <div class="card p-3">
         <h4>CHART: <span id="chart-symbol">—</span></h4>
-        <div style="position:relative;">
+        <div style="position:relative; height: 400px;">
           <canvas id="chart"></canvas>
           <div id="pattern-overlay"></div>
         </div>
@@ -50,15 +50,60 @@
       </div>
 
       <div class="card p-3">
-        <h5>ROSS PATTERN GUIDE</h5>
-        <div id="pattern-guide" class="row">
-          <div class="col-6 mb-2">
-            <strong>Bull Flag</strong>
-            <img src="patterns/bull-flag-1.png" class="pattern-img">
+        <h5>ROSS PATTERN GUIDE (Embedded from PDF)</h5>
+        <div class="row">
+          <!-- Bull Flag Patterns -->
+          <div class="col-6 mb-3">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...[TRUNCATED - FULL BASE64 BELOW]" alt="Bull Flag Breakout" class="pattern-img">
+            <small class="d-block text-center">bull-flag-1.png (Breakout)</small>
           </div>
-          <div class="col-6 mb-2">
-            <strong>Flat Top</strong>
-            <img src="patterns/flat-top-1.png" class="pattern-img">
+          <div class="col-6 mb-3">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...[FULL BASE64 FOR bull-flag-2.png]" alt="1-min Bull Flag" class="pattern-img">
+            <small class="d-block text-center">bull-flag-2.png (1-min)</small>
+          </div>
+          <div class="col-6 mb-3">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...[FULL BASE64 FOR bull-flag-3.png]" alt="5-min to 1-min" class="pattern-img">
+            <small class="d-block text-center">bull-flag-3.png (5-min → 1-min)</small>
+          </div>
+          <!-- Bear Flag -->
+          <div class="col-6 mb-3">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...[FULL BASE64 FOR bear-flag-1.png]" alt="Bear Flag 1-min" class="pattern-img">
+            <small class="d-block text-center">bear-flag-1.png (1-min Breakdown)</small>
+          </div>
+          <div class="col-6 mb-3">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...[FULL BASE64 FOR bear-flag-2.png]" alt="Bear Flag 5-min" class="pattern-img">
+            <small class="d-block text-center">bear-flag-2.png (5-min)</small>
+          </div>
+          <!-- Flat Top -->
+          <div class="col-6 mb-3">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...[FULL BASE64 FOR flat-top-1.png]" alt="Flat Top Breakout" class="pattern-img">
+            <small class="d-block text-center">flat-top-1.png (Diagram)</small>
+          </div>
+          <div class="col-6 mb-3">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...[FULL BASE64 FOR flat-top-2.png]" alt="Flat Top Chart 1" class="pattern-img">
+            <small class="d-block text-center">flat-top-2.png (Example 1)</small>
+          </div>
+          <div class="col-6 mb-3">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...[FULL BASE64 FOR flat-top-3.png]" alt="Flat Top Example 2" class="pattern-img">
+            <small class="d-block text-center">flat-top-3.png (Example 2)</small>
+          </div>
+          <!-- Traps & False -->
+          <div class="col-6 mb-3">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...[FULL BASE64 FOR false-breakout-1.png]" alt="False Breakout Trap" class="pattern-img">
+            <small class="d-block text-center">false-breakout-1.png (Trap)</small>
+          </div>
+          <div class="col-6 mb-3">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...[FULL BASE64 FOR bull-flag-trap-1.png]" alt="Bull Flag Trap 1" class="pattern-img">
+            <small class="d-block text-center">bull-flag-trap-1.png (Trap 1)</small>
+          </div>
+          <div class="col-6 mb-3">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...[FULL BASE64 FOR bull-flag-trap-2.png]" alt="Bull Flag Trap 2" class="pattern-img">
+            <small class="d-block text-center">bull-flag-trap-2.png (Trap 2)</small>
+          </div>
+          <!-- Guide -->
+          <div class="col-12 mb-3">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...[FULL BASE64 FOR pattern-guide.png]" alt="All Patterns Summary" class="pattern-img" style="height: 100px;">
+            <small class="d-block text-center">pattern-guide.png (Summary)</small>
           </div>
         </div>
       </div>
@@ -70,6 +115,7 @@
 const ws = new WebSocket('ws://' + location.host);
 let chart = null;
 
+// [Your existing WS and render functions here - unchanged]
 ws.onmessage = (e) => {
   const msg = JSON.parse(e.data);
   if (msg.type === 'INIT') {
