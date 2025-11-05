@@ -1,7 +1,6 @@
 // server.js
-import express from "express";
-import { WebSocketServer } from "ws";
 import axios from "axios";
+import express from "express";
 import { PATTERNS } from "./public/patterns.js";
 
 const PORT = process.env.PORT || 3000;
@@ -12,12 +11,7 @@ const REPO_NAME = "alphastream-dashboard";
 const app = express();
 app.use(express.static("public"));
 
-const server = app.listen(PORT, () =>
-  console.log(`🚀 Server running on port ${PORT}`)
-);
-const wss = new WebSocketServer({ server });
-
-// --- GitHub Pattern Scanner ---
+// --- GitHub Pattern Fetcher ---
 async function fetchPatternCommits() {
   try {
     const { data } = await axios.get(
@@ -41,6 +35,7 @@ async function fetchPatternCommits() {
         });
       }
     }
+
     return results;
   } catch (err) {
     console.error("⚠️ GitHub fetch failed:", err.message);
@@ -48,22 +43,11 @@ async function fetchPatternCommits() {
   }
 }
 
-// --- WebSocket Updates ---
-wss.on("connection", async ws => {
-  console.log("🟢 Client connected");
-
-  // Initial load
-  const patternData = await fetchPatternCommits();
-  ws.send(JSON.stringify({ type: "PATTERNS", data: patternData }));
-
-  // Periodic updates every 5 minutes
-  const interval = setInterval(async () => {
-    const updates = await fetchPatternCommits();
-    ws.send(JSON.stringify({ type: "PATTERNS", data: updates }));
-  }, 300000);
-
-  ws.on("close", () => {
-    console.log("🔴 Client disconnected");
-    clearInterval(interval);
-  });
+// --- REST Endpoint for Patterns ---
+app.get("/patterns", async (req, res) => {
+  const data = await fetchPatternCommits();
+  res.json({ count: data.length, patterns: data });
 });
+
+// --- Start Server (Vercel handles the listener) ---
+export default app;
