@@ -1,52 +1,20 @@
 // public/app.js
-const ws = new WebSocket('wss://' + location.host);
 
-ws.onmessage = e => {
-  const { type, data } = JSON.parse(e.data);
-  if (type === 'INIT') {
-    renderScanner(data.scanner);
-    renderTrades(data.trades);
-    renderStats(data.stats);
-  } else if (type === 'SCANNER') {
-    renderScanner(data);
-  } else if (type === 'TRADE') {
-    renderTrades([data, ...getTrades()].slice(0, 10));
-  } else if (type === 'STATS') {
-    renderStats(data);
-  } else if (type === 'PATTERNS') {
-    renderPatterns(data);
+async function loadPatterns() {
+  try {
+    const res = await fetch('/patterns');
+    const json = await res.json();
+    renderPatterns(json.patterns);
+  } catch (err) {
+    console.error('Pattern fetch failed:', err);
   }
-};
-
-function renderScanner(list) {
-  document.getElementById('scanner').innerHTML =
-    list.map(s => `<div>${s.symbol} | ${s.strategy} | Score: ${s.score}</div>`).join('') || 'No signals';
 }
 
-function renderTrades(list) {
-  const tbody = document.getElementById('trades');
-  tbody.innerHTML =
-    list.map(t => `
-      <tr>
-        <td>${new Date(t.time).toLocaleTimeString()}</td>
-        <td>${t.symbol}</td>
-        <td>${t.strategy}</td>
-        <td class="${t.pnl > 0 ? 'win' : 'loss'}">${t.result}</td>
-        <td class="${t.pnl > 0 ? 'win' : 'loss'}">${t.pnl}</td>
-      </tr>
-    `).join('') || '<tr><td colspan="5">No trades</td></tr>';
-}
+// Initial load + 5-minute refresh
+loadPatterns();
+setInterval(loadPatterns, 300000);
 
-function renderStats(s) {
-  document.getElementById('mode').textContent = s.mode || 'COLD';
-  document.getElementById('winrate').textContent = s.winRate + '%';
-  document.getElementById('pnl').textContent = '$' + s.pnl.toFixed(2);
-}
-
-function getTrades() {
-  return JSON.parse(localStorage.getItem('trades') || '[]');
-}
-
+// Existing trade/scanner/stat functions can stay if needed
 function renderPatterns(list) {
   const container = document.getElementById('patterns');
   if (!container) return;
