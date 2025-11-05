@@ -3,8 +3,7 @@
   "version": "5.9.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -12,8 +11,5 @@
     "node-fetch": "^2.6.7",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1"
-  },
-  "engines": {
-    "node": ">=18"
   }
 }
