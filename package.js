@@ -2,14 +2,11 @@
   "name": "alphastream-dashboard",
   "version": "5.9.0",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "type": "module",
+  "scripts": { "start": "node server.js" },
   "dependencies": {
     "express": "^4.18.2",
     "ws": "^8.14.2",
-    "node-fetch": "^2.6.7",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1"
+    "cors": "^2.8.5"
   }
 }
