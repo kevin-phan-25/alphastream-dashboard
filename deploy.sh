@@ -1,11 +1,5 @@
 #!/bin/bash
-echo "Deploying ALPHASTREAM DASHBOARD..."
-
-# Install
-npm install
-
-# Set env
-echo "POLYGON_KEY=your_polygon_key_here" > .env
-
-# Start
-node server.js
+git add .
+git commit -m "v5.9 live"
+git push origin main
+echo "Deployed! Visit: https://alphastream-dashboard.vercel.app"
