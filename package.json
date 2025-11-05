@@ -1,19 +1,17 @@
 {
   "name": "alphastream-dashboard",
   "version": "1.0.0",
-  "description": "AlphaStream dashboard for live chart pattern and trade analysis",
   "type": "module",
-  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
   "dependencies": {
     "axios": "^1.7.2",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "chart.js": "^4.4.0"  // For charts
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
-  },
-  "license": "MIT"
+  }
 }
