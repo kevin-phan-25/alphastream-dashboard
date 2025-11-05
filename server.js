@@ -33,7 +33,7 @@ wss.on('connection', ws => {
   ws.send(JSON.stringify({ type: 'INIT', scanner, trades, stats }));
 });
 
-// === WEBHOOK ===
+// === WEBHOOK FROM GOOGLE APPS SCRIPT ===
 app.post('/webhook', (req, res) => {
   const { type, data } = req.body;
   console.log(`[WEBHOOK] ${type}`, data);
@@ -46,7 +46,7 @@ app.post('/webhook', (req, res) => {
   res.sendStatus(200);
 });
 
-// === CHART API (Polygon) ===
+// === POLYGON CHART API ===
 app.get('/chart/:symbol', async (req, res) => {
   const { symbol } = req.params;
   const today = new Date().toISOString().split('T')[0];
