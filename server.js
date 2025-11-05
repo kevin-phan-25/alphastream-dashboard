@@ -31,6 +31,7 @@ wss.on('connection', ws => {
 
 app.post('/webhook', (req, res) => {
   const { type, data } = req.body;
+  console.log(`[WEBHOOK] ${type}:`, data);
   if (type === 'SCANNER') scanner = data;
   if (type === 'TRADE') trades = [data, ...trades].slice(0, 20);
   if (type === 'STATS') stats = { ...stats, ...data };
@@ -42,7 +43,6 @@ app.get('/chart/:symbol', async (req, res) => {
   const { symbol } = req.params;
   const today = new Date().toISOString().split('T')[0];
   const url = `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/minute/${today}/${today}?adjusted=true&limit=500&apiKey=${process.env.POLYGON_KEY}`;
-
   try {
     const resp = await fetch(url);
     const json = await resp.json();
@@ -59,6 +59,4 @@ app.get('/chart/:symbol', async (req, res) => {
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`LIVE → ${PORT}`);
-});
+server.listen(PORT, () => console.log(`DASHBOARD LIVE on port ${PORT}`));
