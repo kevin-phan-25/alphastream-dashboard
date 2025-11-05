@@ -1,33 +1,8 @@
-body {
-  font-family: system-ui, sans-serif;
-  background: #0e1117;
-  color: #e5e5e5;
-  padding: 2rem;
-}
-h1, h2 {
-  color: #00bcd4;
-}
-.pattern-grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  margin-top: 1rem;
-}
-.pattern-card {
-  background: #1a1a1a;
-  border-radius: 10px;
-  border: 1px solid #333;
-  padding: 10px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-.pattern-card h3 {
-  color: #00bcd4;
-  margin-bottom: 0.3rem;
-}
-.pattern-card a {
-  color: #4fc3f7;
-  text-decoration: none;
-}
-.pattern-card a:hover {
-  text-decoration: underline;
-}
+body { font-family: system-ui, sans-serif; background: #0e1117; color: #e5e5e5; margin: 2rem; }
+h1,h2 { color: #00bcd4; }
+.pattern-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.pattern-card { background: #141414; border-radius: 8px; padding: 12px; border: 1px solid #222; }
+.pattern-card h3 { color: #4fc3f7; margin: 0 0 6px 0; }
+.no-patterns { color: #888; }
+.error { color: #ff8a80; }
+a { color: #80d1ff; }
