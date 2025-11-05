@@ -1,12 +1,9 @@
-import express from 'express';
-import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
-import cors from 'cors';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+require('dotenv').config();
+const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
+const path = require('path');
+const cors = require('cors');
 
 const app = express();
 app.use(cors());
@@ -16,12 +13,12 @@ let scanner = [];
 let trades = [];
 let stats = { winRate: 0, pnl: 0, mode: 'COLD' };
 
-const wss = new WebSocketServer({ noServer: true });
+const wss = new WebSocket.Server({ noServer: true });
 
 function broadcast(type, data) {
   const payload = JSON.stringify({ type, data, timestamp: new Date() });
-  wss.clients.forEach(ws => {
-    if (ws.readyState === WebSocket.OPEN) ws.send(payload);
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) client.send(payload);
   });
 }
 
@@ -41,33 +38,32 @@ app.post('/webhook', (req, res) => {
 app.get('/chart/:symbol', async (req, res) => {
   const { symbol } = req.params;
   const apiKey = process.env.POLYGON_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'POLYGON_KEY missing' });
+  if (!apiKey) return res.json([]); // Fallback empty
 
   const today = new Date().toISOString().split('T')[0];
   const url = `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/minute/${today}/${today}?adjusted=true&limit=500&apiKey=${apiKey}`;
-
   try {
     const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`Polygon ${resp.status}`);
     const json = await resp.json();
-    const bars = (json.results || []).map(r => ({
+    const bars = json.results?.map(r => ({
       t: new Date(r.t),
       o: r.o, h: r.h, l: r.l, c: r.c, v: r.v
-    }));
+    })) || [];
     res.json(bars);
   } catch (e) {
-    console.error('Chart error:', e.message);
-    res.status(500).json({ error: e.message });
+    res.json([]);
   }
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-const server = createServer(app);
-server.on('upgrade', (req, socket, head) => {
-  wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
+const server = http.createServer(app);
+server.on('upgrade', (request, socket, head) => {
+  wss.handleUpgrade(request, socket, head, ws => {
+    wss.emit('connection', ws, request);
+  });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`ALPHASTREAM v5.9 LIVE → ${PORT}`));
+server.listen(PORT, () => console.log(`LIVE on ${PORT}`));
