@@ -1,44 +1,81 @@
-async function loadPatterns() {
-  try {
-    const res = await fetch('/patterns', { cache: "no-store" });
-    if (!res.ok) throw new Error(`Status ${res.status}`);
-    const json = await res.json();
-    renderPatterns(json.patterns || []);
-  } catch (err) {
-    console.error('Pattern fetch failed:', err);
-    const container = document.getElementById('patterns');
-    if (container) {
-      container.innerHTML = `<div class="error">Pattern fetch failed: ${err.message}</div>`;
+// public/app.js
+const events = [];
+let eventSource = null;
+
+function connectSSE() {
+  eventSource = new EventSource('/events');
+
+  eventSource.onmessage = (e) => {
+    try {
+      const event = JSON.parse(e.data);
+      if (event.type === 'heartbeat') return;
+      handleEvent(event);
+    } catch (err) {
+      console.error('SSE parse error:', err);
     }
-  }
+  };
+
+  eventSource.onerror = () => {
+    console.warn('SSE disconnected. Reconnecting...');
+    setTimeout(connectSSE, 3000);
+  };
 }
 
-function renderPatterns(list) {
-  const container = document.getElementById('patterns');
-  if (!container) return;
+function handleEvent(event) {
+  const { type, data, timestamp } = event;
 
-  if (!list || list.length === 0) {
-    container.innerHTML = '<div class="no-patterns">No recent patterns detected</div>';
+  // Keep only last 50 events
+  events.unshift(event);
+  if (events.length > 50) events.pop();
+
+  // Update UI
+  if (type === 'STATS') updateStats(data);
+  if (type === 'SCANNER') updateScanner(data);
+  if (type === 'TRADE') updateTrade(data);
+}
+
+function updateStats(data) {
+  const el = document.getElementById('stats');
+  if (!el) return;
+  el.innerHTML = `
+    <div><strong>Win Rate:</strong> ${data.winRate}%</div>
+    <div><strong>PnL:</strong> $${data.pnl.toFixed(2)}</div>
+    <div><strong>Mode:</strong> ${data.mode}</div>
+  `;
+}
+
+function updateScanner(data) {
+  const container = document.getElementById('scanner');
+  if (!container) return;
+  if (!data || data.length === 0) {
+    container.innerHTML = '<div class="no-patterns">No active scans</div>';
     return;
   }
-
-  container.innerHTML = list.map(p => `
+  container.innerHTML = data.map(s => `
     <div class="pattern-card">
-      <h3>${escapeHtml(p.name)}</h3>
-      <p>${escapeHtml(p.message)}</p>
-      <small>${escapeHtml(p.date)}</small><br/>
-      <a href="${p.url}" target="_blank" rel="noopener noreferrer">View Commit (${p.sha})</a>
+      <h3>${s.symbol}</h3>
+      <p>${s.strategy} @ $${s.price?.toFixed(2)}</p>
     </div>
   `).join('');
 }
 
-function escapeHtml(s) {
-  if (!s) return '';
-  return s.replace(/[&<>"']/g, c => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  })[c]);
+function updateTrade(data) {
+  const container = document.getElementById('trades');
+  if (!container) return;
+  const row = document.createElement('div');
+  row.className = 'trade-row';
+  row.innerHTML = `
+    <strong>${data.symbol}</strong> 
+    <span class="${data.result}">${data.result}</span> 
+    $${data.pnl?.toFixed(2) || '0.00'}
+  `;
+  container.prepend(row);
+  // Keep only last 10
+  if (container.children.length > 10) container.removeChild(container.lastChild);
 }
 
-// Initial load + poll every 5 minutes
-loadPatterns();
-setInterval(loadPatterns, 300000);
+// Start SSE
+connectSSE();
+
+// Optional: Poll /patterns every 5 min (fallback)
+setInterval(() => fetch('/patterns').catch(() => {}), 300000);
