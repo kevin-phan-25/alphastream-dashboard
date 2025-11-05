@@ -1,39 +1,56 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AlphaStream Dashboard</title>
+  <title>AlphaStream Dashboard v2.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>  <!-- Tailwind CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>  <!-- Charts -->
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
-  <main>
-    <h1>AlphaStream Live Dashboard</h1>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4">
+  <main class="max-w-7xl mx-auto">
+    <header class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-cyan-400 mb-2">AlphaStream Live Dashboard v2.0</h1>
+      <p class="text-gray-400">Real-time trading bot | Ross Cameron + Gap & Go</p>
+    </header>
 
     <!-- STATS -->
-    <section>
-      <h2>Performance</h2>
-      <div id="stats" class="stats-grid">Loading...</div>
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div id="stats" class="bg-gray-800 p-6 rounded-lg shadow-lg animate-pulse">Loading stats...</div>
     </section>
 
-    <!-- SCANNER -->
-    <section>
-      <h2>Live Scanner</h2>
-      <div id="scanner" class="pattern-grid">Connecting...</div>
+    <!-- CHARTS -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div class="bg-gray-800 p-6 rounded-lg">
+        <h2 class="text-xl font-semibold mb-4 text-cyan-400">PnL Over Time</h2>
+        <canvas id="pnlChart" width="400" height="200"></canvas>
+      </div>
+      <div class="bg-gray-800 p-6 rounded-lg">
+        <h2 class="text-xl font-semibold mb-4 text-cyan-400">Win Rate Trend</h2>
+        <canvas id="winRateChart" width="400" height="200"></canvas>
+      </div>
     </section>
 
-    <!-- TRADES -->
-    <section>
-      <h2>Recent Trades</h2>
-      <div id="trades" class="trades-list"></div>
+    <!-- SCANNER & TRADES -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div>
+        <h2 class="text-xl font-semibold mb-4 text-green-400">Live Scanner</h2>
+        <div id="scanner" class="space-y-4">Connecting to scanner...</div>
+      </div>
+      <div>
+        <h2 class="text-xl font-semibold mb-4 text-yellow-400">Recent Trades</h2>
+        <div id="trades" class="space-y-4 max-h-96 overflow-y-auto"></div>
+      </div>
     </section>
 
-    <!-- PATTERNS (keep your old one) -->
-    <section>
-      <h2>Detected Chart Patterns</h2>
-      <div id="patterns" class="pattern-grid">Loading patterns...</div>
+    <!-- PATTERNS -->
+    <section class="bg-gray-800 p-6 rounded-lg">
+      <h2 class="text-xl font-semibold mb-4 text-blue-400">Detected Chart Patterns</h2>
+      <div id="patterns" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">Loading patterns...</div>
     </section>
   </main>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>
