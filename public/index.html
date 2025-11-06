@@ -1,56 +1,123 @@
-<!doctype html>
-<html lang="en" class="dark">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AlphaStream Dashboard v2.0</title>
-  <script src="https://cdn.tailwindcss.com"></script>  <!-- Tailwind CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>  <!-- Charts -->
-  <link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AlphaStream Live Dashboard v2.0</title>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #0f0f1a; color: #e0e0ff; margin: 0; padding: 20px; }
+    h1 { text-align: center; color: #00ff9d; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .card { background: #1a1a2e; border-radius: 12px; padding: 20px; margin: 15px 0; box-shadow: 0 4px 12px rgba(0,255,157,0.1); }
+    .status { text-align: center; font-weight: bold; color: #00ff9d; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #333; }
+    th { background: #16213e; color: #00ff9d; }
+    .chart { height: 200px; background: #16213e; margin: 15px 0; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #666; }
+  </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen p-4">
-  <main class="max-w-7xl mx-auto">
-    <header class="text-center mb-8">
-      <h1 class="text-4xl font-bold text-cyan-400 mb-2">AlphaStream Live Dashboard v2.0</h1>
-      <p class="text-gray-400">Real-time trading bot | Ross Cameron + Gap & Go</p>
-    </header>
+<body>
+  <div class="container">
+    <h1>AlphaStream Live Dashboard v2.0</h1>
+    <p style="text-align:center; color:#aaa;">Real-time trading bot | Ross Cameron + Gap & Go</p>
 
-    <!-- STATS -->
-    <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <div id="stats" class="bg-gray-800 p-6 rounded-lg shadow-lg animate-pulse">Loading stats...</div>
-    </section>
+    <div id="stats" class="card">
+      <div class="status">Loading stats...</div>
+    </div>
 
-    <!-- CHARTS -->
-    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-      <div class="bg-gray-800 p-6 rounded-lg">
-        <h2 class="text-xl font-semibold mb-4 text-cyan-400">PnL Over Time</h2>
-        <canvas id="pnlChart" width="400" height="200"></canvas>
-      </div>
-      <div class="bg-gray-800 p-6 rounded-lg">
-        <h2 class="text-xl font-semibold mb-4 text-cyan-400">Win Rate Trend</h2>
-        <canvas id="winRateChart" width="400" height="200"></canvas>
-      </div>
-    </section>
+    <div class="card">
+      <h2>Live Scanner</h2>
+      <div id="scanner-status" class="status">Connecting to scanner...</div>
+      <table id="scanner-table" style="display:none;">
+        <thead><tr><th>Symbol</th><th>Score</th><th>Gap%</th><th>RVOL</th><th>ML Conf</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
 
-    <!-- SCANNER & TRADES -->
-    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-      <div>
-        <h2 class="text-xl font-semibold mb-4 text-green-400">Live Scanner</h2>
-        <div id="scanner" class="space-y-4">Connecting to scanner...</div>
-      </div>
-      <div>
-        <h2 class="text-xl font-semibold mb-4 text-yellow-400">Recent Trades</h2>
-        <div id="trades" class="space-y-4 max-h-96 overflow-y-auto"></div>
-      </div>
-    </section>
+    <div class="card">
+      <h2>Recent Trades</h2>
+      <table id="trades-table">
+        <thead><tr><th>Time</th><th>Symbol</th><th>Action</th><th>Price</th><th>Qty</th><th>Trail%</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
 
-    <!-- PATTERNS -->
-    <section class="bg-gray-800 p-6 rounded-lg">
-      <h2 class="text-xl font-semibold mb-4 text-blue-400">Detected Chart Patterns</h2>
-      <div id="patterns" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">Loading patterns...</div>
-    </section>
-  </main>
+    <div class="card">
+      <h2>Detected Chart Patterns</h2>
+      <div id="patterns" class="chart">Loading patterns...</div>
+    </div>
+  </div>
 
-  <script type="module" src="app.js"></script>
+  <script>
+    const scannerStatus = document.getElementById('scanner-status');
+    const scannerTable = document.getElementById('scanner-table');
+    const scannerBody = scannerTable.querySelector('tbody');
+    const tradesBody = document.getElementById('trades-table').querySelector('tbody');
+    const statsDiv = document.getElementById('stats').querySelector('.status');
+    const patternsDiv = document.getElementById('patterns');
+
+    // === SSE CONNECTION ===
+    const eventSource = new EventSource('/api/webhook');  // ← CRITICAL: Use /api/webhook
+
+    eventSource.onopen = () => {
+      scannerStatus.textContent = 'Connected';
+      scannerStatus.style.color = '#00ff9d';
+    };
+
+    eventSource.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data);
+        if (event.type === 'heartbeat') return;
+
+        console.log('SSE:', event.type, event.data);
+
+        if (event.type === 'SCANNER' && Array.isArray(event.data)) {
+          scannerBody.innerHTML = '';
+          event.data.forEach(d => {
+            const row = `<tr>
+              <td><strong>${d.symbol}</strong></td>
+              <td>${d.score?.toFixed(1) || '-'}</td>
+              <td>${d.gap?.toFixed(1) || '-'}</td>
+              <td>${d.rvol?.toFixed(2) || '-'}</td>
+              <td>${d.ml_conf ? (d.ml_conf*100).toFixed(0)+'%' : '-'}</td>
+            </tr>`;
+            scannerBody.innerHTML += row;
+          });
+          scannerTable.style.display = 'table';
+        }
+
+        if (event.type === 'TRADE') {
+          const t = event.data;
+          const time = new Date(event.timestamp).toLocaleTimeString();
+          const row = `<tr>
+            <td>${time}</td>
+            <td><strong>${t.symbol}</strong></td>
+            <td style="color:${t.result==='ENTRY'?'#00ff9d':'#ff6b6b'}">${t.result}</td>
+            <td>$${parseFloat(t.price).toFixed(2)}</td>
+            <td>${t.qty}</td>
+            <td>${t.trailPct}%</td>
+          </tr>`;
+          tradesBody.innerHTML = row + tradesBody.innerHTML;
+        }
+
+        if (event.type === 'STATS') {
+          statsDiv.innerHTML = `
+            Open: <strong>${event.data.openPositions}</strong> |
+            Win Rate: <strong>${event.data.winRate}</strong> |
+            P&L: <strong style="color:${event.data.totalPnL>=0?'#00ff9d':'#ff6b6b'}">$${event.data.totalPnL}</strong>
+          `;
+        }
+
+        if (event.type === 'INIT') {
+          statsDiv.textContent = 'Bot initialized';
+        }
+      } catch (err) { console.error('SSE parse error:', err); }
+    };
+
+    eventSource.onerror = () => {
+      scannerStatus.textContent = 'Connection lost. Reconnecting...';
+      scannerStatus.style.color = '#ff6b6b';
+    };
+  </script>
 </body>
 </html>
