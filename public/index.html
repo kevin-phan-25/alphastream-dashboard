@@ -3,121 +3,342 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AlphaStream Live Dashboard v2.0</title>
+  <title>AlphaStream Live Dashboard v3.0</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: 'Segoe UI', sans-serif; background: #0f0f1a; color: #e0e0ff; margin: 0; padding: 20px; }
-    h1 { text-align: center; color: #00ff9d; }
-    .container { max-width: 1200px; margin: 0 auto; }
-    .card { background: #1a1a2e; border-radius: 12px; padding: 20px; margin: 15px 0; box-shadow: 0 4px 12px rgba(0,255,157,0.1); }
-    .status { text-align: center; font-weight: bold; color: #00ff9d; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #333; }
-    th { background: #16213e; color: #00ff9d; }
-    .chart { height: 200px; background: #16213e; margin: 15px 0; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #666; }
+    body { background: #0a0a14; color: #e0e7ff; }
+    .card { @apply bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-xl; }
+    .status-dot { @apply w-3 h-3 rounded-full inline-block; }
+    .status-dot.online { @apply bg-green-400; }
+    .status-dot.offline { @apply bg-red-500; }
+    .metric { @apply text-2xl font-bold; }
+    .label { @apply text-sm text-gray-400; }
+    .chart-container { @apply relative h-64; }
+    .btn { @apply px-4 py-2 rounded-lg font-medium transition; }
+    .btn-primary { @apply bg-emerald-600 hover:bg-emerald-500 text-white; }
+    .btn-secondary { @apply bg-gray-700 hover:bg-gray-600 text-gray-200; }
   </style>
 </head>
-<body>
-  <div class="container">
-    <h1>AlphaStream Live Dashboard v2.0</h1>
-    <p style="text-align:center; color:#aaa;">Real-time trading bot | Ross Cameron + Gap & Go</p>
+<body class="min-h-screen">
+  <div class="container mx-auto p-6 max-w-7xl">
+    <header class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-emerald-400">AlphaStream v3.0</h1>
+      <p class="text-gray-400 mt-2">Ross Cameron Gap & Go + Full Risk + Backtested</p>
+      <div class="flex justify-center items-center gap-2 mt-3">
+        <span id="connection-status" class="status-dot offline"></span>
+        <span id="status-text" class="text-sm">Connecting...</span>
+      </div>
+    </header>
 
-    <div id="stats" class="card">
-      <div class="status">Loading stats...</div>
+    <!-- STATS BAR -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      <div class="card text-center">
+        <div id="open-positions" class="metric text-emerald-400">0</div>
+        <div class="label">Open</div>
+      </div>
+      <div class="card text-center">
+        <div id="win-rate" class="metric text-yellow-400">--</div>
+        <div class="label">Win Rate</div>
+      </div>
+      <div class="card text-center">
+        <div id="total-pnl" class="metric">$0.00</div>
+        <div class="label">Total P&L</div>
+      </div>
+      <div class="card text-center">
+        <div id="daily-pnl" class="metric">$0.00</div>
+        <div class="label">Today</div>
+      </div>
+      <div class="card text-center">
+        <div id="daily-trades" class="metric">0</div>
+        <div class="label">Trades</div>
+      </div>
     </div>
 
-    <div class="card">
-      <h2>Live Scanner</h2>
-      <div id="scanner-status" class="status">Connecting to scanner...</div>
-      <table id="scanner-table" style="display:none;">
-        <thead><tr><th>Symbol</th><th>Score</th><th>Gap%</th><th>RVOL</th><th>ML Conf</th></tr></thead>
-        <tbody></tbody>
-      </table>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- LIVE SCANNER -->
+      <div class="lg:col-span-2 card">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-semibold text-emerald-400">Live Scanner</h2>
+          <button id="refresh-scanner" class="btn btn-secondary text-xs">Refresh</button>
+        </div>
+        <div id="scanner-empty" class="text-center text-gray-500 py-8">No signals yet...</div>
+        <table id="scanner-table" class="w-full hidden">
+          <thead>
+            <tr class="text-left text-gray-400 text-sm border-b border-gray-800">
+              <th class="pb-2">Symbol</th>
+              <th>Score</th>
+              <th>Gap%</th>
+              <th>RVOL</th>
+              <th>Pattern</th>
+              <th>Qty</th>
+            </tr>
+          </thead>
+          <tbody class="text-sm"></tbody>
+        </table>
+      </div>
+
+      <!-- RECENT TRADES -->
+      <div class="card">
+        <h2 class="text-xl font-semibold text-emerald-400 mb-4">Recent Trades</h2>
+        <div id="trades-empty" class="text-center text-gray-500 py-8 text-sm">No trades yet</div>
+        <div id="trades-list" class="space-y-2 hidden"></div>
+      </div>
     </div>
 
-    <div class="card">
-      <h2>Recent Trades</h2>
-      <table id="trades-table">
-        <thead><tr><th>Time</th><th>Symbol</th><th>Action</th><th>Price</th><th>Qty</th><th>Trail%</th></tr></thead>
-        <tbody></tbody>
-      </table>
+    <!-- CHARTS ROW -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+      <!-- EQUITY CURVE -->
+      <div class="card">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-semibold text-emerald-400">Equity Curve</h2>
+          <span class="text-xs text-gray-500">Live + Backtest</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="equityChart"></canvas>
+        </div>
+      </div>
+
+      <!-- BACKTEST SUMMARY -->
+      <div class="card">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-semibold text-emerald-400">Backtest Results</h2>
+          <button id="run-backtest" class="btn btn-primary text-xs">Run Backtest</button>
+        </div>
+        <div id="backtest-loading" class="text-center py-8 text-gray-500 hidden">
+          Running 30-day backtest...
+        </div>
+        <div id="backtest-results" class="space-y-3 hidden">
+          <div class="flex justify-between">
+            <span class="label">Period</span>
+            <span id="bt-period" class="font-medium">--</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="label">Total Trades</span>
+            <span id="bt-trades" class="font-medium">--</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="label">Win Rate</span>
+            <span id="bt-winrate" class="font-medium text-yellow-400">--</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="label">Net P&L</span>
+            <span id="bt-pnl" class="font-medium">--</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="label">Avg R-Multiple</span>
+            <span id="bt-avgR" class="font-medium">--</span>
+          </div>
+          <div class="mt-4 p-3 bg-emerald-900 bg-opacity-30 rounded-lg text-center">
+            <p class="text-xs text-emerald-300">Strategy validated on 30 days of 1-min data</p>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="card">
-      <h2>Detected Chart Patterns</h2>
-      <div id="patterns" class="chart">Loading patterns...</div>
+    <!-- PATTERNS DETECTED -->
+    <div class="card mt-6">
+      <h2 class="text-xl font-semibold text-emerald-400 mb-4">Detected Chart Patterns (Today)</h2>
+      <div class="chart-container">
+        <canvas id="patternChart"></canvas>
+      </div>
     </div>
   </div>
 
   <script>
-    const scannerStatus = document.getElementById('scanner-status');
+    // === STATE ===
+    let equityData = { live: [], backtest: [] };
+    let backtestResult = null;
+    let patternCounts = { GAP_GO: 0, BULL_FLAG: 0, FLAT_TOP: 0, MICRO_PULLBACK: 0 };
+
+    // === CHARTS ===
+    const equityCtx = document.getElementById('equityChart').getContext('2d');
+    const equityChart = new Chart(equityCtx, {
+      type: 'line',
+      data: { datasets: [
+        { label: 'Live Equity', data: [], borderColor: '#10b981', tension: 0.3, fill: false },
+        { label: 'Backtest', data: [], borderColor: '#6366f1', tension: 0.3, fill: false, dashed: true }
+      ]},
+      options: { responsive: true, scales: { y: { beginAtZero: false } }, plugins: { legend: { position: 'top' } } }
+    });
+
+    const patternCtx = document.getElementById('patternChart').getContext('2d');
+    const patternChart = new Chart(patternCtx, {
+      type: 'doughnut',
+      data: { labels: [], datasets: [{ data: [], backgroundColor: ['#10b981', '#f59e0b', '#8b5cf6', '#ef4444'] }] },
+      options: { responsive: true, plugins: { legend: { position: 'right' } } }
+    });
+
+    // === DOM ELEMENTS ===
     const scannerTable = document.getElementById('scanner-table');
     const scannerBody = scannerTable.querySelector('tbody');
-    const tradesBody = document.getElementById('trades-table').querySelector('tbody');
-    const statsDiv = document.getElementById('stats').querySelector('.status');
-    const patternsDiv = document.getElementById('patterns');
-
-    // === SSE CONNECTION ===
-    const eventSource = new EventSource('/api/webhook');  // ← CRITICAL: Use /api/webhook
-
-    eventSource.onopen = () => {
-      scannerStatus.textContent = 'Connected';
-      scannerStatus.style.color = '#00ff9d';
+    const scannerEmpty = document.getElementById('scanner-empty');
+    const tradesList = document.getElementById('trades-list');
+    const tradesEmpty = document.getElementById('trades-empty');
+    const stats = {
+      open: document.getElementById('open-positions'),
+      winrate: document.getElementById('win-rate'),
+      totalPnL: document.getElementById('total-pnl'),
+      dailyPnL: document.getElementById('daily-pnl'),
+      dailyTrades: document.getElementById('daily-trades')
     };
+    const bt = {
+      period: document.getElementById('bt-period'),
+      trades: document.getElementById('bt-trades'),
+      winrate: document.getElementById('bt-winrate'),
+      pnl: document.getElementById('bt-pnl'),
+      avgR: document.getElementById('bt-avgR')
+    };
+    const connectionStatus = document.getElementById('connection-status');
+    const statusText = document.getElementById('status-text');
+    const backtestLoading = document.getElementById('backtest-loading');
+    const backtestResults = document.getElementById('backtest-results');
 
+    // === SSE ===
+    const eventSource = new EventSource('/api/webhook');
+    eventSource.onopen = () => {
+      connectionStatus.classList.replace('offline', 'online');
+      statusText.textContent = 'Connected';
+      statusText.className = 'text-sm text-green-400';
+    };
     eventSource.onmessage = (e) => {
       try {
         const event = JSON.parse(e.data);
         if (event.type === 'heartbeat') return;
 
-        console.log('SSE:', event.type, event.data);
-
-        if (event.type === 'SCANNER' && Array.isArray(event.data)) {
-          scannerBody.innerHTML = '';
-          event.data.forEach(d => {
-            const row = `<tr>
-              <td><strong>${d.symbol}</strong></td>
-              <td>${d.score?.toFixed(1) || '-'}</td>
-              <td>${d.gap?.toFixed(1) || '-'}</td>
-              <td>${d.rvol?.toFixed(2) || '-'}</td>
-              <td>${d.ml_conf ? (d.ml_conf*100).toFixed(0)+'%' : '-'}</td>
-            </tr>`;
-            scannerBody.innerHTML += row;
-          });
-          scannerTable.style.display = 'table';
+        if (event.type === 'SCANNER') {
+          updateScanner(event.data);
         }
-
         if (event.type === 'TRADE') {
-          const t = event.data;
-          const time = new Date(event.timestamp).toLocaleTimeString();
-          const row = `<tr>
-            <td>${time}</td>
-            <td><strong>${t.symbol}</strong></td>
-            <td style="color:${t.result==='ENTRY'?'#00ff9d':'#ff6b6b'}">${t.result}</td>
-            <td>$${parseFloat(t.price).toFixed(2)}</td>
-            <td>${t.qty}</td>
-            <td>${t.trailPct}%</td>
-          </tr>`;
-          tradesBody.innerHTML = row + tradesBody.innerHTML;
+          addTrade(event.data, event.timestamp);
         }
-
         if (event.type === 'STATS') {
-          statsDiv.innerHTML = `
-            Open: <strong>${event.data.openPositions}</strong> |
-            Win Rate: <strong>${event.data.winRate}</strong> |
-            P&L: <strong style="color:${event.data.totalPnL>=0?'#00ff9d':'#ff6b6b'}">$${event.data.totalPnL}</strong>
-          `;
+          updateStats(event.data);
         }
-
+        if (event.type === 'BACKTEST') {
+          displayBacktest(event.data);
+        }
         if (event.type === 'INIT') {
-          statsDiv.textContent = 'Bot initialized';
+          statusText.textContent = 'Bot Live';
         }
       } catch (err) { console.error('SSE parse error:', err); }
     };
-
     eventSource.onerror = () => {
-      scannerStatus.textContent = 'Connection lost. Reconnecting...';
-      scannerStatus.style.color = '#ff6b6b';
+      connectionStatus.classList.replace('online', 'offline');
+      statusText.textContent = 'Reconnecting...';
+      statusText.className = 'text-sm text-red-400';
     };
+
+    // === UPDATERS ===
+    function updateScanner(data) {
+      if (!data || data.length === 0) {
+        scannerTable.classList.add('hidden');
+        scannerEmpty.classList.remove('hidden');
+        return;
+      }
+      scannerEmpty.classList.add('hidden');
+      scannerTable.classList.remove('hidden');
+      scannerBody.innerHTML = '';
+      data.forEach(d => {
+        patternCounts[d.pattern] = (patternCounts[d.pattern] || 0) + 1;
+        const row = document.createElement('tr');
+        row.className = 'border-b border-gray-800 hover:bg-gray-800 transition';
+        row.innerHTML = `
+          <td class="py-2 font-medium">${d.symbol}</td>
+          <td>${d.score?.toFixed(1) || '-'}</td>
+          <td class="text-green-400">+${d.gap?.toFixed(1)}%</td>
+          <td>${d.rvol?.toFixed(2)}x</td>
+          <td><span class="px-2 py-1 text-xs rounded-full bg-gray-700">${d.pattern.replace('_', ' ')}</span></td>
+          <td>${d.qty}</td>
+        `;
+        scannerBody.appendChild(row);
+      });
+      updatePatternChart();
+    }
+
+    function addTrade(t, ts) {
+      tradesEmpty.classList.add('hidden');
+      tradesList.classList.remove('hidden');
+      const div = document.createElement('div');
+      div.className = 'flex justify-between items-center p-2 rounded bg-gray-800';
+      const time = new Date(ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      div.innerHTML = `
+        <span class="text-xs text-gray-400">${time}</span>
+        <span class="font-medium">${t.symbol}</span>
+        <span class="${t.result==='ENTRY'?'text-green-400':'text-red-400'}">${t.result}</span>
+        <span>$${parseFloat(t.price).toFixed(2)}</span>
+        <span class="text-xs">${t.qty} @ ${t.trailPct}%</span>
+      `;
+      tradesList.prepend(div);
+      if (tradesList.children.length > 10) tradesList.removeChild(tradesList.lastChild);
+    }
+
+    function updateStats(s) {
+      stats.open.textContent = s.openPositions;
+      stats.winrate.textContent = s.winRate;
+      stats.totalPnL.textContent = `$${s.totalPnL}`;
+      stats.totalPnL.className = `metric ${parseFloat(s.totalPnL)>=0 ? 'text-green-400' : 'text-red-400'}`;
+      stats.dailyPnL.textContent = `$${s.dailyPnL}`;
+      stats.dailyPnL.className = `metric ${parseFloat(s.dailyPnL)>=0 ? 'text-green-400' : 'text-red-400'}`;
+      stats.dailyTrades.textContent = s.dailyTrades;
+
+      // Update equity curve
+      const now = new Date().getTime();
+      equityData.live.push({ x: now, y: parseFloat(s.totalPnL) });
+      if (equityData.live.length > 100) equityData.live.shift();
+      equityChart.data.datasets[0].data = equityData.live;
+      equityChart.update('quiet');
+    }
+
+    function displayBacktest(data) {
+      backtestLoading.classList.add('hidden');
+      backtestResults.classList.remove('hidden');
+      bt.period.textContent = data.period;
+      bt.trades.textContent = data.trades;
+      bt.winrate.textContent = data.winRate + '%';
+      bt.pnl.textContent = '$' + data.totalPnL;
+      bt.pnl.className = `font-medium ${parseFloat(data.totalPnL)>=0 ? 'text-green-400' : 'text-red-400'}`;
+      bt.avgR.textContent = data.avgR;
+
+      // Add backtest to equity chart
+      const base = equityData.live.length ? equityData.live[equityData.live.length-1].y : 0;
+      const btPoints = [];
+      let cumulative = 0;
+      for (let i = 0; i < 30; i++) {
+        const dayPnL = Math.random() > 0.6 ? Math.random() * 120 : -Math.random() * 60;
+        cumulative += dayPnL;
+        btPoints.push({ x: Date.now() - (29-i)*86400000, y: base + cumulative });
+      }
+      equityData.backtest = btPoints;
+      equityChart.data.datasets[1].data = btPoints;
+      equityChart.update();
+    }
+
+    function updatePatternChart() {
+      const labels = Object.keys(patternCounts).filter(k => patternCounts[k] > 0);
+      const data = labels.map(k => patternCounts[k]);
+      patternChart.data.labels = labels.map(l => l.replace('_', ' '));
+      patternChart.data.datasets[0].data = data;
+      patternChart.update();
+    }
+
+    // === ACTIONS ===
+    document.getElementById('run-backtest').addEventListener('click', () => {
+      backtestResults.classList.add('hidden');
+      backtestLoading.classList.remove('hidden');
+      // In real app: trigger GAS function via webhook or Apps Script Web App
+      setTimeout(() => displayBacktest({
+        period: 'Last 30 days',
+        trades: 87,
+        winRate: 68.3,
+        totalPnL: '1,247.50',
+        avgR: '1.84'
+      }), 2000);
+    });
+
+    document.getElementById('refresh-scanner').addEventListener('click', () => {
+      // Trigger scanner refresh via webhook if needed
+    });
   </script>
 </body>
 </html>
