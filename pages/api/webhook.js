@@ -1,7 +1,7 @@
 // pages/api/webhook.js
 let events = [];
 
-// POST: Receive from GAS
+// POST: From Google Apps Script
 export default function handler(req, res) {
   if (req.method === 'POST') {
     const secret = req.headers['x-webhook-secret'];
@@ -16,10 +16,11 @@ export default function handler(req, res) {
     events.push(event);
     if (events.length > 50) events.shift();
 
-    console.log('[WEBHOOK]', type, data);
-    return res.json({ success: true });
+    console.log('[WEBHOOK] POST', type, data);
+    return res.status(200).json({ success: true });
   }
 
+  // GET: SSE for frontend
   if (req.method === 'GET') {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
