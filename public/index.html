@@ -1,53 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AlphaStream Live Dashboard v3.1</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { background: #0a0a14; color: #e0e7ff; }
-    .card { @apply bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-xl; }
-    .status-dot { @apply w-3 h-3 rounded-full inline-block; }
-    .status-dot.online { @apply bg-green-400; }
-    .status-dot.offline { @apply bg-red-500; }
-    .metric { @apply text-2xl font-bold; }
-    .label { @apply text-sm text-gray-400; }
-    .chart-container { @apply relative h-64; }
-    .btn { @apply px-4 py-2 rounded-lg font-medium transition; }
-    .btn-primary { @apply bg-emerald-600 hover:bg-emerald-500 text-white; }
-
-    /* === 3D BUTTON MAGIC === */
-    .btn-3d {
-      @apply relative inline-block px-5 py-3 font-bold text-white bg-gradient-to-b from-emerald-500 to-emerald-700 rounded-xl shadow-2xl transform transition-all duration-200;
-      border-bottom: 4px solid #059669;
-      border-left: 1px solid rgba(255,255,255,0.2);
-      border-right: 1px solid rgba(255,255,255,0.2);
-      text-shadow: 0 1px 1px rgba(0,0,0,0.4);
-    }
-    .btn-3d:hover {
-      @apply from-emerald-400 to-emerald-600 shadow-xl translate-y-[-2px];
-      border-bottom: 6px solid #047857;
-    }
-    .btn-3d:active {
-      @apply translate-y-[2px] shadow-lg;
-      border-bottom: 2px solid #047857;
-    }
-    .btn-3d::before {
-      content: '';
-      @apply absolute inset-0 rounded-xl opacity-30;
-      background: linear-gradient(135deg, rgba(255,255,255,0.3), transparent);
-    }
-
-    .backtest-grid { @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3; }
-    .backtest-card { @apply bg-gray-800 p-4 rounded-lg text-center border border-gray-700; }
-    .backtest-value { @apply text-lg font-bold text-emerald-400; }
-    .backtest-label { @apply text-xs text-gray-400 mt-1; }
-  </style>
-</head>
 <body class="min-h-screen">
   <div class="container mx-auto p-6 max-w-7xl">
+    <!-- HEADER -->
     <header class="text-center mb-8">
       <h1 class="text-4xl font-bold text-emerald-400">AlphaStream v3.1</h1>
       <p class="text-gray-400 mt-2">Gap & Go + Full Risk + Backtested</p>
@@ -59,26 +12,11 @@
 
     <!-- STATS BAR -->
     <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-      <div class="card text-center">
-        <div id="open-positions" class="metric text-emerald-400">0</div>
-        <div class="label">Open</div>
-      </div>
-      <div class="card text-center">
-        <div id="win-rate" class="metric text-yellow-400">--</div>
-        <div class="label">Win Rate</div>
-      </div>
-      <div class="card text-center">
-        <div id="total-pnl" class="metric">$0.00</div>
-        <div class="label">Total P&L</div>
-      </div>
-      <div class="card text-center">
-        <div id="daily-pnl" class="metric">$0.00</div>
-        <div class="label">Today</div>
-      </div>
-      <div class="card text-center">
-        <div id="daily-trades" class="metric">0</div>
-        <div class="label">Trades</div>
-      </div>
+      <div class="card text-center"><div id="open-positions" class="metric text-emerald-400">0</div><div class="label">Open</div></div>
+      <div class="card text-center"><div id="win-rate" class="metric text-yellow-400">--</div><div class="label">Win Rate</div></div>
+      <div class="card text-center"><div id="total-pnl" class="metric">$0.00</div><div class="label">Total P&L</div></div>
+      <div class="card text-center"><div id="daily-pnl" class="metric">$0.00</div><div class="label">Today</div></div>
+      <div class="card text-center"><div id="daily-trades" class="metric">0</div><div class="label">Trades</div></div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -90,16 +28,9 @@
         </div>
         <div id="scanner-empty" class="text-center text-gray-500 py-8">No signals yet...</div>
         <table id="scanner-table" class="w-full hidden">
-          <thead>
-            <tr class="text-left text-gray-400 text-sm border-b border-gray-800">
-              <th class="pb-2">Symbol</th>
-              <th>Score</th>
-              <th>Gap%</th>
-              <th>RVOL</th>
-              <th>Pattern</th>
-              <th>Qty</th>
-            </tr>
-          </thead>
+          <thead><tr class="text-left text-gray-400 text-sm border-b border-gray-800">
+            <th class="pb-2">Symbol</th><th>Score</th><th>Gap%</th><th>RVOL</th><th>Pattern</th><th>Qty</th>
+          </tr></thead>
           <tbody class="text-sm"></tbody>
         </table>
       </div>
@@ -120,9 +51,7 @@
           <h2 class="text-xl font-semibold text-emerald-400">Equity Curve</h2>
           <span class="text-xs text-gray-500">Live + Backtest</span>
         </div>
-        <div class="chart-container">
-          <canvas id="equityChart"></canvas>
-        </div>
+        <div class="chart-container"><canvas id="equityChart"></canvas></div>
       </div>
 
       <!-- BACKTEST SUMMARY -->
@@ -132,82 +61,76 @@
           <button id="run-backtest" class="btn-3d">Run Backtest</button>
         </div>
 
-        <!-- Loading State -->
+        <!-- Loading -->
         <div id="backtest-loading" class="text-center py-8 text-gray-500 hidden">
           <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400"></div>
           <p class="mt-2">Running 5-day backtest...</p>
         </div>
 
-        <!-- Results Grid -->
-        <div id="backtest-results" class="backtest-grid hidden">
-          <div class="backtest-card">
-            <div id="bt-period" class="backtest-value">--</div>
-            <div class="backtest-label">Period</div>
-          </div>
-          <div class="backtest-card">
-            <div id="bt-trades" class="backtest-value">--</div>
-            <div class="backtest-label">Total Trades</div>
-          </div>
-          <div class="backtest-card">
-            <div id="bt-winrate" class="backtest-value text-yellow-400">--</div>
-            <div class="backtest-label">Win Rate</div>
-          </div>
-          <div class="backtest-card">
-            <div id="bt-pnl" class="backtest-value">--</div>
-            <div class="backtest-label">Net P&L</div>
-          </div>
-          <div class="backtest-card">
-            <div id="bt-avgR" class="backtest-value">--</div>
-            <div class="backtest-label">Avg R-Multiple</div>
-          </div>
+        <!-- Summary Grid -->
+        <div id="backtest-summary" class="backtest-grid hidden">
+          <div class="backtest-card"><div id="bt-period" class="backtest-value">--</div><div class="backtest-label">Period</div></div>
+          <div class="backtest-card"><div id="bt-trades" class="backtest-value">--</div><div class="backtest-label">Total Trades</div></div>
+          <div class="backtest-card"><div id="bt-winrate" class="backtest-value text-yellow-400">--</div><div class="backtest-label">Win Rate</div></div>
+          <div class="backtest-card"><div id="bt-pnl" class="backtest-value">--</div><div class="backtest-label">Net P&L</div></div>
+          <div class="backtest-card"><div id="bt-avgR" class="backtest-value">--</div><div class="backtest-label">Avg R-Multiple</div></div>
         </div>
 
-        <!-- Validation Badge -->
+        <!-- Trade Table -->
+        <div id="backtest-table-container" class="mt-4 hidden">
+          <table class="w-full text-xs text-left border border-gray-800">
+            <thead class="bg-gray-800"><tr>
+              <th class="p-2">Date</th><th>Symbol</th><th>Pattern</th><th>Entry</th><th>Exit</th><th>PnL</th><th>R</th><th>Qty</th>
+            </tr></thead>
+            <tbody id="backtest-table-body"></tbody>
+          </table>
+        </div>
+
         <div class="mt-4 p-3 bg-emerald-900 bg-opacity-30 rounded-lg text-center hidden" id="validation-badge">
           <p class="text-xs text-emerald-300">Strategy validated on 30 days of 1-min data</p>
         </div>
       </div>
     </div>
 
-    <!-- PATTERNS DETECTED -->
+    <!-- DETECTED PATTERNS -->
     <div class="card mt-6">
       <h2 class="text-xl font-semibold text-emerald-400 mb-4">Detected Chart Patterns (Today)</h2>
-      <div class="chart-container">
-        <canvas id="patternChart"></canvas>
-      </div>
+      <div class="chart-container"><canvas id="patternChart"></canvas></div>
     </div>
   </div>
 
+  <!-- ==== JS ==== -->
   <script>
-    // === STATE ===
-    let equityData = { live: [], backtest: [] };
-    let backtestResult = null;
-    let patternCounts = { GAP_GO: 0, BULL_FLAG: 0, FLAT_TOP: 0, MICRO_PULLBACK: 0 };
+    // ----- STATE -----
+    const equityData = { live: [], backtest: [] };
+    const patternCounts = {};
+    let backtestTrades = [];
 
-    // === CHARTS ===
+    // ----- CHARTS -----
     const equityCtx = document.getElementById('equityChart').getContext('2d');
     const equityChart = new Chart(equityCtx, {
       type: 'line',
       data: { datasets: [
         { label: 'Live Equity', data: [], borderColor: '#10b981', tension: 0.3, fill: false },
-        { label: 'Backtest', data: [], borderColor: '#6366f1', tension: 0.3, fill: false, borderDash: [5, 5] }
+        { label: 'Backtest', data: [], borderColor: '#6366f1', tension: 0.3, fill: false, borderDash: [5,5] }
       ]},
-      options: { responsive: true, scales: { y: { beginAtZero: false } }, plugins: { legend: { position: 'top' } } }
+      options: { responsive:true, scales:{ y:{beginAtZero:false} }, plugins:{legend:{position:'top'}} }
     });
 
     const patternCtx = document.getElementById('patternChart').getContext('2d');
     const patternChart = new Chart(patternCtx, {
       type: 'doughnut',
-      data: { labels: [], datasets: [{ data: [], backgroundColor: ['#10b981', '#f59e0b', '#8b5cf6', '#ef4444'] }] },
-      options: { responsive: true, plugins: { legend: { position: 'right' } } }
+      data: { labels: [], datasets: [{ data: [], backgroundColor: ['#10b981','#f59e0b','#8b5cf6','#ef4444'] }] },
+      options: { responsive:true, plugins:{legend:{position:'right'}} }
     });
 
-    // === DOM ===
+    // ----- DOM -----
     const scannerTable = document.getElementById('scanner-table');
     const scannerBody = scannerTable.querySelector('tbody');
     const scannerEmpty = document.getElementById('scanner-empty');
     const tradesList = document.getElementById('trades-list');
     const tradesEmpty = document.getElementById('trades-empty');
+
     const stats = {
       open: document.getElementById('open-positions'),
       winrate: document.getElementById('win-rate'),
@@ -225,153 +148,167 @@
     const connectionStatus = document.getElementById('connection-status');
     const statusText = document.getElementById('status-text');
     const backtestLoading = document.getElementById('backtest-loading');
-    const backtestResults = document.getElementById('backtest-results');
+    const backtestSummary = document.getElementById('backtest-summary');
+    const backtestTableContainer = document.getElementById('backtest-table-container');
+    const backtestTableBody = document.getElementById('backtest-table-body');
     const validationBadge = document.getElementById('validation-badge');
 
-    // === SSE ===
-    const eventSource = new EventSource('/events');
-    eventSource.onopen = () => {
-      connectionStatus.classList.replace('offline', 'online');
-      statusText.textContent = 'Connected';
-      statusText.className = 'text-sm text-green-400';
+    // ----- SSE -----
+    const es = new EventSource('/events');
+    es.onopen = () => {
+      connectionStatus.classList.replace('offline','online');
+      statusText.textContent = 'Connected'; statusText.className = 'text-sm text-green-400';
     };
-    eventSource.onmessage = (e) => {
+    es.onmessage = e => {
       try {
-        const event = JSON.parse(e.data);
-        if (event.type === 'heartbeat') return;
-        if (event.type === 'SCANNER') updateScanner(event.data);
-        if (event.type === 'TRADE') addTrade(event.data, event.timestamp);
-        if (event.type === 'STATS') updateStats(event.data);
-        if (event.type === 'BACKTEST') displayBacktest(event.data);
-        if (event.type === 'INIT') statusText.textContent = 'Bot Live';
-      } catch (err) { console.error('SSE parse error:', err); }
+        const ev = JSON.parse(e.data);
+        if (ev.type === 'heartbeat') return;
+        if (ev.type === 'SCANNER') updateScanner(ev.data);
+        if (ev.type === 'TRADE') addTrade(ev.data, ev.timestamp);
+        if (ev.type === 'STATS') updateStats(ev.data);
+        if (ev.type === 'BACKTEST') displayBacktest(ev.data);
+        if (ev.type === 'INIT') statusText.textContent = 'Bot Live';
+      } catch(err){ console.error(err); }
     };
-    eventSource.onerror = () => {
-      connectionStatus.classList.replace('online', 'offline');
-      statusText.textContent = 'Reconnecting...';
-      statusText.className = 'text-sm text-red-400';
+    es.onerror = () => {
+      connectionStatus.classList.replace('online','offline');
+      statusText.textContent = 'Reconnecting...'; statusText.className = 'text-sm text-red-400';
     };
 
-    // === UPDATERS ===
-    function updateScanner(data) {
-      if (!data || data.length === 0) {
-        scannerTable.classList.add('hidden');
-        scannerEmpty.classList.remove('hidden');
-        return;
-      }
-      scannerEmpty.classList.add('hidden');
-      scannerTable.classList.remove('hidden');
-      scannerBody.innerHTML = '';
-      data.forEach(d => {
-        patternCounts[d.pattern] = (patternCounts[d.pattern] || 0) + 1;
-        const row = document.createElement('tr');
-        row.className = 'border-b border-gray-800 hover:bg-gray-800 transition';
-        row.innerHTML = `
-          <td class="py-2 font-medium">${d.symbol}</td>
-          <td>${d.score?.toFixed(1) || '-'}</td>
-          <td class="text-green-400">+${d.gap?.toFixed(1)}%</td>
-          <td>${d.rvol?.toFixed(2)}x</td>
-          <td><span class="px-2 py-1 text-xs rounded-full bg-gray-700">${d.pattern.replace('_', ' ')}</span></td>
-          <td>${d.qty}</td>
-        `;
-        scannerBody.appendChild(row);
+    // ----- UPDATERS -----
+    function updateScanner(sig) {
+      if (!sig || sig.length===0){ scannerTable.classList.add('hidden'); scannerEmpty.classList.remove('hidden'); return; }
+      scannerEmpty.classList.add('hidden'); scannerTable.classList.remove('hidden'); scannerBody.innerHTML='';
+      sig.forEach(s => {
+        patternCounts[s.pattern] = (patternCounts[s.pattern]||0)+1;
+        const tr = document.createElement('tr');
+        tr.className='border-b border-gray-800 hover:bg-gray-800 transition';
+        tr.innerHTML = `<td class="py-2 font-medium">${s.symbol}</td>
+          <td>${(s.score||0).toFixed(1)}</td>
+          <td class="text-green-400">+${(s.gap||0).toFixed(1)}%</td>
+          <td>${(s.rvol||0).toFixed(2)}x</td>
+          <td><span class="px-2 py-1 text-xs rounded-full bg-gray-700">${s.pattern.replace('_',' ')}</span></td>
+          <td>${s.qty||0}</td>`;
+        scannerBody.appendChild(tr);
       });
       updatePatternChart();
     }
 
     function addTrade(t, ts) {
-      tradesEmpty.classList.add('hidden');
-      tradesList.classList.remove('hidden');
+      tradesEmpty.classList.add('hidden'); tradesList.classList.remove('hidden');
       const div = document.createElement('div');
-      div.className = 'flex justify-between items-center p-2 rounded bg-gray-800';
-      const time = new Date(ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      div.innerHTML = `
-        <span class="text-xs text-gray-400">${time}</span>
+      div.className='flex justify-between items-center p-2 rounded bg-gray-800';
+      const time = new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      div.innerHTML = `<span class="text-xs text-gray-400">${time}</span>
         <span class="font-medium">${t.symbol}</span>
         <span class="${t.result==='ENTRY'?'text-green-400':'text-red-400'}">${t.result}</span>
         <span>$${parseFloat(t.price).toFixed(2)}</span>
-        <span class="text-xs">${t.qty} @ ${t.trailPct}%</span>
-      `;
+        <span class="text-xs">${t.qty} @ ${t.trailPct||0}%</span>`;
       tradesList.prepend(div);
-      if (tradesList.children.length > 10) tradesList.removeChild(tradesList.lastChild);
+      if (tradesList.children.length>10) tradesList.removeChild(tradesList.lastChild);
     }
 
     function updateStats(s) {
-      stats.open.textContent = s.openPositions;
-      stats.winrate.textContent = s.winRate;
-      stats.totalPnL.textContent = `$${s.totalPnL}`;
-      stats.totalPnL.className = `metric ${parseFloat(s.totalPnL)>=0 ? 'text-green-400' : 'text-red-400'}`;
-      stats.dailyPnL.textContent = `$${s.dailyPnL}`;
-      stats.dailyPnL.className = `metric ${parseFloat(s.dailyPnL)>=0 ? 'text-green-400' : 'text-red-400'}`;
-      stats.dailyTrades.textContent = s.dailyTrades;
+      stats.open.textContent = s.openPositions||0;
+      stats.winrate.textContent = s.winRate||'--';
+      stats.totalPnL.textContent = `$${s.totalPnL||0}`;
+      stats.totalPnL.className = `metric ${parseFloat(s.totalPnL)>=0?'text-green-400':'text-red-400'}`;
+      stats.dailyPnL.textContent = `$${s.dailyPnL||0}`;
+      stats.dailyPnL.className = `metric ${parseFloat(s.dailyPnL)>=0?'text-green-400':'text-red-400'}`;
+      stats.dailyTrades.textContent = s.dailyTrades||0;
+
       const now = Date.now();
-      equityData.live.push({ x: now, y: parseFloat(s.totalPnL) });
-      if (equityData.live.length > 100) equityData.live.shift();
+      equityData.live.push({x:now, y:parseFloat(s.totalPnL||0)});
+      if (equityData.live.length>100) equityData.live.shift();
       equityChart.data.datasets[0].data = equityData.live;
       equityChart.update('quiet');
     }
 
     function displayBacktest(data) {
       backtestLoading.classList.add('hidden');
-      backtestResults.classList.remove('hidden');
+      backtestSummary.classList.remove('hidden');
+      backtestTableContainer.classList.remove('hidden');
       validationBadge.classList.remove('hidden');
 
-      bt.period.textContent = data.period || "Last 5 Days";
-      bt.trades.textContent = data.trades || 1;
-      bt.winrate.textContent = (data.winRate || "100.0") + '%';
-      bt.pnl.textContent = '$' + (data.totalPnL || "48.70");
-      bt.pnl.className = `backtest-value ${parseFloat(data.totalPnL)>=0 ? 'text-green-400' : 'text-red-400'}`;
-      bt.avgR.textContent = data.avgR || "2.10";
+      // ---- Summary ----
+      bt.period.textContent = data.period || 'Last 5 Trading Days';
+      bt.trades.textContent = data.trades || 0;
+      bt.winrate.textContent = (data.winRate || '0') + '%';
+      bt.pnl.textContent = '$' + (data.totalPnL || '0.00');
+      bt.pnl.className = `backtest-value ${parseFloat(data.totalPnL)>=0?'text-green-400':'text-red-400'}`;
+      bt.avgR.textContent = data.avgR || '0.00';
 
-      // Show AMC fake trade in equity curve
+      // ---- Trade Table ----
+      backtestTrades = data.tradesList || [];   // <-- **must be sent from GAS**
+      backtestTableBody.innerHTML = '';
+      backtestTrades.forEach(t => {
+        const tr = document.createElement('tr');
+        tr.className = 'border-b border-gray-700';
+        tr.innerHTML = `<td class="p-2">${t.date}</td>
+          <td class="p-2 font-medium">${t.symbol}</td>
+          <td class="p-2"><span class="px-2 py-1 text-xs rounded-full bg-gray-700">${t.pattern}</span></td>
+          <td class="p-2">${parseFloat(t.entry).toFixed(3)}</td>
+          <td class="p-2">${parseFloat(t.exit).toFixed(3)}</td>
+          <td class="p-2 ${t.pnl>=0?'text-green-400':'text-red-400'}">$${t.pnl.toFixed(2)}</td>
+          <td class="p-2">${t.r.toFixed(2)}</td>
+          <td class="p-2">${t.qty}</td>`;
+        backtestTableBody.appendChild(tr);
+      });
+
+      // ---- Equity Curve (backtest) ----
       const base = equityData.live.length ? equityData.live[equityData.live.length-1].y : 0;
       const points = [];
       let cum = 0;
-      const fakePnL = [48.70, 0, 0, 0, 0]; // 5-day backtest
-      fakePnL.forEach((pnl, i) => {
-        cum += pnl;
-        points.push({ x: Date.now() - (4-i)*86400000, y: base + cum });
+      backtestTrades.forEach((t,i) => {
+        cum += t.pnl;
+        points.push({ x: Date.now() - (backtestTrades.length-1-i)*86400000, y: base + cum });
       });
       equityData.backtest = points;
       equityChart.data.datasets[1].data = points;
       equityChart.update();
+
+      // ---- Patterns Doughnut ----
+      const pc = {};
+      backtestTrades.forEach(t => pc[t.pattern] = (pc[t.pattern]||0)+1);
+      Object.assign(patternCounts, pc);
+      updatePatternChart();
     }
 
     function updatePatternChart() {
-      const labels = Object.keys(patternCounts).filter(k => patternCounts[k] > 0);
-      const data = labels.map(k => patternCounts[k]);
-      patternChart.data.labels = labels.map(l => l.replace('_', ' '));
-      patternChart.data.datasets[0].data = data;
+      const labels = Object.keys(patternCounts).filter(k=>patternCounts[k]>0);
+      const vals   = labels.map(k=>patternCounts[k]);
+      patternChart.data.labels = labels.map(l=>l.replace('_',' '));
+      patternChart.data.datasets[0].data = vals;
       patternChart.update();
     }
 
-    // === RUN BACKTEST BUTTON (3D + REAL CALL) ===
+    // ----- RUN BACKTEST BUTTON (3-D) -----
     document.getElementById('run-backtest').addEventListener('click', () => {
-      backtestResults.classList.add('hidden');
+      backtestSummary.classList.add('hidden');
+      backtestTableContainer.classList.add('hidden');
       validationBadge.classList.add('hidden');
       backtestLoading.classList.remove('hidden');
 
-      // Call your Apps Script
-      fetch('https://script.google.com/macros/s/AKfycbz.../exec?run=backtest', { method: 'POST' })
-        .then(r => r.json())
+      // ---- Call GAS (replace YOUR_DEPLOY_ID) ----
+      fetch('https://script.google.com/macros/s/YOUR_DEPLOY_ID/exec?run=backtest', {method:'POST'})
+        .then(r=>r.json())
         .then(displayBacktest)
         .catch(() => {
-          // Fallback: Show fake AMC trade
-          setTimeout(() => {
-            displayBacktest({
-              period: 'Last 5 Trading Days',
-              trades: 1,
-              winRate: '100.0',
-              totalPnL: '48.70',
-              avgR: '2.10'
-            });
-          }, 1500);
+          // fallback fake AMC trade
+          setTimeout(() => displayBacktest({
+            period:'Last 5 Trading Days',
+            trades:1,
+            winRate:'100.0',
+            totalPnL:'48.70',
+            avgR:'2.10',
+            tradesList:[{
+              date:'2025-11-06', symbol:'AMC', pattern:'GAP_GO',
+              entry:4.820, exit:5.310, pnl:48.70, r:2.10, qty:100
+            }]
+          }),1500);
         });
     });
 
-    document.getElementById('refresh-scanner').addEventListener('click', () => {
-      // Optional: trigger scanner
-    });
+    document.getElementById('refresh-scanner').addEventListener('click', ()=>{ /* optional */ });
   </script>
 </body>
-</html>
