@@ -1,4 +1,4 @@
-// api/refresh.js
+// api/refresh.js  ← MUST BE IN PROJECT ROOT
 let latestScanner = [];
 let latestStats = {};
 
