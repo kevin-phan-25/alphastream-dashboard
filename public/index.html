@@ -1,9 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AlphaStream Live Dashboard v3.2</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background: #0a0a14; color: #e0e7ff; }
+    .card { @apply bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-xl; }
+    .status-dot { @apply w-3 h-3 rounded-full inline-block; }
+    .status-dot.online { @apply bg-green-400; }
+    .status-dot.offline { @apply bg-red-500; }
+    .metric { @apply text-2xl font-bold; }
+    .label { @apply text-sm text-gray-400; }
+    .chart-container { @apply relative h-64; }
+    .btn { @apply px-4 py-2 rounded-lg font-medium transition; }
+    .btn-primary { @apply bg-emerald-600 hover:bg-emerald-500 text-white; }
+    .btn-secondary { @apply bg-gray-700 hover:bg-gray-600 text-gray-200; }
+    .backtest-grid { @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3; }
+    .backtest-card { @apply bg-gray-800 p-4 rounded-lg text-center border border-gray-700; }
+    .backtest-value { @apply text-lg font-bold text-emerald-400; }
+    .backtest-label { @apply text-xs text-gray-400 mt-1; }
+
+    /* 3D BUTTON */
+    .btn-3d {
+      @apply relative inline-block px-5 py-3 font-bold text-white bg-gradient-to-b from-emerald-500 to-emerald-700 rounded-xl shadow-2xl transform transition-all duration-200;
+      border-bottom: 4px solid #059669;
+      text-shadow: 0 1px 1px rgba(0,0,0,0.4);
+    }
+    .btn-3d:hover { @apply from-emerald-400 to-emerald-600 shadow-xl translate-y-[-2px]; border-bottom: 6px solid #047857; }
+    .btn-3d:active { @apply translate-y-[2px] shadow-lg; border-bottom: 2px solid #047857; }
+    .btn-3d::before { content: ''; @apply absolute inset-0 rounded-xl opacity-30; background: linear-gradient(135deg, rgba(255,255,255,0.3), transparent); }
+  </style>
+</head>
 <body class="min-h-screen">
   <div class="container mx-auto p-6 max-w-7xl">
     <!-- HEADER -->
     <header class="text-center mb-8">
-      <h1 class="text-4xl font-bold text-emerald-400">AlphaStream v3.1</h1>
-      <p class="text-gray-400 mt-2">Gap & Go + Full Risk + Backtested</p>
+      <h1 class="text-4xl font-bold text-emerald-400">AlphaStream v3.2</h1>
+      <p class="text-gray-400 mt..w-2">Gap & Go + Full Risk + Backtested</p>
       <div class="flex justify-center items-center gap-2 mt-3">
         <span id="connection-status" class="status-dot offline"></span>
         <span id="status-text" class="text-sm">Connecting...</span>
@@ -29,7 +65,7 @@
         <div id="scanner-empty" class="text-center text-gray-500 py-8">No signals yet...</div>
         <table id="scanner-table" class="w-full hidden">
           <thead><tr class="text-left text-gray-400 text-sm border-b border-gray-800">
-            <th class="pb-2">Symbol</th><th>Score</th><th>Gap%</th><th>RVOL</th><th>Pattern</th><th>Qty</th>
+            <th class="pb-2">Symbol</th><th>Score</th><th>Gap%</><th>RVOL</th><th>Pattern</th><th>Qty</th>
           </tr></thead>
           <tbody class="text-sm"></tbody>
         </table>
@@ -54,7 +90,7 @@
         <div class="chart-container"><canvas id="equityChart"></canvas></div>
       </div>
 
-      <!-- BACKTEST SUMMARY -->
+      <!-- BACKTEST RESULTS -->
       <div class="card">
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-xl font-semibold text-emerald-400">Backtest Results</h2>
@@ -67,7 +103,7 @@
           <p class="mt-2">Running 5-day backtest...</p>
         </div>
 
-        <!-- Summary Grid -->
+        <!-- Summary -->
         <div id="backtest-summary" class="backtest-grid hidden">
           <div class="backtest-card"><div id="bt-period" class="backtest-value">--</div><div class="backtest-label">Period</div></div>
           <div class="backtest-card"><div id="bt-trades" class="backtest-value">--</div><div class="backtest-label">Total Trades</div></div>
@@ -77,12 +113,12 @@
         </div>
 
         <!-- Trade Table -->
-        <div id="backtest-table-container" class="mt-4 hidden">
+        <div id="backtest-table-container" class="mt-4 hidden overflow-x-auto">
           <table class="w-full text-xs text-left border border-gray-800">
             <thead class="bg-gray-800"><tr>
               <th class="p-2">Date</th><th>Symbol</th><th>Pattern</th><th>Entry</th><th>Exit</th><th>PnL</th><th>R</th><th>Qty</th>
             </tr></thead>
-            <tbody id="backtest-table-body"></tbody>
+            <tbody id="backtest-table-body" class="divide-y divide-gray-700"></tbody>
           </table>
         </div>
 
@@ -92,42 +128,37 @@
       </div>
     </div>
 
-    <!-- DETECTED PATTERNS -->
+    <!-- PATTERNS -->
     <div class="card mt-6">
       <h2 class="text-xl font-semibold text-emerald-400 mb-4">Detected Chart Patterns (Today)</h2>
       <div class="chart-container"><canvas id="patternChart"></canvas></div>
     </div>
   </div>
 
-  <!-- ==== JS ==== -->
+  <!-- JS -->
   <script>
-    // ----- STATE -----
     const equityData = { live: [], backtest: [] };
     const patternCounts = {};
     let backtestTrades = [];
 
-    // ----- CHARTS -----
-    const equityCtx = document.getElementById('equityChart').getContext('2d');
-    const equityChart = new Chart(equityCtx, {
+    const equityChart = new Chart(document.getElementById('equityChart'), {
       type: 'line',
       data: { datasets: [
         { label: 'Live Equity', data: [], borderColor: '#10b981', tension: 0.3, fill: false },
         { label: 'Backtest', data: [], borderColor: '#6366f1', tension: 0.3, fill: false, borderDash: [5,5] }
       ]},
-      options: { responsive:true, scales:{ y:{beginAtZero:false} }, plugins:{legend:{position:'top'}} }
+      options: { responsive: true, scales: { y: { beginAtZero: false } }, plugins: { legend: { position: 'top' } } }
     });
 
-    const patternCtx = document.getElementById('patternChart').getContext('2d');
-    const patternChart = new Chart(patternCtx, {
+    const patternChart = new Chart(document.getElementById('patternChart'), {
       type: 'doughnut',
       data: { labels: [], datasets: [{ data: [], backgroundColor: ['#10b981','#f59e0b','#8b5cf6','#ef4444'] }] },
-      options: { responsive:true, plugins:{legend:{position:'right'}} }
+      options: { responsive: true, plugins: { legend: { position: 'right' } } }
     });
 
-    // ----- DOM -----
-    const scannerTable = document.getElementById('scanner-table');
-    const scannerBody = scannerTable.querySelector('tbody');
+    const scannerBody = document.querySelector('#scanner-table tbody');
     const scannerEmpty = document.getElementById('scanner-empty');
+    const scannerTable = document.getElementById('scanner-table');
     const tradesList = document.getElementById('trades-list');
     const tradesEmpty = document.getElementById('trades-empty');
 
@@ -153,16 +184,11 @@
     const backtestTableBody = document.getElementById('backtest-table-body');
     const validationBadge = document.getElementById('validation-badge');
 
-    // ----- SSE -----
     const es = new EventSource('/events');
-    es.onopen = () => {
-      connectionStatus.classList.replace('offline','online');
-      statusText.textContent = 'Connected'; statusText.className = 'text-sm text-green-400';
-    };
+    es.onopen = () => { connectionStatus.classList.replace('offline','online'); statusText.textContent = 'Connected'; statusText.className = 'text-sm text-green-400'; };
     es.onmessage = e => {
       try {
         const ev = JSON.parse(e.data);
-        if (ev.type === 'heartbeat') return;
         if (ev.type === 'SCANNER') updateScanner(ev.data);
         if (ev.type === 'TRADE') addTrade(ev.data, ev.timestamp);
         if (ev.type === 'STATS') updateStats(ev.data);
@@ -170,12 +196,8 @@
         if (ev.type === 'INIT') statusText.textContent = 'Bot Live';
       } catch(err){ console.error(err); }
     };
-    es.onerror = () => {
-      connectionStatus.classList.replace('online','offline');
-      statusText.textContent = 'Reconnecting...'; statusText.className = 'text-sm text-red-400';
-    };
+    es.onerror = () => { connectionStatus.classList.replace('online','offline'); statusText.textContent = 'Reconnecting...'; statusText.className = 'text-sm text-red-400'; };
 
-    // ----- UPDATERS -----
     function updateScanner(sig) {
       if (!sig || sig.length===0){ scannerTable.classList.add('hidden'); scannerEmpty.classList.remove('hidden'); return; }
       scannerEmpty.classList.add('hidden'); scannerTable.classList.remove('hidden'); scannerBody.innerHTML='';
@@ -230,16 +252,14 @@
       backtestTableContainer.classList.remove('hidden');
       validationBadge.classList.remove('hidden');
 
-      // ---- Summary ----
-      bt.period.textContent = data.period || 'Last 5 Trading Days';
+      bt.period.textContent = data.period || 'Last 5 Days';
       bt.trades.textContent = data.trades || 0;
       bt.winrate.textContent = (data.winRate || '0') + '%';
       bt.pnl.textContent = '$' + (data.totalPnL || '0.00');
       bt.pnl.className = `backtest-value ${parseFloat(data.totalPnL)>=0?'text-green-400':'text-red-400'}`;
       bt.avgR.textContent = data.avgR || '0.00';
 
-      // ---- Trade Table ----
-      backtestTrades = data.tradesList || [];   // <-- **must be sent from GAS**
+      backtestTrades = data.tradesList || [];
       backtestTableBody.innerHTML = '';
       backtestTrades.forEach(t => {
         const tr = document.createElement('tr');
@@ -255,7 +275,7 @@
         backtestTableBody.appendChild(tr);
       });
 
-      // ---- Equity Curve (backtest) ----
+      // Equity curve
       const base = equityData.live.length ? equityData.live[equityData.live.length-1].y : 0;
       const points = [];
       let cum = 0;
@@ -267,7 +287,7 @@
       equityChart.data.datasets[1].data = points;
       equityChart.update();
 
-      // ---- Patterns Doughnut ----
+      // Patterns
       const pc = {};
       backtestTrades.forEach(t => pc[t.pattern] = (pc[t.pattern]||0)+1);
       Object.assign(patternCounts, pc);
@@ -276,39 +296,28 @@
 
     function updatePatternChart() {
       const labels = Object.keys(patternCounts).filter(k=>patternCounts[k]>0);
-      const vals   = labels.map(k=>patternCounts[k]);
+      const vals = labels.map(k=>patternCounts[k]);
       patternChart.data.labels = labels.map(l=>l.replace('_',' '));
       patternChart.data.datasets[0].data = vals;
       patternChart.update();
     }
 
-    // ----- RUN BACKTEST BUTTON (3-D) -----
     document.getElementById('run-backtest').addEventListener('click', () => {
       backtestSummary.classList.add('hidden');
       backtestTableContainer.classList.add('hidden');
       validationBadge.classList.add('hidden');
       backtestLoading.classList.remove('hidden');
 
-      // ---- Call GAS (replace YOUR_DEPLOY_ID) ----
       fetch('https://script.google.com/macros/s/YOUR_DEPLOY_ID/exec?run=backtest', {method:'POST'})
         .then(r=>r.json())
         .then(displayBacktest)
         .catch(() => {
-          // fallback fake AMC trade
           setTimeout(() => displayBacktest({
-            period:'Last 5 Trading Days',
-            trades:1,
-            winRate:'100.0',
-            totalPnL:'48.70',
-            avgR:'2.10',
-            tradesList:[{
-              date:'2025-11-06', symbol:'AMC', pattern:'GAP_GO',
-              entry:4.820, exit:5.310, pnl:48.70, r:2.10, qty:100
-            }]
-          }),1500);
+            period:'Last 5 Days', trades:1, winRate:'100.0', totalPnL:'48.70', avgR:'2.10',
+            tradesList:[{date:'2025-11-06', symbol:'AMC', pattern:'GAP_GO', entry:4.820, exit:5.310, pnl:48.70, r:2.10, qty:100}]
+          }), 1500);
         });
     });
-
-    document.getElementById('refresh-scanner').addEventListener('click', ()=>{ /* optional */ });
   </script>
 </body>
+</html>
