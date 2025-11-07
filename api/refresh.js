@@ -1,26 +1,43 @@
-// api/refresh.js  ← MUST BE IN PROJECT ROOT
-let latestScanner = [];
-let latestStats = {};
+// api/webhook.js
+let events = [];
 
 export default function handler(req, res) {
-  if (req.method === 'GET') {
-    return res.status(200).json({
-      scanner: latestScanner,
-      stats: latestStats,
-      timestamp: new Date().toISOString()
-    });
-  }
+  const path = req.url?.split('?')[0] || '';
 
-  if (req.method === 'POST') {
-    if (req.headers['x-webhook-secret'] !== 'alphastream-bot-secure-2025!x7k9') {
-      return res.status(401).json({ error: 'Unauthorized' });
+  // POST: From GAS
+  if (req.method === 'POST' && path === '/api/webhook') {
+    const secret = req.headers['x-webhook-secret'];
+    if (secret !== 'alphastream-bot-secure-2025!x7k9') {
+      return res.status(401).json({ error: 'Invalid secret' });
     }
 
-    if (req.body.type === 'SCANNER') latestScanner = req.body.data.signals || [];
-    if (req.body.type === 'STATS') latestStats = req.body.data || {};
+    const { type, data } = req.body || {};
+    if (!type || !data) return res.status(400).json({ error: 'Bad payload' });
 
-    return res.status(200).json({ ok: true });
+    const event = { type, data, timestamp: new Date().toISOString() };
+    events.push(event);
+    if (events.length > 50) events.shift();
+
+    console.log('[WEBHOOK] POST', type, data);
+    return res.status(200).json({ success: true });
   }
 
-  res.status(405).json({ error: 'Method not allowed' });
+  // GET: SSE for /api/webhook OR /events
+  if (req.method === 'GET' && (path === '/api/webhook' || path === '/events')) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    events.forEach(e => res.write(`data: ${JSON.stringify(e)}\n\n`));
+
+    const heartbeat = setInterval(() => {
+      res.write(`data: ${JSON.stringify({ type: 'heartbeat', timestamp: new Date().toISOString() })}\n\n`);
+    }, 15000);
+
+    req.on('close', () => clearInterval(heartbeat));
+    return;
+  }
+
+  res.status(404).json({ error: 'Not found' });
 }
