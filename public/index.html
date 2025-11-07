@@ -308,7 +308,7 @@
       validationBadge.classList.add('hidden');
       backtestLoading.classList.remove('hidden');
 
-      fetch('https://script.google.com/macros/s/YOUR_DEPLOY_ID/exec?run=backtest', {method:'POST'})
+      fetch('https://script.google.com/macros/s/132UO_KDxDIP43XQdEjYX3edZnRd2gUMec2AQDizEfu8/exec?run=backtest', {method:'POST'})
         .then(r=>r.json())
         .then(displayBacktest)
         .catch(() => {
