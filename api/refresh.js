@@ -2,18 +2,21 @@
 import fs from "fs";
 import path from "path";
 
-export default async function handler(req, res) {
+export default function handler(req, res) {
   try {
-    const dataDir = path.join(process.cwd(), "public", "data");
-    const files = fs.readdirSync(dataDir).filter(f => f.endsWith(".json"));
-    const payload = {};
+    const dir = path.join(process.cwd(), "public", "data");
+    const files = fs.readdirSync(dir).filter(f => f.endsWith(".json"));
+    const data = {};
+
     for (const f of files) {
-      const full = path.join(dataDir, f);
-      payload[f.replace(".json", "")] = JSON.parse(fs.readFileSync(full, "utf8"));
+      const content = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
+      data[f.replace(".json", "")] = content.data || content;
     }
-    return res.status(200).json(payload);
+
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).json(data);
   } catch (err) {
     console.error("Refresh error:", err);
-    return res.status(500).json({ error: "Unable to read data files" });
+    res.status(500).json({ error: "Failed to read data" });
   }
 }
