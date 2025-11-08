@@ -1,61 +1,17 @@
-import { google } from "googleapis";
-
-// Replace these with your GAS credentials / service account info
-const SPREADSHEET_ID = '132UO_KDxDIP43XQdEjYX3edZnRd2gUMec2AQDizEfu8';
-
-const auth = new google.auth.GoogleAuth({
-  credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
-  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-});
-
-const sheets = google.sheets({ version: 'v4', auth });
-
-async function getSheetData(sheetName) {
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: sheetName
-  });
-  const values = res.data.values || [];
-  const headers = values[0] || [];
-  return values.slice(1).map(row =>
-    headers.reduce((obj, h, i) => ({ ...obj, [h]: row[i] }), {})
-  );
-}
+// api/refresh.js
+import fetch from "node-fetch"; // add this if using Node 18+
 
 export default async function handler(req, res) {
   try {
-    const [scan, backtest, log] = await Promise.all([
-      getSheetData('scanner'),
-      getSheetData('backtest'),
-      getSheetData('trades')
-    ]);
+    // Call your GAS web app URL that runs `run()` and returns signals/stats/backtest
+    const GAS_URL = "https://script.google.com/macros/s/132UO_KDxDIP43XQdEjYX3edZnRd2gUMec2AQDizEfu8/exec";
 
-    const stats = {
-      trades: log.length,
-      pnl: log.reduce((sum, r) => sum + parseFloat(r.PnL || 0), 0)
-    };
+    const response = await fetch(GAS_URL);
+    const data = await response.json();
 
-    res.status(200).json({
-      data: {
-        signals: scan.map(r => ({
-          s: r.Sym,
-          qty: parseFloat(r.Qty),
-          stop: parseFloat(r.Stop),
-          tgt: parseFloat(r.Tgt),
-          pattern: r.Pattern,
-          score: parseFloat(r.Score)
-        })),
-        stats,
-        backtest: backtest.map(r => ({
-          symbol: r.Sym,
-          entry: parseFloat(r.Entry),
-          exit: parseFloat(r.Exit),
-          pnl: parseFloat(r.PnL)
-        }))
-      }
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to read data' });
+    res.status(200).json({ data });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch live data" });
   }
 }
