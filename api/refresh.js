@@ -1,26 +1,19 @@
-// api/refresh.js
-let latestScanner = [];
-let latestStats = {};
+// /api/refresh.js
+import fs from "fs";
+import path from "path";
 
-export default function handler(req, res) {
-  if (req.method === 'GET') {
-    return res.status(200).json({
-      scanner: latestScanner,
-      stats: latestStats,
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  if (req.method === 'POST') {
-    if (req.headers['x-webhook-secret'] !== 'alphastream-bot-secure-2025!x7k9') {
-      return res.status(401).json({ error: 'Unauthorized' });
+export default async function handler(req, res) {
+  try {
+    const dataDir = path.join(process.cwd(), "public", "data");
+    const files = fs.readdirSync(dataDir).filter(f => f.endsWith(".json"));
+    const payload = {};
+    for (const f of files) {
+      const full = path.join(dataDir, f);
+      payload[f.replace(".json", "")] = JSON.parse(fs.readFileSync(full, "utf8"));
     }
-
-    if (req.body.type === 'SCANNER') latestScanner = req.body.data.signals || [];
-    if (req.body.type === 'STATS') latestStats = req.body.data || {};
-
-    return res.status(200).json({ ok: true });
+    return res.status(200).json(payload);
+  } catch (err) {
+    console.error("Refresh error:", err);
+    return res.status(500).json({ error: "Unable to read data files" });
   }
-
-  res.status(405).json({ error: 'Method not allowed' });
 }
