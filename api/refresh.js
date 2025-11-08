@@ -1,22 +1,30 @@
-// /api/refresh.js
-import fs from "fs";
-import path from "path";
-
-export default function handler(req, res) {
+// api/refresh.js
+export default async function handler(req, res) {
   try {
-    const dir = path.join(process.cwd(), "public", "data");
-    const files = fs.readdirSync(dir).filter(f => f.endsWith(".json"));
-    const data = {};
-
-    for (const f of files) {
-      const content = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
-      data[f.replace(".json", "")] = content.data || content;
+    // Fetch patterns JSON dynamically from the public folder
+    const baseUrl = process.env.BASE_URL || 'https://alphastream-dashboard.vercel.app';
+    const patternsRes = await fetch(`${baseUrl}/data/patterns.json`);
+    
+    if (!patternsRes.ok) {
+      throw new Error(`Failed to fetch patterns.json: ${patternsRes.status}`);
     }
 
-    res.setHeader("Cache-Control", "no-store");
-    res.status(200).json(data);
+    const patterns = await patternsRes.json();
+
+    // Example: Do something with patterns
+    // Replace this with your actual logic
+    const scanResult = patterns.map(p => ({
+      name: p.name,
+      value: p.value * 2
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: scanResult
+    });
+
   } catch (err) {
-    console.error("Refresh error:", err);
-    res.status(500).json({ error: "Failed to read data" });
+    console.error(err); // logs visible in Vercel
+    res.status(500).json({ error: err.message });
   }
 }
