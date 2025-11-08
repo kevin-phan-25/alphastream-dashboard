@@ -1,43 +1,37 @@
-// api/webhook.js
-let events = [];
+// /api/webhook.js
+import fs from "fs";
+import path from "path";
 
-export default function handler(req, res) {
-  const path = req.url?.split('?')[0] || '';
+export default async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  // POST: From GAS
-  if (req.method === 'POST' && path === '/api/webhook') {
-    const secret = req.headers['x-webhook-secret'];
-    if (secret !== 'alphastream-bot-secure-2025!x7k9') {
-      return res.status(401).json({ error: 'Invalid secret' });
-    }
-
-    const { type, data } = req.body || {};
-    if (!type || !data) return res.status(400).json({ error: 'Bad payload' });
-
-    const event = { type, data, timestamp: new Date().toISOString() };
-    events.push(event);
-    if (events.length > 50) events.shift();
-
-    console.log('[WEBHOOK] POST', type, data);
-    return res.status(200).json({ success: true });
+  const secret = req.headers["x-webhook-secret"];
+  const bypass = req.headers["x-vercel-protection-bypass"];
+  if (secret !== "alphastream-bot-secure-2025!x7k9" || bypass !== "v1.bypass_token_pwzfqlw14d4954dsbc9awhudccwkpl") {
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
-  // GET: SSE for /api/webhook OR /events
-  if (req.method === 'GET' && (path === '/api/webhook' || path === '/events')) {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Access-Control-Allow-Origin', '*');
+  try {
+    const { type, data, t } = req.body || {};
+    const dataDir = path.join(process.cwd(), "public", "data");
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
-    events.forEach(e => res.write(`data: ${JSON.stringify(e)}\n\n`));
+    const fileMap = {
+      SCAN: "scan.json",
+      BACKTEST: "backtest.json",
+      STATS: "stats.json",
+      INIT: "init.json",
+    };
 
-    const heartbeat = setInterval(() => {
-      res.write(`data: ${JSON.stringify({ type: 'heartbeat', timestamp: new Date().toISOString() })}\n\n`);
-    }, 15000);
+    const fileName = fileMap[type] || "misc.json";
+    const filePath = path.join(dataDir, fileName);
 
-    req.on('close', () => clearInterval(heartbeat));
-    return;
+    fs.writeFileSync(filePath, JSON.stringify({ type, data, t }, null, 2));
+    console.log(`[Webhook] Updated ${fileName}`);
+
+    return res.status(200).json({ success: true, updated: fileName });
+  } catch (err) {
+    console.error("Webhook Error:", err);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
-
-  res.status(404).json({ error: 'Not found' });
 }
