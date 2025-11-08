@@ -1,4 +1,4 @@
-// components/LiveDashboard.tsx  (or .js if you prefer plain JS)
+// components/LiveDashboard.js
 "use client";
 
 import { useEffect, useState } from "react";
@@ -13,16 +13,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-type State = {
-  signals: any[];
-  trades: any[];
-  stats: { open: number; pnl: number; trades: number };
-  backtests: any[];
-  equityCurve: { time: string; pnl: number }[];
-};
-
 export default function LiveDashboard() {
-  const [state, setState] = useState<State>({
+  const [state, setState] = useState({
     signals: [],
     trades: [],
     stats: { open: 0, pnl: 0, trades: 0 },
@@ -30,16 +22,13 @@ export default function LiveDashboard() {
     equityCurve: [],
   });
 
-  // ------------------------------------------------------------------
-  // Poll the webhook endpoint every 15 seconds (adjust as you like)
-  // ------------------------------------------------------------------
   useEffect(() => {
     const poll = async () => {
       try {
         const res = await fetch("/api/webhook", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "POLL" }), // any type works, we just want state
+          body: JSON.stringify({ type: "POLL" }),
         });
         if (res.ok) {
           const json = await res.json();
@@ -50,7 +39,7 @@ export default function LiveDashboard() {
       }
     };
 
-    poll(); // immediate first call
+    poll();
     const id = setInterval(poll, 15_000);
     return () => clearInterval(id);
   }, []);
@@ -64,10 +53,12 @@ export default function LiveDashboard() {
     <div style={{ padding: "1rem", fontFamily: "system-ui, sans-serif" }}>
       <h1 style={{ marginBottom: "0.5rem" }}>AlphaStream v3.1</h1>
       <p style={{ marginBottom: "1rem", color: "#555" }}>
-        Gap &amp; Go + Full Risk + Backtested | <strong>Live</strong>
+        Gap & Go + Full Risk + Backtested |{" "}
+        <strong style={{ color: state.signals.length ? "green" : "orange" }}>
+          {state.signals.length ? "Live" : "Waiting for data…"}
+        </strong>
       </p>
 
-      {/* ---------- Stats Row ---------- */}
       <div
         style={{
           display: "grid",
@@ -78,11 +69,10 @@ export default function LiveDashboard() {
       >
         <div><strong>{state.stats.open}</strong> Open</div>
         <div><strong>{winRate}%</strong> Win Rate</div>
-        <div><strong>${state.stats.pnl.toFixed(2)}</strong> Total P&amp;L</div>
+        <div><strong>${state.stats.pnl.toFixed(2)}</strong> Total P&L</div>
         <div><strong>{state.stats.trades}</strong> Trades</div>
       </div>
 
-      {/* ---------- Live Scanner ---------- */}
       <section style={{ marginBottom: "2rem" }}>
         <h2>Live Scanner</h2>
         {state.signals.length === 0 ? (
@@ -127,7 +117,6 @@ export default function LiveDashboard() {
         )}
       </section>
 
-      {/* ---------- Recent Trades ---------- */}
       <section style={{ marginBottom: "2rem" }}>
         <h2>Recent Trades</h2>
         {state.trades.length === 0 ? (
@@ -160,7 +149,6 @@ export default function LiveDashboard() {
         )}
       </section>
 
-      {/* ---------- Equity Curve ---------- */}
       <section style={{ marginBottom: "2rem" }}>
         <h2>Equity Curve (Live + Backtest)</h2>
         <ResponsiveContainer width="100%" height={300}>
@@ -173,7 +161,7 @@ export default function LiveDashboard() {
             <YAxis />
             <Tooltip
               labelFormatter={(v) => new Date(v).toLocaleString()}
-              formatter={(value: any) => `$${Number(value).toFixed(2)}`}
+              formatter={(value) => `$${Number(value).toFixed(2)}`}
             />
             <Legend />
             <Line type="monotone" dataKey="pnl" stroke="#8884d8" dot={false} />
@@ -181,7 +169,6 @@ export default function LiveDashboard() {
         </ResponsiveContainer>
       </section>
 
-      {/* ---------- Backtest Results ---------- */}
       <section>
         <h2>Backtest Results</h2>
         {state.backtests.length === 0 ? (
