@@ -1,6 +1,6 @@
-// app/layout.tsx   (or layout.js)
-import "./globals.css";
-import LiveDashboard from "@/components/LiveDashboard";
+// app/layout.tsx
+import "../components/LiveDashboard"; // This line is just to trigger rebuild (optional)
+import LiveDashboard from "../components/LiveDashboard";
 
 export const metadata = {
   title: "AlphaStream v3.1",
