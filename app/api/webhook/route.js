@@ -1,4 +1,6 @@
 // app/api/webhook/route.js
+import { NextResponse } from 'next/server';
+
 export const dynamic = 'force-dynamic';
 
 globalThis.latestData = globalThis.latestData || { type: 'INIT', data: { msg: 'AlphaStream v4.0 LIVE' } };
@@ -18,8 +20,8 @@ export async function POST(request) {
   return new Response('OK', { status: 200 });
 }
 
-// ADD THIS GET SO IT DOESN'T 404 ON BROWSER TEST
+// GET handler so it doesn't 404 in browser
 export async function GET() {
   console.log('WEBHOOK GET — CURRENT DATA:', globalThis.latestData?.type);
-  return Response.json(globalThis.latestData);
+  return NextResponse.json(globalThis.latestData);
 }
