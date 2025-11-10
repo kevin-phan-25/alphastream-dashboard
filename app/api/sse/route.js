@@ -1,22 +1,17 @@
-// app/api/sse/route.js
-import { latestData } from './webhook/route.js'; // Not directly importable, so we use global
-
-export async function GET() {
+export async function GET(request) {
   const stream = new ReadableStream({
     start(controller) {
-      controller.enqueue(`data: ${JSON.stringify(globalThis.latestData || { type: 'INIT' })}\n\n`);
-      const interval = setInterval(() => {
+      const send = () => {
         controller.enqueue(`data: ${JSON.stringify(globalThis.latestData || { type: 'INIT' })}\n\n`);
-      }, 3000);
-
+      };
+      send();
+      const interval = setInterval(send, 3000);
       request.signal.addEventListener('abort', () => {
         clearInterval(interval);
         controller.close();
       });
     }
   });
-
-  globalThis.latestData = globalThis.latestData || { type: 'INIT' };
 
   return new Response(stream, {
     headers: {
