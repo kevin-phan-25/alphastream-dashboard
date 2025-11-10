@@ -1,0 +1,5 @@
+tsconfig.json
+*.ts
+*.tsx
+.next
+node_modules
