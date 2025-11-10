@@ -8,10 +8,10 @@ export async function POST(request) {
   }
 
   const body = await request.json();
-  console.log('WEBHOOK RECEIVED:', body);
+  console.log('WEBHOOK HIT:', body);
 
-  // Here you can save to global state, file, DB, etc.
-  globalThis.lastPayload = body;
+  // Store latest payload globally so dashboard can read it
+  globalThis.latestData = body;
 
   return new Response('OK', { status: 200 });
 }
