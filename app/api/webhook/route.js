@@ -21,11 +21,14 @@ export async function POST() {
   const stats = load("stats.json") || { open: 0, pnl: 0, trades: 0 };
   const init = load("init.json");
 
-  return Response.json({
-    signals: scan?.signals || [],
-    stats: stats,
-    initMsg: init?.msg || "LIVE",
-  });
+  return new Response(
+    JSON.stringify({
+      signals: scan?.signals || [],
+      stats,
+      initMsg: init?.msg || "LIVE",
+    }),
+    { status: 200, headers: { "Content-Type": "application/json" } }
+  );
 }
 
 export async function GET() {
