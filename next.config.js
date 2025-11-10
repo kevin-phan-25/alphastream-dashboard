@@ -2,9 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  // FORCE API ROUTES TO WORK
+  // THIS FIXES 404 ON VERCEL
+  output: 'standalone',
+  // FORCE DYNAMIC API ROUTES
   experimental: {
-    appDocumentPreloading: false,
+    serverActions: false,
   },
 };
 
