@@ -1,7 +1,7 @@
 // app/layout.tsx
 import "./globals.css";
-import "../components/liveDashboard";
-import liveDashboard from "../components/LiveDashboard";
+import "../components/LiveDashboard";
+import LiveDashboard from "../components/LiveDashboar";
 
 export const metadata = {
   title: "AlphaStream v3.1",
@@ -16,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <liveDashboard />
+        <LiveDashboard />
         {children}
       </body>
     </html>
