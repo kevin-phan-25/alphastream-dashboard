@@ -1,4 +1,3 @@
-// components/LiveDashboard.js
 "use client";
 import { useEffect, useState } from "react";
 
@@ -18,7 +17,7 @@ export default function LiveDashboard() {
           setState(data);
         }
       } catch (e) {
-        console.error(e);
+        console.error("Error fetching:", e);
       }
     };
     poll();
@@ -46,6 +45,7 @@ export default function LiveDashboard() {
       }}>
         ${Math.abs(state.stats?.pnl || 0).toFixed(2)} P&L
       </div>
+
       <div style={{
         background: "#1e293b",
         padding: "2rem",
@@ -66,7 +66,7 @@ export default function LiveDashboard() {
                 margin: "1rem",
                 fontWeight: "bold"
               }}>
-                #{i + 1} {s.s} → {s.pattern} ({(s.score * 100).toFixed(0)}%)
+                #{i+1} {s.s} → {s.pattern} ({(s.score*100).toFixed(0)}%)
               </div>
             ))}
           </div>
