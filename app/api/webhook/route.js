@@ -1,4 +1,6 @@
 // app/api/webhook/route.js
+let latest = { type: 'INIT', data: { msg: 'Waiting for signals...' } };
+
 export async function POST(request) {
   const secret = process.env.WEBHOOK_SECRET;
   const headerSecret = request.headers.get('x-webhook-secret');
@@ -8,10 +10,14 @@ export async function POST(request) {
   }
 
   const body = await request.json();
-  console.log('WEBHOOK HIT:', body);
-
-  // Store latest payload globally so dashboard can read it
-  globalThis.latestData = body;
+  latest = body;
+  console.log('WEBHOOK:', body);
 
   return new Response('OK', { status: 200 });
+}
+
+export async function GET() {
+  return new Response(JSON.stringify(latest), {
+    headers: { 'Content-Type': 'application/json' }
+  });
 }
