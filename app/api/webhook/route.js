@@ -4,23 +4,21 @@ import { join } from 'path';
 
 const SECRET = process.env.WEBHOOK_SECRET;
 
-export default async function handler(req, res) {
-  const secret = req.headers['x-webhook-secret'];
-  const bypass = req.headers['x-vercel-protection-bypass'];
+export async function POST(request) {
+  const secret = request.headers.get('x-webhook-secret');
+  const bypass = request.headers.get('x-vercel-protection-bypass');
 
   if (secret !== SECRET || bypass !== 'v1.bypass_token_pwzfqlw14d4954dsbc9awhudccwkpl') {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return new Response('Unauthorized', { status: 401 });
   }
 
   try {
-    const body = await req.json();
+    const body = await request.json();
     const { type, data } = body;
 
-    // Create data folder
     const dataDir = join(process.cwd(), 'public', 'data');
     if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
 
-    // Save all types
     const files = {
       'scan.json': type === 'SCAN' ? body : null,
       'trade.json': type === 'TRADE' ? body : null,
@@ -30,14 +28,14 @@ export default async function handler(req, res) {
     };
 
     Object.entries(files).forEach(([file, content]) => {
-      if (content) {
+      if (content !== null) {
         writeFileSync(join(dataDir, file), JSON.stringify(content, null, 2));
       }
     });
 
-    res.status(200).json({ ok: true });
+    return new Response('OK', { status: 200 });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: 'Server error' });
+    return new Response('Error', { status: 500 });
   }
 }
