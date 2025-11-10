@@ -6,51 +6,70 @@ export default function LiveDashboard() {
   const [state, setState] = useState({
     signals: [],
     stats: { open: 0, pnl: 0, trades: 0 },
-    initMsg: "LIVE"
+    initMsg: "Connecting..."
   });
 
   useEffect(() => {
     const poll = async () => {
       try {
-        const res = await fetch("/api/webhook/route", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "POLL" })
-        });
+        const res = await fetch("/api/webhook", { cache: "no-store" });
         if (res.ok) {
-          const json = await res.json();
-          if (json.state) setState(json.state);
+          const data = await res.json();
+          setState(data);
         }
-      } catch (e) { console.error(e); }
+      } catch (e) {
+        console.error(e);
+      }
     };
     poll();
-    const id = setInterval(poll, 7000);
+    const id = setInterval(poll, 8000);
     return () => clearInterval(id);
   }, []);
 
   return (
     <div style={{
-      minHeight: "100vh",
-      background: "linear-gradient(135deg, #0a1f3d 0%, #001529 100%)",
+      padding: "3rem",
+      background: "#0f172a",
       color: "white",
-      padding: "4rem",
-      textAlign: "center",
+      minHeight: "100vh",
       fontFamily: "system-ui"
     }}>
-      <h1 style={{ fontSize: "5rem" }}>ALPHASTREAM LIVE</h1>
-      <p style={{ fontSize: "3rem", color: "#00ff9d" }}>@Kevin_Phan25</p>
-      <div style={{ fontSize: "4rem", fontWeight: "bold", color: "#10b981" }}>
-        ${Math.abs(state.stats.pnl || 0).toFixed(2)} P&L
+      <h1 style={{ fontSize: "4rem", textAlign: "center" }}>ALPHASTREAM LIVE</h1>
+      <p style={{ textAlign: "center", color: "#00ff9d", fontSize: "2rem" }}>
+        {state.initMsg || "@Kevin_Phan25"}
+      </p>
+      <div style={{
+        fontSize: "3rem",
+        textAlign: "center",
+        color: "#10b981",
+        margin: "2rem 0"
+      }}>
+        ${Math.abs(state.stats?.pnl || 0).toFixed(2)} P&L
       </div>
-      <div style={{ marginTop: "3rem" }}>
-        {state.signals.length === 0 ? (
-          <p style={{ fontSize: "2rem", color: "#f59e0b" }}>Waiting for signal...</p>
+      <div style={{
+        background: "#1e293b",
+        padding: "2rem",
+        borderRadius: "16px"
+      }}>
+        <h2 style={{ fontSize: "2.5rem" }}>LIVE SIGNALS</h2>
+        {state.signals?.length === 0 ? (
+          <p style={{
+            color: "#f59e0b",
+            textAlign: "center",
+            fontSize: "1.8rem"
+          }}>No signals yet...</p>
         ) : (
-          state.signals.map((s, i) => (
-            <div key={i} style={{ fontSize: "3rem", margin: "1rem", fontWeight: "bold" }}>
-              {s.s} → {s.pattern} ({(s.score*100).toFixed(0)}%)
-            </div>
-          ))
+          <div>
+            {state.signals.map((s, i) => (
+              <div key={i} style={{
+                fontSize: "2.5rem",
+                margin: "1rem",
+                fontWeight: "bold"
+              }}>
+                #{i + 1} {s.s} → {s.pattern} ({(s.score * 100).toFixed(0)}%)
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
