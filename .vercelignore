@@ -1,5 +1,9 @@
+# .vercelignore
+node_modules
+.git
+.env*
+!.env.example
+next.config.js
 tsconfig.json
 *.ts
 *.tsx
-.next
-node_modules
