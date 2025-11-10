@@ -8,10 +8,17 @@ const DATA_DIR = join(process.cwd(), 'public', 'data');
 
 if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 
+function load(file) {
+  const path = join(DATA_DIR, file);
+  if (!existsSync(path)) return null;
+  try { return JSON.parse(readFileSync(path, 'utf-8')); } catch { return null; }
+}
+
 export async function POST(request) {
   const secret = request.headers.get('x-webhook-secret');
   const bypass = request.headers.get('x-vercel-protection-bypass');
-  if (secret !== SECRET || bypass !== BYPASS) {
+
+  if (secret !== SECRET && bypass !== BYPASS) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -19,43 +26,27 @@ export async function POST(request) {
     const body = await request.json();
     const { type, data } = body;
 
+    // POLL REQUEST FROM DASHBOARD
     if (type === 'POLL') {
-      const load = (file) => {
-        const path = join(DATA_DIR, file);
-        if (existsSync(path)) {
-          try { return JSON.parse(readFileSync(path, 'utf-8')); } catch { return null; }
-        }
-        return null;
-      };
-
       return Response.json({
-        state: {
-          signals: load('scan.json')?.data?.signals || [],
-          trades: load('trade.json')?.data ? [load('trade.json').data] : [],
-          stats: load('stats.json')?.data || { open: 0, pnl: 0, trades: 0 },
-          backtests: load('backtest.json')?.data || [],
-          equityCurve: [],
-          initMsg: load('init.json')?.data?.msg || 'LIVE',
-        }
+        signals: load('scan.json')?.signals || [],
+        stats: load('stats.json') || { open: 0, pnl: 0, trades: 0 },
+        initMsg: load('init.json')?.msg || 'LIVE'
       });
     }
 
-    // Save all types
-    const files = {
-      'scan.json': type === 'SCAN' ? body : null,
-      'trade.json': type === 'TRADE' ? body : null,
-      'stats.json': type === 'STATS' ? body : null,
-      'backtest.json': type === 'BACKTEST' ? body : null,
-      'init.json': type === 'INIT' ? body : null,
-    };
-
-    Object.entries(files).forEach(([f, c]) => {
-      if (c) writeFileSync(join(DATA_DIR, f), JSON.stringify(c, null, 2));
-    });
+    // SAVE DATA FROM GAS
+    if (type === 'INIT') writeFileSync(join(DATA_DIR, 'init.json'), JSON.stringify({ msg: data.msg }));
+    if (type === 'SCAN') writeFileSync(join(DATA_DIR, 'scan.json'), JSON.stringify({ signals: data.signals }));
+    if (type === 'STATS') writeFileSync(join(DATA_DIR, 'stats.json'), JSON.stringify(data));
 
     return new Response('OK', { status: 200 });
   } catch (e) {
     console.error(e);
     return new Response('Error', { status: 500 });
   }
+}
+
+export async function GET() {
+  return POST(new Request('', { method: 'POST', body: JSON.stringify({ type: 'POLL' }) }));
 }
