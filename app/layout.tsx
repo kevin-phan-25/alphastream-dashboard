@@ -1,7 +1,7 @@
 // app/layout.tsx
 import "./globals.css";
 import "../components/liveDashboard";
-import liveDashboard from "../components/liveDashboard";
+import liveDashboard from "../components/LiveDashboard";
 
 export const metadata = {
   title: "AlphaStream v3.1",
