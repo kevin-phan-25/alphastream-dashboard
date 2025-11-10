@@ -1,52 +1,42 @@
-// app/api/webhook/route.js
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+// app/api/webhook/route.js — BULLETPROOF NEXT.JS 13+ APP ROUTER
+import { writeFileSync, readFileSync } from 'fs';
+import { resolve } from 'path';
 
-const SECRET = process.env.WEBHOOK_SECRET || 'alphastream-bot-secure-2025!x7k9';
-const BYPASS = 'v1.bypass_token_pwzfqlw14d4954dsbc9awhudccwkpl';
-const DATA_DIR = join(process.cwd(), 'public', 'data');
-
-if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-
-function load(file) {
-  const path = join(DATA_DIR, file);
-  if (!existsSync(path)) return null;
-  try { return JSON.parse(readFileSync(path, 'utf-8')); } catch { return null; }
-}
+const DATA_FILE = resolve(process.cwd(), 'public/data/data.json');
 
 export async function POST(request) {
-  const secret = request.headers.get('x-webhook-secret');
-  const bypass = request.headers.get('x-vercel-protection-bypass');
-
-  if (secret !== SECRET && bypass !== BYPASS) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-
   try {
-    const body = await request.json();
-    const { type, data } = body;
+    const { type, data } = await request.json();
+    const secret = request.headers.get('x-webhook-secret');
 
-    // POLL REQUEST FROM DASHBOARD
-    if (type === 'POLL') {
-      return Response.json({
-        signals: load('scan.json')?.signals || [],
-        stats: load('stats.json') || { open: 0, pnl: 0, trades: 0 },
-        initMsg: load('init.json')?.msg || 'LIVE'
-      });
+    if (secret !== process.env.WEBHOOK_SECRET) {
+      return new Response('Invalid secret', { status: 401 });
     }
 
-    // SAVE DATA FROM GAS
-    if (type === 'INIT') writeFileSync(join(DATA_DIR, 'init.json'), JSON.stringify({ msg: data.msg }));
-    if (type === 'SCAN') writeFileSync(join(DATA_DIR, 'scan.json'), JSON.stringify({ signals: data.signals }));
-    if (type === 'STATS') writeFileSync(join(DATA_DIR, 'stats.json'), JSON.stringify(data));
+    let current = { signals: [], stats: { open: 0, pnl: '+0', trades: 0 }, lastUpdate: new Date().toISOString() };
 
-    return new Response('OK', { status: 200 });
-  } catch (e) {
-    console.error(e);
-    return new Response('Error', { status: 500 });
+    try {
+      const raw = readFileSync(DATA_FILE, 'utf-8');
+      current = JSON.parse(raw);
+    } catch (e) {
+      // File doesn't exist yet — that's fine
+    }
+
+    if (type === 'SCAN') current.signals = data.signals || [];
+    if (type === 'STATS') Object.assign(current.stats, data);
+    if (type === 'INIT') current.init = data;
+
+    current.lastUpdate = new Date().toISOString();
+
+    writeFileSync(DATA_FILE, JSON.stringify(current, null, 2));
+
+    return new Response(JSON.stringify({ success: true, received: type }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('Webhook error:', error);
+    return new Response('Server error', { status: 500 });
   }
-}
-
-export async function GET() {
-  return POST(new Request('', { method: 'POST', body: JSON.stringify({ type: 'POLL' }) }));
 }
