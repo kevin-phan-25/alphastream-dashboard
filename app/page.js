@@ -9,18 +9,19 @@ export default function Home() {
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      textAlign: "center",
-      fontFamily: "Arial, sans-serif"
+      fontFamily: "system-ui, sans-serif",
+      textAlign: "center"
     }}>
-      <h1 style={{ fontSize: "5rem", marginBottom: "1rem" }}>AlphaStream LIVE</h1>
-      <p style={{ fontSize: "2rem", marginBottom: "3rem" }}>@Kevin_Phan25</p>
+      <h1 style={{ fontSize: "5rem", margin: 0 }}>ALPHASTREAM LIVE</h1>
+      <p style={{ fontSize: "2.5rem", color: "#00ff9d", margin: "1rem 0" }}>@Kevin_Phan25</p>
       <a href="/dashboard" style={{
+        marginTop: "3rem",
         padding: "1.5rem 4rem",
         background: "#00ff9d",
-        color: "#0a1f3d",
+        color: "#000",
         borderRadius: "50px",
         fontWeight: "bold",
-        fontSize: "1.8rem",
+        fontSize: "2rem",
         textDecoration: "none",
         boxShadow: "0 0 40px #00ff9d88"
       }}>
