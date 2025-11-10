@@ -1,8 +1,15 @@
-export async function GET(request) {
+// app/api/sse/route.js
+// THIS FIXES THE PRERENDER ERROR
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function GET() {
   const stream = new ReadableStream({
     start(controller) {
       const send = () => {
-        controller.enqueue(`data: ${JSON.stringify(globalThis.latestData || { type: 'INIT' })}\n\n`);
+        const data = globalThis.latestData || { type: 'INIT', data: { msg: 'AlphaStream v4.0 Ready' } };
+        controller.enqueue(`data: ${JSON.stringify(data)}\n\n`);
       };
       send();
       const interval = setInterval(send, 3000);
@@ -16,8 +23,9 @@ export async function GET(request) {
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
     },
   });
 }
