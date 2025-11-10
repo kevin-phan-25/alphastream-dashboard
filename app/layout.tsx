@@ -1,22 +1,13 @@
-// app/layout.tsx
-import "./globals.css";
-import "../components/LiveDashboard";
-import LiveDashboard from "../components/LiveDashboard";
-
+// app/layout.js
 export const metadata = {
-  title: "AlphaStream v3.1",
-  description: "Gap & Go + Full Risk + Backtested",
+  title: "AlphaStream Dashboard",
+  description: "Live Trading Dashboard by Kevin Phan",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>
-        <LiveDashboard />
+      <body style={{ margin: 0, background: "#0f172a", color: "white" }}>
         {children}
       </body>
     </html>
