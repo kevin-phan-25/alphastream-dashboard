@@ -1,5 +1,4 @@
-// app/api/webhook/route.js
-let latestData = { type: 'INIT', data: { msg: 'AlphaStream v4.0 Ready' } };
+globalThis.latestData = globalThis.latestData || { type: 'INIT', data: { msg: 'AlphaStream v4.0 Ready' } };
 
 export async function POST(request) {
   const secret = process.env.WEBHOOK_SECRET;
@@ -10,12 +9,7 @@ export async function POST(request) {
   }
 
   const body = await request.json();
-  latestData = { ...body, t: new Date().toISOString() };
-  console.log('LIVE WEBHOOK →', body.type);
-
+  globalThis.latestData = body;
+  console.log('WEBHOOK →', body.type, body.data);
   return new Response('OK', { status: 200 });
-}
-
-export async function GET() {
-  return Response.json(latestData);
 }
