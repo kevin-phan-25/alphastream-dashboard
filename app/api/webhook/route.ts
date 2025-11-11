@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
-const WEBHOOK_SECRET = 'alphastream-bot-secure-2025!x7k9';
+// const WEBHOOK_SECRET = 'alphastream-bot-secure-2025!x7k9';
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
 
 export async function POST(request: Request) {
   const headerSecret = request.headers.get('X-Webhook-Secret');
