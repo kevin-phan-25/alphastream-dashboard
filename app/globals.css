@@ -32,3 +32,19 @@ a {
 }
 .win { @apply text-green-400; }
 .loss { @apply text-red-400; }
+@layer components {
+  .overflow-y-auto::-webkit-scrollbar {
+    width: 6px;
+  }
+  .overflow-y-auto::-webkit-scrollbar-track {
+    background: #1e293b;
+    border-radius: 3px;
+  }
+  .overflow-y-auto::-webkit-scrollbar-thumb {
+    background: #475569;
+    border-radius: 3px;
+  }
+  .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+  }
+}
