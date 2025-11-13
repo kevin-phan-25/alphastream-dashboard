@@ -1,6 +1,8 @@
 // app/api/sse/route.ts
 import { addClient } from '@/lib/sse';
 
+export const dynamic = 'force-dynamic'; // ADD THIS LINE
+
 export async function GET() {
   const stream = new ReadableStream({
     start(controller) {
