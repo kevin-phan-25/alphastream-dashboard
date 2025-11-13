@@ -1,6 +1,5 @@
 // app/layout.tsx
 import type { Metadata } from 'next';
-import './page.css'; // Optional: if you want to extract styles
 
 export const metadata: Metadata = {
   title: 'AlphaStream',
@@ -13,12 +12,26 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="h-full">
+    <html lang="en">
       <head />
-      <body className="h-full m-0 p-0 bg-slate-950">
+      <body>
+        {/* GLOBAL CSS RESET – NO STYLED-JSX, NO IMPORTS */}
         <style jsx global>{`
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          html, body, #__next { height: 100vh !important; margin: 0 !important; padding: 0 !important; }
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          html, body, #__next {
+            height: 100vh !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          body {
+            background: #020617;
+            color: #e2e8f0;
+            font-family: system-ui, -apple-system, sans-serif;
+          }
         `}</style>
         {children}
       </body>
