@@ -1,5 +1,9 @@
 // app/layout.tsx
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'AlphaStream',
@@ -12,19 +16,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <head />
-      <body>
-        {/* GLOBAL CSS RESET – NO STYLED-JSX */}
-        <style
-          dangerouslySetInnerHTML={{
-            __html: `
-              * { margin: 0; padding: 0; box-sizing: border-box; }
-              html, body, #__next { height: 100vh; width: 100vw; overflow: hidden; }
-              body { background: #020617; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; }
-            `,
-          }}
-        />
+    <html lang="en" className="h-full">
+      <body className={`${inter.className} h-full m-0 p-0 bg-slate-950 text-slate-100`}>
         {children}
       </body>
     </html>
