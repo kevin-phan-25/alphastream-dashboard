@@ -98,7 +98,7 @@ export default function Home() {
   const accent = settings.accentColor;
 
   return (
-    <div className={`h-screen transition-colors ${settings.theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`h-screen transition-colors ${settings.theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-gray-50 text-gray-900'} m-0 p-0`}>
       
       {/* Mobile Sidebar */}
       {sidebarOpen && (
@@ -111,43 +111,43 @@ export default function Home() {
       )}
 
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block lg:w-64 lg:border-r lg:border-slate-800 lg:bg-slate-950 h-screen">
-        <div className="sticky top-0 h-full p-6 overflow-y-auto"> {/* h-full instead of h-screen for inner */}
+      <div className="hidden lg:block lg:w-64 lg:border-r lg:border-slate-800 lg:bg-slate-950 h-screen m-0 p-0">
+        <div className="sticky top-0 h-full p-6 overflow-y-auto m-0 pt-0">
           <SettingsPanel settings={settings} setSettings={setSettings} saveSettings={saveSettings} accent={accent} />
         </div>
       </div>
 
-      {/* Main Content – FLUSH TOP, NO GAP */}
-      <div className="lg:pl-64 h-full"> {/* h-full to fill viewport */}
-        <div className="h-full px-4 lg:px-8"> {/* NO pt-0, NO pb – use flex for content flow */}
-          <div className="flex flex-col h-full">
-            {/* Header – NO MARGIN */}
-            <div className="mb-8 flex-shrink-0"> {/* flex-shrink-0 prevents compression */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+      {/* Main Content – ABSOLUTE ZERO TOP */}
+      <div className="lg:pl-64 h-full m-0 p-0">
+        <div className="h-full px-4 lg:px-8 m-0 p-0 pt-0"> {/* ZERO PT */}
+          <div className="flex flex-col h-full m-0 p-0">
+            {/* Header – ZERO MARGIN */}
+            <header className="mb-8 mt-0 !mt-0 flex-shrink-0 p-0 m-0"> {/* !mt-0 overrides */}
+              <div className="flex items-center justify-between p-0 m-0">
+                <div className="flex items-center gap-4 p-0 m-0">
                   <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold" style={{ backgroundColor: accent }}>
                     {settings.avatar}
                   </div>
-                  <div>
-                    <h1 className="text-4xl font-bold" style={{ color: accent }}>
+                  <div className="p-0 m-0">
+                    <h1 className="text-4xl font-bold m-0 p-0" style={{ color: accent }}>
                       {settings.botName}
                     </h1>
-                    <p className="text-lg opacity-70">@{new Date().toLocaleTimeString()} EST • @Kevin_Phan25</p>
+                    <p className="text-lg opacity-70 m-0 p-0">@{new Date().toLocaleTimeString()} EST • @Kevin_Phan25</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setSidebarOpen(true)}
-                  className="lg:hidden p-3 rounded-lg bg-slate-800 hover:bg-slate-700"
+                  className="lg:hidden p-3 rounded-lg bg-slate-800 hover:bg-slate-700 m-0"
                 >
                   <Settings className="w-6 h-6" />
                 </button>
               </div>
-            </div>
+            </header>
 
-            {/* Scrollable Content Area */}
-            <div className="flex-1 overflow-y-auto space-y-8"> {/* flex-1 + overflow for scroll */}
+            {/* Scrollable Content */}
+            <main className="flex-1 overflow-y-auto space-y-8 p-0 m-0">
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-0 m-0">
                 {settings.showEquity && (
                   <StatCard icon={DollarSign} label="Equity" value={`$${Number(equity).toLocaleString()}`} color={accent} />
                 )}
@@ -167,14 +167,14 @@ export default function Home() {
 
               {/* Chart */}
               {settings.showChart && (
-                <div className="bg-slate-900/50 backdrop-blur rounded-2xl p-6 border border-slate-800">
-                  <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                <div className="bg-slate-900/50 backdrop-blur rounded-2xl p-6 border border-slate-800 m-0">
+                  <h2 className="text-2xl font-bold mb-4 flex items-center gap-2 m-0 p-0">
                     <TrendingUp className="w-6 h-6" style={{ color: accent }} />
                     Equity Curve
                   </h2>
-                  <div className="h-80">
-                    <ResponsiveContainer>
-                      <LineChart data={pnlData}>
+                  <div className="h-80 m-0 p-0">
+                    <ResponsiveContainer className="m-0 p-0">
+                      <LineChart data={pnlData} className="m-0 p-0">
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                         <XAxis dataKey="time" stroke="#94a3b8" />
                         <YAxis stroke="#94a3b8" />
@@ -188,20 +188,20 @@ export default function Home() {
 
               {/* Live Feed */}
               {settings.showFeed && (
-                <div className="bg-slate-900/50 backdrop-blur rounded-2xl p-6 border border-slate-800">
-                  <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                <div className="bg-slate-900/50 backdrop-blur rounded-2xl p-6 border border-slate-800 m-0">
+                  <h2 className="text-2xl font-bold mb-4 flex items-center gap-2 m-0 p-0">
                     <Activity className="w-6 h-6" style={{ color: accent }} />
                     Live Activity
                   </h2>
-                  <div className="font-mono text-sm space-y-2 max-h-96 overflow-y-auto">
-                    {logs.length === 0 && <p className="text-center py-8 opacity-50">Waiting for data...</p>}
+                  <div className="font-mono text-sm space-y-2 max-h-96 overflow-y-auto m-0 p-0">
+                    {logs.length === 0 && <p className="text-center py-8 opacity-50 m-0 p-0">Waiting for data...</p>}
                     {logs.map((log, i) => (
                       <LogItem key={i} log={log} accent={accent} />
                     ))}
                   </div>
                 </div>
               )}
-            </div>
+            </main>
           </div>
         </div>
       </div>
@@ -209,16 +209,16 @@ export default function Home() {
   );
 }
 
-// Components (unchanged)
+// Components (unchanged, with m-0 p-0 for safety)
 function StatCard({ icon: Icon, label, value, color }: any) {
   return (
-    <div className="bg-slate-900/50 backdrop-blur rounded-xl p-6 border border-slate-800">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-slate-400 text-sm">{label}</p>
-          <p className="text-2xl font-bold">{value}</p>
+    <div className="bg-slate-900/50 backdrop-blur rounded-xl p-6 border border-slate-800 m-0 p-0">
+      <div className="flex items-center justify-between m-0 p-0">
+        <div className="m-0 p-0">
+          <p className="text-slate-400 text-sm m-0 p-0">{label}</p>
+          <p className="text-2xl font-bold m-0 p-0">{value}</p>
         </div>
-        <Icon className="w-10 h-10" style={{ color }} />
+        <Icon className="w-10 h-10 m-0 p-0" style={{ color }} />
       </div>
     </div>
   );
@@ -232,71 +232,71 @@ function LogItem({ log, accent }: { log: Log; accent: string }) {
     HEARTBEAT: 'bg-gray-800/50',
   };
   return (
-    <div className={`p-3 rounded-lg border ${colors[log.type] || 'bg-gray-800/50'}`}>
-      <span className="text-slate-500">[{new Date(log.t).toLocaleTimeString()}]</span>{' '}
-      <span className="font-bold" style={{ color: accent }}>{log.type}</span>{' '}
-      {log.data.symbol && <span className="font-bold text-emerald-400">{log.data.symbol}</span>}
-      {log.data.msg && <span>→ {log.data.msg}</span>}
-      {log.data.profit && <span className="text-emerald-400"> P&L: ${log.data.profit}</span>}
+    <div className={`p-3 rounded-lg border ${colors[log.type] || 'bg-gray-800/50'} m-0 p-0`}>
+      <span className="text-slate-500 m-0 p-0">[{new Date(log.t).toLocaleTimeString()}]</span>{' '}
+      <span className="font-bold m-0 p-0" style={{ color: accent }}>{log.type}</span>{' '}
+      {log.data.symbol && <span className="font-bold text-emerald-400 m-0 p-0">{log.data.symbol}</span>}
+      {log.data.msg && <span className="m-0 p-0">→ {log.data.msg}</span>}
+      {log.data.profit && <span className="text-emerald-400 m-0 p-0"> P&L: ${log.data.profit}</span>}
     </div>
   );
 }
 
 function SettingsPanel({ settings, setSettings, saveSettings, accent }: any) {
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Settings</h2>
-        <button onClick={() => setSettings(DEFAULT_SETTINGS)} className="text-sm opacity-70 hover:opacity-100">
+    <div className="space-y-6 m-0 p-0">
+      <div className="flex items-center justify-between mb-6 m-0 p-0">
+        <h2 className="text-2xl font-bold m-0 p-0">Settings</h2>
+        <button onClick={() => setSettings(DEFAULT_SETTINGS)} className="text-sm opacity-70 hover:opacity-100 m-0 p-0">
           Reset
         </button>
       </div>
 
-      <div>
-        <label className="text-sm opacity-70">Bot Name</label>
+      <div className="m-0 p-0">
+        <label className="text-sm opacity-70 m-0 p-0">Bot Name</label>
         <input
           value={settings.botName}
           onChange={e => setSettings({ ...settings, botName: e.target.value })}
-          className="w-full mt-1 px-3 py-2 bg-slate-800 rounded-lg"
+          className="w-full mt-1 px-3 py-2 bg-slate-800 rounded-lg m-0 p-0"
         />
       </div>
 
-      <div>
-        <label className="text-sm opacity-70">Avatar Letters</label>
+      <div className="m-0 p-0">
+        <label className="text-sm opacity-70 m-0 p-0">Avatar Letters</label>
         <input
           value={settings.avatar}
           onChange={e => setSettings({ ...settings, avatar: e.target.value.slice(0, 3) })}
           maxLength={3}
-          className="w-full mt-1 px-3 py-2 bg-slate-800 rounded-lg text-center text-2xl font-bold"
+          className="w-full mt-1 px-3 py-2 bg-slate-800 rounded-lg text-center text-2xl font-bold m-0 p-0"
         />
       </div>
 
-      <div>
-        <label className="text-sm opacity-70">Theme</label>
-        <div className="flex gap-2 mt-2">
+      <div className="m-0 p-0">
+        <label className="text-sm opacity-70 m-0 p-0">Theme</label>
+        <div className="flex gap-2 mt-2 m-0 p-0">
           <button
             onClick={() => setSettings({ ...settings, theme: 'dark' })}
-            className={`flex-1 py-2 rounded-lg ${settings.theme === 'dark' ? 'bg-slate-700' : 'bg-slate-800'}`}
+            className={`flex-1 py-2 rounded-lg ${settings.theme === 'dark' ? 'bg-slate-700' : 'bg-slate-800'} m-0 p-0`}
           >
-            <Moon className="w-5 h-5 mx-auto" />
+            <Moon className="w-5 h-5 mx-auto m-0 p-0" />
           </button>
           <button
             onClick={() => setSettings({ ...settings, theme: 'light' })}
-            className={`flex-1 py-2 rounded-lg ${settings.theme === 'light' ? 'bg-slate-700' : 'bg-slate-800'}`}
+            className={`flex-1 py-2 rounded-lg ${settings.theme === 'light' ? 'bg-slate-700' : 'bg-slate-800'} m-0 p-0`}
           >
-            <Sun className="w-5 h-5 mx-auto" />
+            <Sun className="w-5 h-5 mx-auto m-0 p-0" />
           </button>
         </div>
       </div>
 
-      <div>
-        <label className="text-sm opacity-70">Accent Color</label>
-        <div className="grid grid-cols-5 gap-2 mt-2">
+      <div className="m-0 p-0">
+        <label className="text-sm opacity-70 m-0 p-0">Accent Color</label>
+        <div className="grid grid-cols-5 gap-2 mt-2 m-0 p-0">
           {Object.entries(ACCENT_PRESETS).map(([name, color]) => (
             <button
               key={name}
               onClick={() => setSettings({ ...settings, accentColor: color })}
-              className={`w-full h-10 rounded-lg border-2 ${settings.accentColor === color ? 'border-white' : 'border-transparent'}`}
+              className={`w-full h-10 rounded-lg border-2 ${settings.accentColor === color ? 'border-white' : 'border-transparent'} m-0 p-0`}
               style={{ backgroundColor: color }}
             />
           ))}
@@ -304,78 +304,79 @@ function SettingsPanel({ settings, setSettings, saveSettings, accent }: any) {
       </div>
 
       {/* RISK LIMITS */}
-      <div className="space-y-4 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
-        <label className="text-sm font-bold text-emerald-400">Risk Limits</label>
+      <div className="space-y-4 p-4 bg-slate-800/50 rounded-xl border border-slate-700 m-0 p-0">
+        <label className="text-sm font-bold text-emerald-400 m-0 p-0">Risk Limits</label>
         
-        <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-sm opacity-75">Daily Loss Cap</span>
-            <span className="font-mono text-emerald-300">${settings.dailyLossCap}</span>
+        <div className="space-y-3 m-0 p-0">
+          <div className="flex justify-between items-center m-0 p-0">
+            <span className="text-sm opacity-75 m-0 p-0">Daily Loss Cap</span>
+            <span className="font-mono text-emerald-300 m-0 p-0">${settings.dailyLossCap}</span>
           </div>
           <input
             type="number"
             value={settings.dailyLossCap}
             onChange={e => setSettings({ ...settings, dailyLossCap: +e.target.value })}
-            className="w-full px-3 py-2 bg-slate-700 rounded-lg text-sm"
+            className="w-full px-3 py-2 bg-slate-700 rounded-lg text-sm m-0 p-0"
             placeholder="e.g. 300"
           />
 
-          <div className="flex justify-between items-center">
-            <span className="text-sm opacity-75">Max Positions</span>
-            <span className="font-mono text-emerald-300">{settings.maxPositions}</span>
+          <div className="flex justify-between items-center m-0 p-0">
+            <span className="text-sm opacity-75 m-0 p-0">Max Positions</span>
+            <span className="font-mono text-emerald-300 m-0 p-0">{settings.maxPositions}</span>
           </div>
           <input
             type="number"
             value={settings.maxPositions}
             onChange={e => setSettings({ ...settings, maxPositions: +e.target.value })}
-            className="w-full px-3 py-2 bg-slate-700 rounded-lg text-sm"
+            className="w-full px-3 py-2 bg-slate-700 rounded-lg text-sm m-0 p-0"
             placeholder="e.g. 3"
           />
 
-          <div className="flex justify-between items-center">
-            <span className="text-sm opacity-75">Max Drawdown</span>
-            <span className="font-mono text-emerald-300">{settings.drawdownShutoff}%</span>
+          <div className="flex justify-between items-center m-0 p-0">
+            <span className="text-sm opacity-75 m-0 p-0">Max Drawdown</span>
+            <span className="font-mono text-emerald-300 m-0 p-0">{settings.drawdownShutoff}%</span>
           </div>
           <input
             type="number"
             value={settings.drawdownShutoff}
             onChange={e => setSettings({ ...settings, drawdownShutoff: +e.target.value })}
-            className="w-full px-3 py-2 bg-slate-700 rounded-lg text-sm"
+            className="w-full px-3 py-2 bg-slate-700 rounded-lg text-sm m-0 p-0"
             placeholder="e.g. 15"
           />
         </div>
       </div>
 
-      <div>
-        <label className="text-sm opacity-70">Show Panels</label>
-        <div className="space-y-2 mt-2">
+      <div className="m-0 p-0">
+        <label className="text-sm opacity-70 m-0 p-0">Show Panels</label>
+        <div className="space-y-2 mt-2 m-0 p-0">
           {['showEquity', 'showPositions', 'showLoss', 'showChart', 'showFeed'].map(key => (
-            <label key={key} className="flex items-center gap-2">
+            <label key={key} className="flex items-center gap-2 m-0 p-0">
               <input
                 type="checkbox"
                 checked={settings[key]}
                 onChange={e => setSettings({ ...settings, [key]: e.target.checked })}
+                className="m-0 p-0"
               />
-              <span className="text-sm">{key.replace('show', '').replace('Loss', ' Daily Loss')}</span>
+              <span className="text-sm m-0 p-0">{key.replace('show', '').replace('Loss', ' Daily Loss')}</span>
             </label>
           ))}
         </div>
       </div>
 
-      <div className="h-20" />
+      <div className="h-20 m-0 p-0" />
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className="w-full py-2 text-xs opacity-60 hover:opacity-100 mb-4"
+        className="w-full py-2 text-xs opacity-60 hover:opacity-100 mb-4 m-0 p-0"
       >
         Back to Top
       </button>
 
       <button
         onClick={saveSettings}
-        className="w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition hover:opacity-90"
+        className="w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition hover:opacity-90 m-0 p-0"
         style={{ backgroundColor: accent }}
       >
-        <Save className="w-5 h-5" /> Save & Apply
+        <Save className="w-5 h-5 m-0 p-0" /> Save & Apply
       </button>
     </div>
   );
