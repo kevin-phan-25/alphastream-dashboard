@@ -98,7 +98,7 @@ export default function Home() {
   const accent = settings.accentColor;
 
   return (
-    <div className={`min-h-screen transition-colors ${settings.theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`h-screen transition-colors ${settings.theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-gray-50 text-gray-900'}`}>
       
       {/* Mobile Sidebar */}
       {sidebarOpen && (
@@ -111,93 +111,98 @@ export default function Home() {
       )}
 
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block lg:w-64 lg:border-r lg:border-slate-800 lg:bg-slate-950">
-        <div className="sticky top-0 h-screen p-6 overflow-y-auto max-h-screen">
+      <div className="hidden lg:block lg:w-64 lg:border-r lg:border-slate-800 lg:bg-slate-950 h-screen">
+        <div className="sticky top-0 h-full p-6 overflow-y-auto"> {/* h-full instead of h-screen for inner */}
           <SettingsPanel settings={settings} setSettings={setSettings} saveSettings={saveSettings} accent={accent} />
         </div>
       </div>
 
-      {/* Main Content – PERFECT ALIGNMENT */}
-      <div className="lg:pl-64">
-        <div className="pt-0 lg:pt-0 pb-8 lg:pb-12 max-w-7xl mx-auto px-4 lg:px-8"> {/* pt-0 for flush top */}
-          {/* Header – FLUSH TOP */}
-          <div className="mt-0 mb-8"> {/* mt-0 ensures no top margin */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold" style={{ backgroundColor: accent }}>
-                  {settings.avatar}
+      {/* Main Content – FLUSH TOP, NO GAP */}
+      <div className="lg:pl-64 h-full"> {/* h-full to fill viewport */}
+        <div className="h-full px-4 lg:px-8"> {/* NO pt-0, NO pb – use flex for content flow */}
+          <div className="flex flex-col h-full">
+            {/* Header – NO MARGIN */}
+            <div className="mb-8 flex-shrink-0"> {/* flex-shrink-0 prevents compression */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold" style={{ backgroundColor: accent }}>
+                    {settings.avatar}
+                  </div>
+                  <div>
+                    <h1 className="text-4xl font-bold" style={{ color: accent }}>
+                      {settings.botName}
+                    </h1>
+                    <p className="text-lg opacity-70">@{new Date().toLocaleTimeString()} EST • @Kevin_Phan25</p>
+                  </div>
                 </div>
-                <div>
-                  <h1 className="text-4xl font-bold" style={{ color: accent }}>
-                    {settings.botName}
-                  </h1>
-                  <p className="text-lg opacity-70">@{new Date().toLocaleTimeString()} EST • @Kevin_Phan25</p>
-                </div>
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="lg:hidden p-3 rounded-lg bg-slate-800 hover:bg-slate-700"
+                >
+                  <Settings className="w-6 h-6" />
+                </button>
               </div>
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-3 rounded-lg bg-slate-800 hover:bg-slate-700"
-              >
-                <Settings className="w-6 h-6" />
-              </button>
+            </div>
+
+            {/* Scrollable Content Area */}
+            <div className="flex-1 overflow-y-auto space-y-8"> {/* flex-1 + overflow for scroll */}
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {settings.showEquity && (
+                  <StatCard icon={DollarSign} label="Equity" value={`$${Number(equity).toLocaleString()}`} color={accent} />
+                )}
+                {settings.showPositions && (
+                  <StatCard icon={Zap} label="Positions" value={`${positions}/${settings.maxPositions}`} color={accent} />
+                )}
+                {settings.showLoss && (
+                  <StatCard
+                    icon={AlertTriangle}
+                    label="Daily Loss"
+                    value={`$${dailyLoss.toFixed(0)}/${settings.dailyLossCap}`}
+                    color={dailyLoss > settings.dailyLossCap * 0.8 ? '#ef4444' : accent}
+                  />
+                )}
+                <StatCard icon={Clock} label="Last Scan" value={lastScan} color={accent} />
+              </div>
+
+              {/* Chart */}
+              {settings.showChart && (
+                <div className="bg-slate-900/50 backdrop-blur rounded-2xl p-6 border border-slate-800">
+                  <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                    <TrendingUp className="w-6 h-6" style={{ color: accent }} />
+                    Equity Curve
+                  </h2>
+                  <div className="h-80">
+                    <ResponsiveContainer>
+                      <LineChart data={pnlData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                        <XAxis dataKey="time" stroke="#94a3b8" />
+                        <YAxis stroke="#94a3b8" />
+                        <Tooltip contentStyle={{ background: '#1e293b', border: 'none' }} />
+                        <Line type="monotone" dataKey="equity" stroke={accent} strokeWidth={4} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* Live Feed */}
+              {settings.showFeed && (
+                <div className="bg-slate-900/50 backdrop-blur rounded-2xl p-6 border border-slate-800">
+                  <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                    <Activity className="w-6 h-6" style={{ color: accent }} />
+                    Live Activity
+                  </h2>
+                  <div className="font-mono text-sm space-y-2 max-h-96 overflow-y-auto">
+                    {logs.length === 0 && <p className="text-center py-8 opacity-50">Waiting for data...</p>}
+                    {logs.map((log, i) => (
+                      <LogItem key={i} log={log} accent={accent} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {settings.showEquity && (
-              <StatCard icon={DollarSign} label="Equity" value={`$${Number(equity).toLocaleString()}`} color={accent} />
-            )}
-            {settings.showPositions && (
-              <StatCard icon={Zap} label="Positions" value={`${positions}/${settings.maxPositions}`} color={accent} />
-            )}
-            {settings.showLoss && (
-              <StatCard
-                icon={AlertTriangle}
-                label="Daily Loss"
-                value={`$${dailyLoss.toFixed(0)}/${settings.dailyLossCap}`}
-                color={dailyLoss > settings.dailyLossCap * 0.8 ? '#ef4444' : accent}
-              />
-            )}
-            <StatCard icon={Clock} label="Last Scan" value={lastScan} color={accent} />
-          </div>
-
-          {/* Chart */}
-          {settings.showChart && (
-            <div className="bg-slate-900/50 backdrop-blur rounded-2xl p-6 border border-slate-800 mb-8">
-              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <TrendingUp className="w-6 h-6" style={{ color: accent }} />
-                Equity Curve
-              </h2>
-              <div className="h-80">
-                <ResponsiveContainer>
-                  <LineChart data={pnlData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis dataKey="time" stroke="#94a3b8" />
-                    <YAxis stroke="#94a3b8" />
-                    <Tooltip contentStyle={{ background: '#1e293b', border: 'none' }} />
-                    <Line type="monotone" dataKey="equity" stroke={accent} strokeWidth={4} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-
-          {/* Live Feed */}
-          {settings.showFeed && (
-            <div className="bg-slate-900/50 backdrop-blur rounded-2xl p-6 border border-slate-800">
-              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <Activity className="w-6 h-6" style={{ color: accent }} />
-                Live Activity
-              </h2>
-              <div className="font-mono text-sm space-y-2 max-h-96 overflow-y-auto">
-                {logs.length === 0 && <p className="text-center py-8 opacity-50">Waiting for data...</p>}
-                {logs.map((log, i) => (
-                  <LogItem key={i} log={log} accent={accent} />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
