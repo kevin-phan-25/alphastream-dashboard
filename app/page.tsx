@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Activity, DollarSign, Zap, AlertTriangle, TrendingUp, Clock, Settings, Sun, Moon, Palette, User, Save, X } from 'lucide-react';
+import { Activity, DollarSign, Zap, AlertTriangle, TrendingUp, Clock, Settings, Sun, Moon, Palette, Save, X } from 'lucide-react';
 
 interface Log {
   type: string;
@@ -71,7 +71,7 @@ export default function Home() {
   const saveSettings = () => {
     localStorage.setItem('alphastream-settings', JSON.stringify(settings));
     setShowSettings(false);
-    window.location.reload(); // Apply theme
+    window.location.reload();
   };
 
   // SSE Connection
@@ -300,11 +300,47 @@ function SettingsPanel({ settings, setSettings, saveSettings, accent }: any) {
           </div>
         </div>
 
-        <div className="space-y-3">
-          <label className="text-sm opacity-70">Risk Limits</label>
-          <input type="number" placeholder="Daily Loss Cap" value={settings.dailyLossCap} onChange={e => setSettings({ ...settings, dailyLossCap: +e.target.value })} className="w-full px-3 py-2 bg-slate-800 rounded-lg" />
-          <input type="number" placeholder="Max Positions" value={settings.maxPositions} onChange={e => setSettings({ ...settings, maxPositions: +e.target.value })} className="w-full px-3 py-2 bg-slate-800 rounded-lg" />
-          <input type="number" placeholder="Drawdown % Shutoff" value={settings.drawdownShutoff} onChange={e => setSettings({ ...settings, drawdownShutoff: +e.target.value })} className="w-full px-3 py-2 bg-slate-800 rounded-lg" />
+        {/* RISK LIMITS – NOW LABELED & CLEAR */}
+        <div className="space-y-4 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+          <label className="text-sm font-bold text-emerald-400">Risk Limits</label>
+          
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm opacity-75">Daily Loss Cap</span>
+              <span className="font-mono text-emerald-300">${settings.dailyLossCap}</span>
+            </div>
+            <input
+              type="number"
+              value={settings.dailyLossCap}
+              onChange={e => setSettings({ ...settings, dailyLossCap: +e.target.value })}
+              className="w-full px-3 py-2 bg-slate-700 rounded-lg text-sm"
+              placeholder="e.g. 300"
+            />
+
+            <div className="flex justify-between items-center">
+              <span className="text-sm opacity-75">Max Positions</span>
+              <span className="font-mono text-emerald-300">{settings.maxPositions}</span>
+            </div>
+            <input
+              type="number"
+              value={settings.maxPositions}
+              onChange={e => setSettings({ ...settings, maxPositions: +e.target.value })}
+              className="w-full px-3 py-2 bg-slate-700 rounded-lg text-sm"
+              placeholder="e.g. 3"
+            />
+
+            <div className="flex justify-between items-center">
+              <span className="text-sm opacity-75">Max Drawdown</span>
+              <span className="font-mono text-emerald-300">{settings.drawdownShutoff}%</span>
+            </div>
+            <input
+              type="number"
+              value={settings.drawdownShutoff}
+              onChange={e => setSettings({ ...settings, drawdownShutoff: +e.target.value })}
+              className="w-full px-3 py-2 bg-slate-700 rounded-lg text-sm"
+              placeholder="e.g. 15"
+            />
+          </div>
         </div>
 
         <div>
@@ -325,7 +361,7 @@ function SettingsPanel({ settings, setSettings, saveSettings, accent }: any) {
 
         <button
           onClick={saveSettings}
-          className="w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition"
+          className="w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition hover:opacity-90"
           style={{ backgroundColor: accent }}
         >
           <Save className="w-5 h-5" /> Save & Apply
