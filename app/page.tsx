@@ -117,11 +117,11 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Main Content – FIXED POSITIONING */}
+      {/* Main Content – PERFECT ALIGNMENT */}
       <div className="lg:pl-64">
-        <div className="pt-4 lg:pt-6 pb-8 lg:pb-12 max-w-7xl mx-auto px-4 lg:px-8"> {/* ADDED pt-4 lg:pt-6 for top breathing room */}
-          {/* Header */}
-          <div className="mb-8">
+        <div className="pt-0 lg:pt-0 pb-8 lg:pb-12 max-w-7xl mx-auto px-4 lg:px-8"> {/* pt-0 for flush top */}
+          {/* Header – FLUSH TOP */}
+          <div className="mt-0 mb-8"> {/* mt-0 ensures no top margin */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold" style={{ backgroundColor: accent }}>
