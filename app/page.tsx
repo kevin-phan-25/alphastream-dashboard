@@ -57,15 +57,17 @@ export default function Home() {
     };
     evtSource.onerror = () => evtSource.close();
     return () => evtSource.close();
-  }, []);
+ insecticides  }, []);
 
   const accent = settings.accentColor;
 
   return (
-    <div className="h-screen flex overflow-hidden">
+    <div className="h-screen flex">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:block w-64 bg-slate-900 border-r border-slate-800 h-full overflow-y-auto p-6">
-        <SettingsPanel settings={settings} setSettings={setSettings} saveSettings={saveSettings} accent={accent} />
+      <aside className="hidden lg:flex w-64 bg-slate-900 border-r border-slate-800 flex-col">
+        <div className="flex-1 overflow-y-auto p-6">
+          <SettingsPanel settings={settings} setSettings={setSettings} saveSettings={saveSettings} accent={accent} />
+        </div>
       </aside>
 
       {/* Mobile Sidebar */}
@@ -78,8 +80,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Main */}
-      <div className="flex-1 flex flex-col h-full">
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col">
         <header className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-950">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold" style={{ backgroundColor: accent }}>
