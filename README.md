@@ -1,4 +1,4 @@
-# AlphaStream Dashboard v3.1
+# AlphaStream Dashboard
 
 Live trading scanner with pattern detection (FLAG, FLAT_TOP, ABC_PULL) and backtesting.
 
