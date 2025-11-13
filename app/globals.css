@@ -2,9 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ZERO MARGINS RESET – FIXES TOP GAP */
+/* AGGRESSIVE RESET – ZERO TOP GAP */
 @layer base {
-  html, body {
+  html {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100% !important;
+  }
+
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100% !important;
+  }
+
+  #__next {
     margin: 0 !important;
     padding: 0 !important;
     height: 100% !important;
