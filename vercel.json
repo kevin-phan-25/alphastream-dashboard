@@ -1,0 +1,12 @@
+// vercel.json
+{
+  "builds": [
+    {
+      "src": "app/**",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    { "src": "/api/.*", "dest": "/api/$1" }
+  ]
+}
