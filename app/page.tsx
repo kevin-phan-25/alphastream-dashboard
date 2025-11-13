@@ -62,7 +62,7 @@ export default function Home() {
   const accent = settings.accentColor;
 
   return (
-    <div className="h-screen flex overflow-hidden bg-slate-950">
+    <div className="h-screen flex overflow-hidden">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:block w-64 bg-slate-900 border-r border-slate-800 h-full overflow-y-auto p-6">
         <SettingsPanel settings={settings} setSettings={setSettings} saveSettings={saveSettings} accent={accent} />
@@ -124,7 +124,7 @@ export default function Home() {
   );
 }
 
-// Components (same as before)
+// Components (unchanged)
 function StatCard({ icon: Icon, label, value, color }: any) {
   return (
     <div className="bg-slate-900/50 backdrop-blur rounded-lg p-4 border border-slate-800">
