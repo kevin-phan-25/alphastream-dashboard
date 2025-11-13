@@ -62,84 +62,69 @@ export default function Home() {
   const accent = settings.accentColor;
 
   return (
-    <>
-      {/* VIEWPORT + RESET */}
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-      <style jsx global>{`
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body, #__next, #__next > div { height: 100vh !important; margin: 0 !important; padding: 0 !important; }
-        body { background: ${settings.theme === 'dark' ? '#020617' : '#f9fafb'}; }
-      `}</style>
+    <div className="h-screen flex overflow-hidden bg-slate-950">
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:block w-64 bg-slate-900 border-r border-slate-800 h-full overflow-y-auto p-6">
+        <SettingsPanel settings={settings} setSettings={setSettings} saveSettings={saveSettings} accent={accent} />
+      </aside>
 
-      <div className="h-screen flex overflow-hidden">
-        {/* Desktop Sidebar */}
-        <div className="hidden lg:block w-64 bg-slate-900 border-r border-slate-800 h-full overflow-y-auto p-6">
-          <SettingsPanel settings={settings} setSettings={setSettings} saveSettings={saveSettings} accent={accent} />
+      {/* Mobile Sidebar */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="fixed inset-0 bg-black/70" onClick={() => setSidebarOpen(false)} />
+          <aside className="fixed left-0 top-0 w-64 h-full bg-slate-900 p-6 overflow-y-auto">
+            <SettingsPanel settings={settings} setSettings={setSettings} saveSettings={saveSettings} accent={accent} />
+          </aside>
         </div>
+      )}
 
-        {/* Mobile Sidebar */}
-        {sidebarOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden">
-            <div className="fixed inset-0 bg-black/70" onClick={() => setSidebarOpen(false)} />
-            <div className="fixed left-0 top-0 w-64 h-full bg-slate-900 p-6 overflow-y-auto">
-              <SettingsPanel settings={settings} setSettings={setSettings} saveSettings={saveSettings} accent={accent} />
+      {/* Main */}
+      <div className="flex-1 flex flex-col h-full">
+        <header className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold" style={{ backgroundColor: accent }}>
+              {settings.avatar}
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold" style={{ color: accent }}>{settings.botName}</h1>
+              <p className="text-sm opacity-70">@{new Date().toLocaleTimeString()} EST • @Kevin_Phan25</p>
             </div>
           </div>
-        )}
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded bg-slate-800">
+            <Settings className="w-5 h-5" />
+          </button>
+        </header>
 
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col h-full">
-          {/* Header */}
-          <header className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-950">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold" style={{ backgroundColor: accent }}>
-                {settings.avatar}
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold" style={{ color: accent }}>{settings.botName}</h1>
-                <p className="text-sm opacity-70">@{new Date().toLocaleTimeString()} EST • @Kevin_Phan25</p>
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {settings.showEquity && <StatCard icon={DollarSign} label="Equity" value={`$${equity.toLocaleString()}`} color={accent} />}
+            {settings.showPositions && <StatCard icon={Zap} label="Positions" value={`${positions}/${settings.maxPositions}`} color={accent} />}
+            {settings.showLoss && <StatCard icon={AlertTriangle} label="Daily Loss" value={`$${dailyLoss}/${settings.dailyLossCap}`} color={dailyLoss > settings.dailyLossCap * 0.8 ? '#ef4444' : accent} />}
+            <StatCard icon={Clock} label="Last Scan" value={lastScan} color={accent} />
+          </div>
+
+          {settings.showChart && (
+            <div className="bg-slate-900/50 backdrop-blur rounded-xl p-6 border border-slate-800">
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><TrendingUp className="w-5 h-5" style={{ color: accent }} /> Equity Curve</h2>
+              <div className="h-64"><ResponsiveContainer><LineChart data={pnlData}><CartesianGrid stroke="#334155" /><XAxis dataKey="time" stroke="#94a3b8" /><YAxis stroke="#94a3b8" /><Tooltip contentStyle={{ background: '#1e293b', border: 'none' }} /><Line type="monotone" dataKey="equity" stroke={accent} strokeWidth={3} dot={false} /></LineChart></ResponsiveContainer></div>
+            </div>
+          )}
+
+          {settings.showFeed && (
+            <div className="bg-slate-900/50 backdrop-blur rounded-xl p-6 border border-slate-800">
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Activity className="w-5 h-5" style={{ color: accent }} /> Live Activity</h2>
+              <div className="text-sm font-mono space-y-2 max-h-96 overflow-y-auto">
+                {logs.length === 0 ? <p className="text-center py-8 opacity-50">Waiting...</p> : logs.map((log, i) => <LogItem key={i} log={log} accent={accent} />)}
               </div>
             </div>
-            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded bg-slate-800">
-              <Settings className="w-5 h-5" />
-            </button>
-          </header>
-
-          {/* Scrollable Content */}
-          <main className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-950">
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {settings.showEquity && <StatCard icon={DollarSign} label="Equity" value={`$${equity.toLocaleString()}`} color={accent} />}
-              {settings.showPositions && <StatCard icon={Zap} label="Positions" value={`${positions}/${settings.maxPositions}`} color={accent} />}
-              {settings.showLoss && <StatCard icon={AlertTriangle} label="Daily Loss" value={`$${dailyLoss}/${settings.dailyLossCap}`} color={dailyLoss > settings.dailyLossCap * 0.8 ? '#ef4444' : accent} />}
-              <StatCard icon={Clock} label="Last Scan" value={lastScan} color={accent} />
-            </div>
-
-            {/* Chart */}
-            {settings.showChart && (
-              <div className="bg-slate-900/50 backdrop-blur rounded-xl p-6 border border-slate-800">
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><TrendingUp className="w-5 h-5" style={{ color: accent }} /> Equity Curve</h2>
-                <div className="h-64"><ResponsiveContainer><LineChart data={pnlData}><CartesianGrid stroke="#334155" /><XAxis dataKey="time" stroke="#94a3b8" /><YAxis stroke="#94a3b8" /><Tooltip contentStyle={{ background: '#1e293b', border: 'none' }} /><Line type="monotone" dataKey="equity" stroke={accent} strokeWidth={3} dot={false} /></LineChart></ResponsiveContainer></div>
-              </div>
-            )}
-
-            {/* Feed */}
-            {settings.showFeed && (
-              <div className="bg-slate-900/50 backdrop-blur rounded-xl p-6 border border-slate-800">
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Activity className="w-5 h-5" style={{ color: accent }} /> Live Activity</h2>
-                <div className="text-sm font-mono space-y-2 max-h-96 overflow-y-auto">
-                  {logs.length === 0 ? <p className="text-center py-8 opacity-50">Waiting...</p> : logs.map((log, i) => <LogItem key={i} log={log} accent={accent} />)}
-                </div>
-              </div>
-            )}
-          </main>
-        </div>
+          )}
+        </main>
       </div>
-    </>
+    </div>
   );
 }
 
-// Components
+// Components (same as before)
 function StatCard({ icon: Icon, label, value, color }: any) {
   return (
     <div className="bg-slate-900/50 backdrop-blur rounded-lg p-4 border border-slate-800">
@@ -166,8 +151,7 @@ function LogItem({ log, accent }: { log: Log; accent: string }) {
 function SettingsPanel({ settings, setSettings, saveSettings, accent }: any) {
   return (
     <div className="space-y-4 text-sm">
-      <h c2 className="text-xl font-bol d">Settings</h2>
-      <button onClick={() => setSettings(DEFAULT_SETTINGS)} className="text-xs opacity-70">Reset</button>
+      <div className="flex justify-between"><h2 className="text-xl font-bold">Settings</h2><button onClick={() => setSettings(DEFAULT_SETTINGS)} className="text-xs opacity-70">Reset</button></div>
 
       <div><label>Bot Name</label><input value={settings.botName} onChange={e => setSettings({ ...settings, botName: e.target.value })} className="w-full mt-1 px-3 py-1 bg-slate-800 rounded" /></div>
       <div><label>Avatar</label><input value={settings.avatar} onChange={e => setSettings({ ...settings, avatar: e.target.value.slice(0,3) })} maxLength={3} className="w-full mt-1 px-3 py-1 bg-slate-800 rounded text-center font-bold" /></div>
