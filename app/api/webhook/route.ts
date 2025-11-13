@@ -1,6 +1,6 @@
 // app/api/webhook/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { broadcast } from '../sse/route';
+import { broadcast } from '@/lib/sse';
 
 const SECRET = process.env.WEBHOOK_SECRET || 'alphastream-bot-secure-2025!x7k9';
 
@@ -16,10 +16,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`[AlphaStream] ${type}:`, data, `at ${t}`);
 
-    // Broadcast via SSE
-    const event = new TextEncoder().encode(`data: ${JSON.stringify({ type, data, t })}\n\n`);
-    // In real prod, push to Redis or WebSocket
-    // For Vercel, we'll rely on polling fallback
+    // Broadcast to all SSE clients
+    broadcast({ type, data, t });
 
     return NextResponse.json({ received: type, timestamp: t });
   } catch (err) {
