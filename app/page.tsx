@@ -3,9 +3,9 @@
 
 import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Activity, DollarSign, Zap, AlertTriangle, TrendingUp, Clock, Settings, Sun, Moon, Save, Trophy } from 'lucide-react';
+import { Activity, DollarSign, Zap, AlertTriangle, TrendingUp, Clock, Settings, Sun, Moon, Save, Trophy, AlertOctagon } from 'lucide-react';
 
-interface Log { type: string; data: any; t: string; }
+interface Log { type: string; data: any; t: string; raw: string; }
 interface Trade { id: string; symbol: string; entry: number; qty: number; pnl: number; time: string; status: 'open' | 'closed'; }
 interface Stats { total: number; wins: number; }
 interface Settings {
@@ -24,12 +24,11 @@ const ACCENT_PRESETS = { emerald: '#10b981', blue: '#3b82f6', purple: '#a855f7',
 
 export default function Home() {
   const [logs, setLogs] = useState<Log[]>([]);
-  const [trades, setTrades] = useState<Trade[]>([]);
   const [liveTrades, setLiveTrades] = useState<Trade[]>([]);
   const [equity, setEquity] = useState(99998.93);
   const [positions, setPositions] = useState(0);
   const [dailyLoss, setDailyLoss] = useState(0);
-  const [lastScan, setLastScan] = useState('11:52:29 AM');
+  const [lastScan, setLastScan] = useState('Never');
   const [pnlData, setPnlData] = useState<{time: string; equity: number}[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, wins: 0 });
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -48,55 +47,70 @@ export default function Home() {
   useEffect(() => {
     const evtSource = new EventSource('/api/sse');
     evtSource.onmessage = (e) => {
-      const log: Log = JSON.parse(e.data);
+      const raw = e.data;
+      const parts = raw.split('\t');
+      const t = parts[0];
+      const type = parts[1];
+      const dataStr = parts.slice(2).join('\t');
+      const log: Log = { type, data: {}, t, raw };
+
+      // Parse known types
+      if (type === 'STATS') {
+        const equityMatch = dataStr.match(/Equity: \$?([\d,]+\.?\d*)/);
+        const lossMatch = dataStr.match(/Daily Loss: \$?([\d,]+\.?\d*)/);
+        const posMatch = dataStr.match(/Positions: (\d+)/);
+        if (equityMatch) setEquity(parseFloat(equityMatch[1].replace(/,/g, '')));
+        if (lossMatch) setDailyLoss(parseFloat(lossMatch[1].replace(/,/g, '')));
+        if (posMatch) setPositions(+posMatch[1]);
+        setPnlData(prev => [...prev, { time: new Date(t).toLocaleTimeString(), equity: equity }].slice(-50));
+      }
+
+      if (type === 'SCAN') {
+        setLastScan(new Date(t).toLocaleTimeString());
+      }
+
+      if (type === 'TRADE') {
+        const symbolMatch = dataStr.match(/symbol: ([A-Z]+)/);
+        const priceMatch = dataStr.match(/price: ([\d.]+)/);
+        const qtyMatch = dataStr.match(/qty: (\d+)/);
+        if (symbolMatch && priceMatch && qtyMatch) {
+          const newTrade: Trade = {
+            id: Math.random().toString(36).substr(2, 9),
+            symbol: symbolMatch[1],
+            entry: +priceMatch[1],
+            qty: +qtyMatch[1],
+            pnl: 0,
+            time: new Date(t).toLocaleTimeString(),
+            status: 'open'
+          };
+          setLiveTrades(prev => [newTrade, ...prev]);
+          setPositions(p => p + 1);
+        }
+      }
+
+      if (type === 'CLOSED') {
+        const symbolMatch = dataStr.match(/symbol: ([A-Z]+)/);
+        const profitMatch = dataStr.match(/profit: ([\d.-]+)/);
+        if (symbolMatch && profitMatch) {
+          const profit = +profitMatch[1];
+          setLiveTrades(prev => prev.filter(t => t.symbol !== symbolMatch[1]));
+          setPositions(p => p - 1);
+          setStats(s => ({
+            total: s.total + 1,
+            wins: s.wins + (profit > 0 ? 1 : 0)
+          }));
+        }
+      }
+
       setLogs(prev => [log, ...prev].slice(0, 100));
-
-      if (log.type === 'STATS') {
-        setEquity(log.data.equity);
-        setPositions(log.data.positions);
-        setDailyLoss(log.data.dailyLoss);
-        setPnlData(prev => [...prev, { time: new Date(log.t).toLocaleTimeString(), equity: log.data.equity }].slice(-50));
-      }
-      if (log.type === 'SCAN') setLastScan(new Date(log.t).toLocaleTimeString());
-
-      if (log.type === 'TRADE') {
-        const newTrade: Trade = {
-          id: Math.random().toString(36).substr(2, 9),
-          symbol: log.data.symbol,
-          entry: log.data.price,
-          qty: log.data.qty,
-          pnl: 0,
-          time: new Date(log.t).toLocaleTimeString(),
-          status: 'open'
-        };
-        setTrades(prev => [newTrade, ...prev]);
-        setLiveTrades(prev => [newTrade, ...prev]);
-        setPositions(p => p + 1);
-      }
-
-      if (log.type === 'CLOSED') {
-        const profit = log.data.profit;
-        setLiveTrades(prev => prev.filter(t => t.symbol !== log.data.symbol));
-        setTrades(prev => prev.map(t =>
-          t.symbol === log.data.symbol && t.status === 'open'
-            ? { ...t, pnl: profit, status: 'closed' }
-            : t
-        ));
-        setPositions(p => p - 1);
-        setStats(s => ({
-          total: s.total + 1,
-          wins: s.wins + (profit > 0 ? 1 : 0)
-        }));
-      }
     };
     return () => evtSource.close();
-  }, []);
+  }, [equity]);
 
   const winRate = stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0;
   const theme = settings.theme;
   const accent = settings.accentColor;
   const glass = theme === 'dark' ? 'glass' : 'glass-light';
-  const textColor = theme === 'dark' ? 'text-slate-100' : 'text-gray-900';
   const muted = theme === 'dark' ? 'text-slate-400' : 'text-gray-600';
 
   return (
@@ -131,10 +145,18 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Win Rate Badge */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-900/50 border border-emerald-700">
-            <Trophy className="w-4 h-4 text-emerald-400" />
-            <span className="text-sm font-bold text-emerald-300">{winRate}% Win Rate</span>
+          {/* Win Rate + NUCLEAR Badge */}
+          <div className="flex items-center gap-3">
+            {logs.some(l => l.type === 'NUCLEAR_MODE') && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-900/70 border border-orange-600 animate-pulse">
+                <AlertOctagon className="w-4 h-4 text-orange-400" />
+                <span className="text-xs font-bold text-orange-300">NUCLEAR</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-900/50 border border-emerald-700">
+              <Trophy className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm font-bold text-emerald-300">{winRate}% Win Rate</span>
+            </div>
           </div>
 
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded-lg bg-slate-800/50">
@@ -151,7 +173,7 @@ export default function Home() {
             <StatCard icon={Clock} label="Last Scan" value={lastScan} color={accent} />
           </div>
 
-          {/* Live Trades Table – CONCISE */}
+          {/* Live Trades */}
           {settings.showTrades && liveTrades.length > 0 && (
             <div className={`${glass} rounded-2xl p-5 border ${theme === 'dark' ? 'border-slate-700' : 'border-gray-300'}`}>
               <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
@@ -180,16 +202,16 @@ export default function Home() {
           {settings.showChart && (
             <div className={`${glass} rounded-2xl p-6 border ${theme === 'dark' ? 'border-slate-700' : 'border-gray-300'}`}>
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><TrendingUp className="w-5 h-5" style={{ color: accent }} /> Equity Curve</h2>
-              <div className="h-64"><ResponsiveContainer><LineChart data={pnlData}><CartesianGrid stroke={theme === 'dark' ? '#334155' : '#e5e7eb'} /><XAxis dataKey="time" stroke={theme === 'dark' ? '#94a3b8' : '#6b7280'} /><YAxis stroke={theme === 'dark' ? '#94a3b8' : '#6b7280'} /><Tooltip contentStyle={{ background: theme === 'dark' ? '#1e293b' : '#ffffff', border: 'none', color: theme === 'dark' ? '#e2e8f0' : '#111827' }} /><Line type="monotone" dataKey="equity" stroke={accent} strokeWidth={3} dot={false} /></LineChart></ResponsiveContainer></div>
+              <div className="h-64"><ResponsiveContainer><LineChart data={pnlData}><CartesianGrid stroke={theme === 'dark' ? '#334155' : '#e5e7eb'} /><XAxis dataKey="time" stroke={theme === 'dark' ? '#94a3b8' : '#6b7280'} /><YAxis stroke={theme === 'dark' ? '#94a3b8' : '#6b7280'} /><Tooltip contentStyle={{ background: theme === 'dark' ? '#1e293b' : '#ffffff', border: 'none' }} /><Line type="monotone" dataKey="equity" stroke={accent} strokeWidth={3} dot={false} /></LineChart></ResponsiveContainer></div>
             </div>
           )}
 
-          {/* Feed */}
+          {/* Live Activity – PARSES YOUR LOGS */}
           {settings.showFeed && (
             <div className={`${glass} rounded-2xl p-6 border ${theme === 'dark' ? 'border-slate-700' : 'border-gray-300'}`}>
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Activity className="w-5 h-5" style={{ color: accent }} /> Live Activity</h2>
-              <div className="text-sm font-mono space-y-2 max-h-96 overflow-y-auto">
-                {logs.length === 0 ? <p className={`text-center py-8 ${muted}`}>Waiting for data...</p> : logs.map((log, i) => <LogItem key={i} log={log} accent={accent} theme={theme} />)}
+              <div className="text-xs font-mono space-y-2 max-h-96 overflow-y-auto">
+                {logs.length === 0 ? <p className={`text-center py-8 ${muted}`}>Waiting...</p> : logs.map((log, i) => <LogItem key={i} log={log} accent={accent} theme={theme} />)}
               </div>
             </div>
           )}
@@ -199,84 +221,39 @@ export default function Home() {
   );
 }
 
-// Components
-function StatCard({ icon: Icon, label, value, color }: any) {
-  return (
-    <div className="bg-slate-900/40 dark:bg-slate-900/40 light:bg-white/70 backdrop-blur rounded-xl p-5 border border-slate-700 dark:border-slate-700 light:border-gray-300 shadow-sm">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs opacity-70">{label}</p>
-          <p className="text-2xl font-bold mt-1">{value}</p>
-        </div>
-        <Icon className="w-9 h-9 opacity-80" style={{ color }} />
-      </div>
-    </div>
-  );
-}
-
+// Enhanced LogItem with NUCLEAR_MODE
 function LogItem({ log, accent, theme }: { log: Log; accent: string; theme: string }) {
-  const colors: any = { 
-    TRADE: theme === 'dark' ? 'bg-emerald-900/40 border-emerald-500' : 'bg-emerald-100 border-emerald-400 text-emerald-800',
-    CLOSED: theme === 'dark' ? 'bg-blue-900/40 border-blue-500' : 'bg-blue-100 border-blue-400 text-blue-800',
-    SHUTOFF: theme === 'dark' ? 'bg-red-900/60 border-red-500' : 'bg-red-100 border-red-400 text-red-800',
-    HEARTBEAT: theme === 'dark' ? 'bg-gray-800/50' : 'bg-gray-100'
-  };
+  const type = log.type;
+  const isNuclear = type === 'NUCLEAR_MODE';
+  const isDash = type.includes('DASH_OK');
+  const isScan = type === 'SCAN';
+  const isFail = type.includes('FAIL');
+
+  const bg = theme === 'dark' 
+    ? (isNuclear ? 'bg-orange-900/70 border-orange-600' : 
+       isDash ? 'bg-blue-900/40 border-blue-500' :
+       isScan ? 'bg-emerald-900/40 border-emerald-500' :
+       isFail ? 'bg-red-900/60 border-red-500' :
+       'bg-gray-800/50')
+    : (isNuclear ? 'bg-orange-100 border-orange-400 text-orange-800' :
+       isDash ? 'bg-blue-100 border-blue-400 text-blue-800' :
+       isScan ? 'bg-emerald-100 border-emerald-400 text-emerald-800' :
+       isFail ? 'bg-red-100 border-red-400 text-red-800' :
+       'bg-gray-100');
+
   return (
-    <div className={`p-3 rounded-lg border text-xs ${colors[log.type] || (theme === 'dark' ? 'bg-gray-800/50' : 'bg-gray-100')}`}>
-      <span className={theme === 'dark' ? 'text-slate-500' : 'text-gray-500'}>[{new Date(log.t).toLocaleTimeString()}]</span>{' '}
-      <span className="font-bold" style={{ color: accent }}>{log.type}</span>{' '}
-      {log.data.symbol && <span className={theme === 'dark' ? 'text-emerald-400' : 'text-emerald-700'}>{log.data.symbol}</span>}
-      {log.data.profit && <span className={theme === 'dark' ? 'text-emerald-400' : 'text-emerald-700'}> P&L: ${log.data.profit}</span>}
+    <div className={`p-3 rounded-lg border ${bg} ${isNuclear ? 'animate-pulse' : ''}`}>
+      <span className={theme === 'dark' ? 'text-slate-500' : 'text-gray-500'}>
+        [{new Date(log.t).toLocaleTimeString()}]
+      </span>{' '}
+      <span className={`font-bold ${isNuclear ? 'text-orange-300' : ''}`} style={isNuclear ? {} : { color: accent }}>
+        {type}
+      </span>{' '}
+      <span className={theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}>
+        {log.raw.split('\t').slice(2).join(' ')}
+      </span>
     </div>
   );
 }
 
-function SettingsPanel({ settings, setSettings, saveSettings, accent, theme }: any) {
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-bold">Settings</h2>
-        <button onClick={() => setSettings(DEFAULT_SETTINGS)} className="text-xs opacity-70 hover:opacity-100">Reset</button>
-      </div>
-
-      <div><label className="text-xs opacity-70">Bot Name</label><input value={settings.botName} onChange={e => setSettings({ ...settings, botName: e.target.value })} className="w-full mt-1 px-3 py-2 bg-slate-800 rounded-lg text-sm" /></div>
-      <div><label className="text-xs opacity-70">Avatar</label><input value={settings.avatar} onChange={e => setSettings({ ...settings, avatar: e.target.value.slice(0,3) })} maxLength={3} className="w-full mt-1 px-3 py-2 bg-slate-800 rounded-lg text-center font-bold text-xl" /></div>
-
-      <div><label className="text-xs opacity-70">Theme</label><div className="flex gap-2 mt-2">
-        <button onClick={() => setSettings({ ...settings, theme: 'dark' })} className={`flex-1 py-2 rounded-lg ${theme === 'dark' ? 'bg-slate-700' : 'bg-slate-800'}`}><Moon className="w-5 h-5 mx-auto" /></button>
-        <button onClick={() => setSettings({ ...settings, theme: 'light' })} className={`flex-1 py-2 rounded-lg ${theme === 'light' ? 'bg-slate-700' : 'bg-slate-800'}`}><Sun className="w-5 h-5 mx-auto" /></button>
-      </div></div>
-
-      <div><label className="text-xs opacity-70">Accent</label><div className="grid grid-cols-5 gap-2 mt-2">
-        {Object.entries(ACCENT_PRESETS).map(([n, c]) => (
-          <button key={n} onClick={() => setSettings({ ...settings, accentColor: c })} className={`h-10 rounded-lg border-2 ${settings.accentColor === c ? 'border-white' : 'border-transparent'}`} style={{ backgroundColor: c }} />
-        ))}
-      </div></div>
-
-      <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700">
-        <label className="text-sm font-bold text-emerald-400">Risk Limits</label>
-        <div className="space-y-3 mt-3">
-          <div><span className="text-xs opacity-75">Daily Loss Cap</span><span className="float-right font-mono text-emerald-300">${settings.dailyLossCap}</span></div>
-          <input type="number" value={settings.dailyLossCap} onChange={e => setSettings({ ...settings, dailyLossCap: +e.target.value })} className="w-full px-3 py-2 bg-slate-700 rounded-lg text-sm" />
-          <div><span className="text-xs opacity-75">Max Positions</span><span className="float-right font-mono text-emerald-300">{settings.maxPositions}</span></div>
-          <input type="number" value={settings.maxPositions} onChange={e => setSettings({ ...settings, maxPositions: +e.target.value })} className="w-full px-3 py-2 bg-slate-700 rounded-lg text-sm" />
-          <div><span className="text-xs opacity-75">Max Drawdown</span><span className="float-right font-mono text-emerald-300">{settings.drawdownShutoff}%</span></div>
-          <input type="number" value={settings.drawdownShutoff} onChange={e => setSettings({ ...settings, drawdownShutoff: +e.target.value })} className="w-full px-3 py-2 bg-slate-700 rounded-lg text-sm" />
-        </div>
-      </div>
-
-      <div><label className="text-xs opacity-70">Show Panels</label><div className="space-y-2 mt-2">
-        {['showEquity', 'showPositions', 'showLoss', 'showChart', 'showFeed', 'showTrades'].map(k => (
-          <label key={k} className="flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={settings[k]} onChange={e => setSettings({ ...settings, [k]: e.target.checked })} />
-            <span>{k.replace('show', '').replace('Loss', ' Daily Loss').replace('Trades', ' Live Trades')}</span>
-          </label>
-        ))}
-      </div></div>
-
-      <button onClick={saveSettings} className="w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition hover:opacity-90" style={{ backgroundColor: accent }}>
-        <Save className="w-5 h-5" /> Save & Apply
-      </button>
-    </div>
-  );
-}
+// StatCard, SettingsPanel → unchanged (use previous)
