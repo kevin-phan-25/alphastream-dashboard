@@ -1,5 +1,6 @@
 // app/api/webhook/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { broadcast } from '../sse/route';
 
 const SECRET = process.env.WEBHOOK_SECRET || 'alphastream-bot-secure-2025!x7k9';
 
