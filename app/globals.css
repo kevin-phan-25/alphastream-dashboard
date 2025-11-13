@@ -2,31 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
-/* AGGRESSIVE RESET – ZERO TOP GAP */
+/* NUCLEAR RESET – ZERO TOP GAP, NO MATTER WHAT */
 @layer base {
   html {
     margin: 0 !important;
     padding: 0 !important;
-    height: 100% !important;
+    height: 100vh !important; /* viewport height */
   }
 
   body {
     margin: 0 !important;
     padding: 0 !important;
-    height: 100% !important;
+    height: 100vh !important;
   }
 
   #__next {
     margin: 0 !important;
     padding: 0 !important;
-    height: 100% !important;
+    height: 100vh !important;
+  }
+
+  #__next > div:first-child {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  /* Force zero on all potential gap creators */
+  div[class*="bg-"] {
+    margin-top: 0 !important;
   }
 
   * {
     box-sizing: border-box;
   }
 
-  /* Smooth scrollbar for sidebar */
+  /* Smooth scrollbar */
   .overflow-y-auto::-webkit-scrollbar {
     width: 6px;
   }
