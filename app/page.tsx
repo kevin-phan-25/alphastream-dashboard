@@ -100,7 +100,8 @@ export default function Home() {
   return (
     <>
       <div className={`min-h-screen transition-colors ${settings.theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-gray-50 text-gray-900'}`}>
-        {/* Mobile Sidebar */}
+        
+        {/* Mobile Sidebar – FULLY SCROLLABLE */}
         {sidebarOpen && (
           <div className="fixed inset-0 z-50 lg:hidden">
             <div className="fixed inset-0 bg-black/70" onClick={() => setSidebarOpen(false)} />
@@ -110,9 +111,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* Desktop Sidebar */}
-        <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:block lg:border-r lg:border-slate-800">
-          <div className="p-6">
+        {/* Desktop Sidebar – FULLY SCROLLABLE & STICKY */}
+        <div className="hidden lg:block lg:w-64 lg:border-r lg:border-slate-800 lg:bg-slate-950">
+          <div className="sticky top-0 h-screen p-6 overflow-y-auto">
             <SettingsPanel settings={settings} setSettings={setSettings} saveSettings={saveSettings} accent={accent} />
           </div>
         </div>
@@ -300,7 +301,7 @@ function SettingsPanel({ settings, setSettings, saveSettings, accent }: any) {
           </div>
         </div>
 
-        {/* RISK LIMITS – NOW LABELED & CLEAR */}
+        {/* RISK LIMITS – LABELED & CLEAR */}
         <div className="space-y-4 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
           <label className="text-sm font-bold text-emerald-400">Risk Limits</label>
           
@@ -358,6 +359,15 @@ function SettingsPanel({ settings, setSettings, saveSettings, accent }: any) {
             ))}
           </div>
         </div>
+
+        {/* Back to Top + Save */}
+        <div className="h-20" /> {/* Spacer */}
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="w-full py-2 text-xs opacity-60 hover:opacity-100 mb-4"
+        >
+          Back to Top
+        </button>
 
         <button
           onClick={saveSettings}
