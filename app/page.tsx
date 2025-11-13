@@ -3,10 +3,11 @@
 
 import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Activity, DollarSign, Zap, AlertTriangle, TrendingUp, Clock, Settings, Sun, Moon, Save, XCircle, ArrowUp, ArrowDown } from 'lucide-react';
+import { Activity, DollarSign, Zap, AlertTriangle, TrendingUp, Clock, Settings, Sun, Moon, Save, Trophy } from 'lucide-react';
 
 interface Log { type: string; data: any; t: string; }
 interface Trade { id: string; symbol: string; entry: number; qty: number; pnl: number; time: string; status: 'open' | 'closed'; }
+interface Stats { total: number; wins: number; }
 interface Settings {
   botName: string; avatar: string; theme: 'dark' | 'light'; accentColor: string;
   dailyLossCap: number; maxPositions: number; drawdownShutoff: number;
@@ -24,11 +25,13 @@ const ACCENT_PRESETS = { emerald: '#10b981', blue: '#3b82f6', purple: '#a855f7',
 export default function Home() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [liveTrades, setLiveTrades] = useState<Trade[]>([]);
   const [equity, setEquity] = useState(99998.93);
   const [positions, setPositions] = useState(0);
   const [dailyLoss, setDailyLoss] = useState(0);
   const [lastScan, setLastScan] = useState('11:52:29 AM');
   const [pnlData, setPnlData] = useState<{time: string; equity: number}[]>([]);
+  const [stats, setStats] = useState<Stats>({ total: 0, wins: 0 });
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -67,21 +70,29 @@ export default function Home() {
           status: 'open'
         };
         setTrades(prev => [newTrade, ...prev]);
+        setLiveTrades(prev => [newTrade, ...prev]);
         setPositions(p => p + 1);
       }
 
       if (log.type === 'CLOSED') {
+        const profit = log.data.profit;
+        setLiveTrades(prev => prev.filter(t => t.symbol !== log.data.symbol));
         setTrades(prev => prev.map(t =>
-          t.status === 'open' && t.symbol === log.data.symbol
-            ? { ...t, pnl: log.data.profit, status: 'closed' }
+          t.symbol === log.data.symbol && t.status === 'open'
+            ? { ...t, pnl: profit, status: 'closed' }
             : t
         ));
         setPositions(p => p - 1);
+        setStats(s => ({
+          total: s.total + 1,
+          wins: s.wins + (profit > 0 ? 1 : 0)
+        }));
       }
     };
     return () => evtSource.close();
   }, []);
 
+  const winRate = stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0;
   const theme = settings.theme;
   const accent = settings.accentColor;
   const glass = theme === 'dark' ? 'glass' : 'glass-light';
@@ -109,7 +120,7 @@ export default function Home() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col">
-        <header className={`p-6 border-b border-slate-800 ${theme === 'dark' ? 'bg-slate-950/90' : 'bg-white/90'} backdrop-blur-sm flex items-center justify-between`}>
+        <header className={`p-6 border-b ${theme === 'dark' ? 'border-slate-800 bg-slate-950/90' : 'border-gray-300 bg-white/90'} backdrop-blur-sm flex items-center justify-between`}>
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold shadow-lg" style={{ backgroundColor: accent }}>
               {settings.avatar}
@@ -119,6 +130,13 @@ export default function Home() {
               <p className={`text-sm ${muted}`}>@{new Date().toLocaleTimeString()} EST • @Kevin_Phan25</p>
             </div>
           </div>
+
+          {/* Win Rate Badge */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-900/50 border border-emerald-700">
+            <Trophy className="w-4 h-4 text-emerald-400" />
+            <span className="text-sm font-bold text-emerald-300">{winRate}% Win Rate</span>
+          </div>
+
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded-lg bg-slate-800/50">
             <Settings className="w-5 h-5" />
           </button>
@@ -133,41 +151,27 @@ export default function Home() {
             <StatCard icon={Clock} label="Last Scan" value={lastScan} color={accent} />
           </div>
 
-          {/* Live Trades Table */}
-          {settings.showTrades && trades.length > 0 && (
-            <div className={`${glass} rounded-2xl p-6 border ${theme === 'dark' ? 'border-slate-700' : 'border-gray-300'}`}>
-              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" style={{ color: accent }} /> Live Trades
+          {/* Live Trades Table – CONCISE */}
+          {settings.showTrades && liveTrades.length > 0 && (
+            <div className={`${glass} rounded-2xl p-5 border ${theme === 'dark' ? 'border-slate-700' : 'border-gray-300'}`}>
+              <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" style={{ color: accent }} /> Live Trades ({liveTrades.length})
               </h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className={`border-b ${theme === 'dark' ? 'border-slate-700' : 'border-gray-300'}`}>
-                      <th className="text-left py-2">Symbol</th>
-                      <th className="text-right py-2">Entry</th>
-                      <th className="text-right py-2">Qty</th>
-                      <th className="text-right py-2">P&L</th>
-                      <th className="text-center py-2">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {trades.map(trade => (
-                      <tr key={trade.id} className={`border-b ${theme === 'dark' ? 'border-slate-800' : 'border-gray-200'}`}>
-                        <td className="py-2 font-mono">{trade.symbol}</td>
-                        <td className="text-right py-2">${trade.entry.toFixed(2)}</td>
-                        <td className="text-right py-2">{trade.qty}</td>
-                        <td className={`text-right py-2 font-bold ${trade.pnl > 0 ? 'text-emerald-400' : trade.pnl < 0 ? 'text-red-400' : ''}`}>
-                          {trade.pnl !== 0 ? `${trade.pnl > 0 ? '+' : ''}$${trade.pnl.toFixed(2)}` : '—'}
-                        </td>
-                        <td className="text-center py-2">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${trade.status === 'open' ? 'bg-emerald-900/50 text-emerald-300' : 'bg-blue-900/50 text-blue-300'}`}>
-                            {trade.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-2">
+                {liveTrades.map(trade => (
+                  <div key={trade.id} className={`flex items-center justify-between p-3 rounded-lg ${theme === 'dark' ? 'bg-slate-800/50' : 'bg-white/50'} border ${theme === 'dark' ? 'border-slate-700' : 'border-gray-300'}`}>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono font-bold">{trade.symbol}</span>
+                      <span className="text-xs opacity-70">@{trade.entry.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs opacity-70">x{trade.qty}</span>
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-emerald-900/50 text-emerald-300 border border-emerald-700">
+                        LIVE
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
