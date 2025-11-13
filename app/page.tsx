@@ -26,7 +26,7 @@ interface Settings {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  botName: 'AlphaStream v17.1',
+  botName: 'AlphaStream',
   avatar: 'KP',
   theme: 'dark',
   accentColor: '#10b981',
