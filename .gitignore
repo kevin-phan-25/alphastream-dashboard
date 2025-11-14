@@ -1,9 +1,5 @@
-# .gitignore
-node_modules/
-dist/
-build/
-.vite/
+node_modules
+dist
 .env
 .env.local
-.env.*.local
-*.log
+.DS_Store
