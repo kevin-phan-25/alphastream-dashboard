@@ -1,0 +1,15 @@
+export const CONFIG = {
+  PRICE_RANGE: [1, 20],
+  MAX_MARKET_CAP: 500_000_000,
+  MAX_FLOAT: 20_000_000,
+  MIN_RVOL: 2.5,
+  EMA_FAST: 8,
+  EMA_SLOW: 15,
+  RSI_MAX: 68,
+  STOP_PCT: 0.04,
+  ATR_MULT: 1.2,
+  RISK_PCT: 0.015,
+  MAX_POS: 2,
+  DAILY_LOSS_CAP: 300,
+  SCAN_WINDOW: { start: 7, end: 15.75 }
+};
