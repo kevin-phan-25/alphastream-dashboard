@@ -1,0 +1,19 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "* * * * *"
+    }
+  ],
+  "functions": {
+    "api/**/*.js": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "build": {
+    "env": {
+      "VITE_API_URL": "https://alphastream-full.vercel.app"
+    }
+  }
+}
