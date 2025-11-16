@@ -1,73 +1,61 @@
-import { writeFile, readFile } from "fs/promises";
-import path from "path";
+// app/api/webhook/route.js
+import { writeFile } from 'fs/promises';
+import { join } from 'path';
+import { execSync } from 'child_process';
 
-const SECRET = "alphastream-bot-secure-2025!x7k9";
-const DATA_FILE = path.join(process.cwd(), "public", "data.json");
+let inMemoryData = {
+  equity: 99998.93,
+  positions: 0,
+  dailyLoss: 0,
+  lastScan: 'Never',
+  winRate: 0,
+  trades: [],
+  logs: ['Waiting for data...']
+};
 
-export async function POST(req) {
-  if (req.headers.get("x-webhook-secret") !== SECRET) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
+export async function POST(request) {
   try {
-    const body = await req.json();
+    const body = await request.json();
+    const { type, data, t } = body;
 
-    // Load current state
-    let state = {
-      equity: 99998.93,
-      positions: 0,
-      dailyLoss: 0,
-      lastScan: null,
-      winRate: 0,
-      trades: [],
-      logs: ["Waiting for data..."],
-    };
-
-    try {
-      const txt = await readFile(DATA_FILE, "utf8");
-      state = JSON.parse(txt);
-    } catch {}
-
-    // Update based on type
-    switch (body.type) {
-      case "HEARTBEAT":
-        state.lastScan = new Date(body.t).toLocaleTimeString();
-        state.logs.unshift(`[${new Date().toLocaleTimeString()}] Bot live`);
-        break;
-      case "TRADE":
-        state.trades.unshift(body.data);
-        state.positions = Math.min(state.positions + 1, 3);
-        state.winRate =
-          state.trades.length
-            ? ((state.trades.filter((t) => t.pnl > 0).length / state.trades.length) *
-                100
-              ).toFixed(1)
-            : 0;
-        break;
-      case "EXIT":
-        state.trades = state.trades.map((t) =>
-          t.symbol === body.data.symbol ? { ...t, pnl: body.data.pnl } : t
-        );
-        state.positions = Math.max(state.positions - 1, 0);
-        state.dailyLoss = Math.max(state.dailyLoss + (body.data.pnl || 0), 0);
-        break;
-      case "INIT":
-        Object.assign(state, body.data);
-        break;
-      default:
-        state.logs.unshift(
-          `[${new Date().toLocaleTimeString()}] ${body.type}: ${JSON.stringify(
-            body.data
-          )}`
-        );
+    // Update in-memory state
+    if (type === 'PING') {
+      inMemoryData.logs.unshift(`[${new Date(t).toLocaleTimeString()}] ${data.msg}`);
+    }
+    if (type === 'TRADE') {
+      inMemoryData.logs.unshift(`[${new Date(t).toLocaleTimeString()}] BUY ${data.symbol} @ $${data.entry} ×${data.qty}`);
+      inMemoryData.trades.push({ symbol: data.symbol, pnl: 0 });
+      inMemoryData.equity += data.entry * data.qty * -1; // simulate
+    }
+    if (type === 'HEARTBEAT') {
+      inMemoryData.equity = data.equity;
+      inMemoryData.lastScan = new Date().toLocaleTimeString();
     }
 
-    state.logs = state.logs.slice(0, 50);
-    state.trades = state.trades.slice(0, 20);
+    // Keep only last 50 logs
+    inMemoryData.logs = inMemoryData.logs.slice(0, 50);
 
-    await writeFile(DATA_FILE, JSON.stringify(state, null, 2));
-    return new Response("OK", { status: 200 });
-  } catch (e) {
-    return new Response(e.message, { status: 500 });
+    // Write to public/data.json (Vercel allows public/ folder)
+    const filePath = join(process.cwd(), 'public', 'data.json');
+    await writeFile(filePath, JSON.stringify(inMemoryData, null, 2));
+
+    // Optional: Auto-commit to GitHub (uncomment if you want persistence)
+    // try {
+    //   execSync('git add public/data.json');
+    //   execSync(`git commit -m "Update data.json - ${new Date().toISOString()}"`);
+    //   execSync('git push');
+    // } catch (e) {}
+
+    return new Response('OK', { status: 200 });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    return new Response('Error', { status: 500 });
   }
+}
+
+// GET: Serve data.json for polling
+export async function GET() {
+  return new Response(JSON.stringify(inMemoryData), {
+    headers: { 'Content-Type': 'application/json' }
+  });
 }
