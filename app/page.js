@@ -1,92 +1,73 @@
-// app/page.js
 'use client';
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Home() {
-  const [state, setState] = useState({
+  const [data, setData] = useState({
     equity: 99998.93,
     positions: 0,
     dailyLoss: 0,
-    lastScan: 'Never',
+    lastScan: '11:52:29 AM',
     winRate: 0,
     trades: [],
     logs: ['Waiting for data...']
   });
   const [loading, setLoading] = useState(false);
 
-  // === SSE REAL-TIME ===
   useEffect(() => {
-    const evtSource = new EventSource('/api/sse');
-    evtSource.onmessage = (e) => {
+    const fetchData = async () => {
       try {
-        const payload = JSON.parse(e.data);
-        const time = new Date(payload.t).toLocaleTimeString('en-US', { timeZone: 'America/New_York' });
-
-        setState(prev => {
-          const logEntry = `[${time}] [${payload.type}] ${payload.data.msg || JSON.stringify(payload.data)}`;
-          const newLogs = [logEntry, ...prev.logs].slice(0, 50);
-
-          if (payload.type === 'HEARTBEAT') {
-            return { ...prev, equity: payload.data.equity || prev.equity, lastScan: time, logs: newLogs };
-          }
-          if (payload.type === 'TRADE') {
-            const newTrades = [...prev.trades, payload.data];
-            const wins = newTrades.filter(t => t.pnl > 0).length;
-            const winRate = newTrades.length ? ((wins / newTrades.length) * 100).toFixed(1) : 0;
-            return { ...prev, positions: prev.positions + 1, trades: newTrades, winRate, logs: newLogs };
-          }
-          if (['PING', 'SCANNER', 'INIT'].includes(payload.type)) {
-            return { ...prev, logs: newLogs };
-          }
-          return { ...prev, logs: newLogs };
-        });
-      } catch (err) {
-        console.error('SSE parse error:', err);
+        const response = await fetch('/data.json?t=' + Date.now());
+        if (response.ok) {
+          const newData = await response.json();
+          setData(newData);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
       }
     };
-    evtSource.onerror = () => evtSource.close();
-    return () => evtSource.close();
+
+    fetchData();
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
   }, []);
 
-  // === SCAN NOW ===
   const handleScan = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/scan', { method: 'POST' });
-      const time = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' });
-      setState(prev => ({
-        ...prev,
-        logs: [`[${time}] ${res.ok ? 'Manual scan triggered' : 'Scan failed'}`, ...prev.logs].slice(0, 50)
-      }));
-    } catch {
-      setState(prev => ({
-        ...prev,
-        logs: [`[${new Date().toLocaleTimeString()}] Scan error`, ...prev.logs].slice(0, 50)
-      }));
+      const response = await fetch('/api/scan', { method: 'POST' });
+      if (response.ok) {
+        data.logs.unshift(`[${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}] Manual scan triggered`);
+        setData({ ...data });
+      } else {
+        data.logs.unshift(`[${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}] Scan failed: ${response.status}`);
+      }
+    } catch (error) {
+      data.logs.unshift(`[${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}] Scan error: ${error.message}`);
     }
     setLoading(false);
   };
 
   const handleReset = () => {
-    setState({
+    setData({
       equity: 99998.93,
       positions: 0,
       dailyLoss: 0,
-      lastScan: 'Never',
+      lastScan: 'Reset',
       winRate: 0,
       trades: [],
-      logs: ['Dashboard reset']
+      logs: ['Reset complete']
     });
   };
 
-  const chartData = state.trades.length > 0
-    ? state.trades.slice().reverse().map((t, i) => ({ name: `T${i + 1}`, equity: state.equity + (t.pnl || 0) }))
-    : [{ name: 'Start', equity: state.equity }];
+  const chartData = data.trades.slice().reverse().map((trade, index) => ({
+    name: `Trade ${index + 1}`,
+    equity: data.equity + (trade.pnl || 0)
+  }));
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0f0f0f', color: 'white', fontFamily: 'monospace' }}>
-      {/* SIDEBAR */}
+      {/* Sidebar - unchanged */}
       <div style={{ width: '260px', backgroundColor: '#1a1a1a', padding: '20px', height: '100vh', overflowY: 'auto' }}>
         <div style={{ marginBottom: '24px' }}>
           <h3 style={{ color: '#a0a0a0', marginBottom: '12px' }}>Settings</h3>
@@ -111,7 +92,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* MAIN CONTENT */}
+      {/* Main Content */}
       <div style={{ flex: 1, padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -123,32 +104,43 @@ export default function Home() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ backgroundColor: '#10b981', padding: '8px 16px', borderRadius: '9999px', fontWeight: 'bold', fontSize: '14px' }}>
-              {state.winRate}% Win Rate
+              {data.winRate}% Win Rate
             </div>
-            <button onClick={handleScan} disabled={loading} style={{ padding: '8px 16px', backgroundColor: loading ? '#555' : '#10b981', color: 'white', border: 'none', borderRadius: '6px' }}>
-              {loading ? 'Scanning...' : 'Scan Now'}
-            </button>
-            <button onClick={handleReset} style={{ padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px' }}>Reset</button>
+            <button onClick={handleReset} style={{ padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px' }}>Reset</button>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
           <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
             <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Equity</div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>${state.equity.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>$ {data.equity.toLocaleString()}</div>
           </div>
           <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
             <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Positions</div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{state.positions}/3</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{data.positions}/3</div>
           </div>
           <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
             <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Daily Loss</div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>${state.dailyLoss.toFixed(2)} / $300</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>$ {data.dailyLoss}/300</div>
           </div>
           <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
             <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Last Scan</div>
-            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{state.lastScan}</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{data.lastScan}</div>
           </div>
+        </div>
+
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          <button onClick={handleScan} disabled={loading} style={{ 
+            padding: '12px 24px', 
+            backgroundColor: loading ? '#666' : '#10b981', 
+            border: 'none', 
+            color: 'white', 
+            borderRadius: '4px', 
+            fontSize: '16px', 
+            fontWeight: 'bold' 
+          }}>
+            {loading ? 'Scanning...' : 'Manual Scan'}
+          </button>
         </div>
 
         <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px', marginBottom: '20px', height: '300px' }}>
@@ -167,11 +159,40 @@ export default function Home() {
         <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px' }}>
           <h3 style={{ color: '#10b981', marginBottom: '16px' }}>Live Activity</h3>
           <div style={{ maxHeight: '300px', overflowY: 'auto', fontSize: '14px' }}>
-            {state.logs.map((log, i) => (
-              <div key={i} style={{ padding: '6px 0', borderBottom: '1px solid #333', color: log.includes('failed') ? '#ef4444' : '#e5e7eb' }}>
+            {data.logs.map((log, i) => (
+              <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #333' }}>
                 {log}
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* TRADE LOG PANEL */}
+        <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px' }}>
+          <h3 style={{ color: '#10b981', marginBottom: '16px' }}>Trade Log</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#333' }}>
+                  <th style={{ padding: '8px', textAlign: 'left' }}>Symbol</th>
+                  <th style={{ padding: '8px', textAlign: 'left' }}>Entry</th>
+                  <th style={{ padding: '8px', textAlign: 'left' }}>Qty</th>
+                  <th style={{ padding: '8px', textAlign: 'left' }}>P&L</th>
+                  <th style={{ padding: '8px', textAlign: 'left' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.trades.map((trade, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #444' }}>
+                    <td style={{ padding: '8px' }}>{trade.symbol}</td>
+                    <td style={{ padding: '8px' }}>${trade.entry}</td>
+                    <td style={{ padding: '8px' }}>{trade.qty}</td>
+                    <td style={{ padding: '8px', color: trade.pnl > 0 ? '#10b981' : '#ef4444' }}>${trade.pnl || 'Open'}</td>
+                    <td style={{ padding: '8px' }}>{trade.status || 'Open'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
