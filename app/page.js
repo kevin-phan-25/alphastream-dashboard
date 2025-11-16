@@ -14,17 +14,17 @@ export default function Home() {
   });
   const [loading, setLoading] = useState(false);
 
-  // Poll data.json every 10 seconds
+  // Poll public/data.json every 10 seconds
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('/data.json?t=' + Date.now());
-        if (response.ok) {
-          const newData = await response.json();
-          setData(newData);
+        const res = await fetch('/data.json?t=' + Date.now());
+        if (res.ok) {
+          const json = await res.json();
+          setData(json);
         }
-      } catch (error) {
-        console.error('Error fetching data:', error);
+      } catch (err) {
+        console.error('Fetch error:', err);
       }
     };
 
@@ -33,26 +33,34 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  // Manual Scan Button
+  // Manual Scan → POST to /api/scan (optional endpoint)
   const handleScan = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/scan', { method: 'POST' });
-      if (response.ok) {
-        data.logs.unshift(`[${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}] Manual scan triggered`);
-        setData({ ...data });
+      const res = await fetch('/api/scan', { method: 'POST' });
+      const time = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' });
+      if (res.ok) {
+        setData(prev => ({
+          ...prev,
+          logs: [`[${time}] Manual scan triggered`, ...prev.logs].slice(0, 50)
+        }));
       } else {
-        data.logs.unshift(`[${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}] Scan failed: ${response.status}`);
-        setData({ ...data });
+        setData(prev => ({
+          ...prev,
+          logs: [`[${time}] Scan failed: ${res.status}`, ...prev.logs].slice(0, 50)
+        }));
       }
-    } catch (error) {
-      data.logs.unshift(`[${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}] Scan error: ${error.message}`);
-      setData({ ...data });
+    } catch (err) {
+      const time = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' });
+      setData(prev => ({
+        ...prev,
+        logs: [`[${time}] Scan error: ${err.message}`, ...prev.logs].slice(0, 50)
+      }));
     }
     setLoading(false);
   };
 
-  // Reset Button
+  // Reset dashboard state
   const handleReset = () => {
     setData({
       equity: 99998.93,
@@ -61,113 +69,142 @@ export default function Home() {
       lastScan: 'Reset',
       winRate: 0,
       trades: [],
-      logs: ['Reset complete']
+      logs: ['Dashboard reset']
     });
   };
 
-  // Equity Curve Data
-  const chartData = data.trades.slice().reverse().map((trade, index) => ({
-    name: `Trade ${index + 1}`,
-    equity: data.equity + (trade.pnl || 0)
-  }));
+  // Equity curve data for Recharts
+  const chartData = data.trades
+    .slice()
+    .reverse()
+    .reduce((acc, trade, i) => {
+      const prevEquity = acc.length ? acc[acc.length - 1].equity : data.equity;
+      acc.push({
+        name: `T${i + 1}`,
+        equity: prevEquity + (trade.pnl || 0)
+      });
+      return acc;
+    }, []);
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0f0f0f', color: 'white', fontFamily: 'monospace' }}>
-      {/* Sidebar */}
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0f0f0f', color: '#e5e7eb', fontFamily: 'monospace' }}>
+      {/* ────── SIDEBAR ────── */}
       <div style={{ width: '260px', backgroundColor: '#1a1a1a', padding: '20px', height: '100vh', overflowY: 'auto' }}>
         <div style={{ marginBottom: '24px' }}>
           <h3 style={{ color: '#a0a0a0', marginBottom: '12px' }}>Settings</h3>
-          <input style={{ width: '100%', padding: '8px', backgroundColor: '#333', border: 'none', color: 'white', borderRadius: '4px', marginBottom: '12px' }} defaultValue="Alphastream" placeholder="Bot Name" />
+          <input
+            style={{ width: '100%', padding: '8px', backgroundColor: '#333', border: 'none', color: 'white', borderRadius: '4px', marginBottom: '12px' }}
+            defaultValue="Alphastream"
+            placeholder="Bot Name"
+          />
           <input type="file" accept="image/*" style={{ width: '100%' }} />
           <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
             <button style={{ flex: 1, padding: '8px', backgroundColor: '#333', border: 'none', color: 'white', borderRadius: '4px' }}>Dark</button>
             <button style={{ flex: 1, padding: '8px', backgroundColor: '#333', border: 'none', color: 'white', borderRadius: '4px' }}>Light</button>
           </div>
         </div>
+
         <div style={{ marginBottom: '24px' }}>
           <h3 style={{ color: '#10b981', marginBottom: '12px' }}>Risk Limits</h3>
-          <label style={{ display: 'block', marginBottom: '8px' }}>Daily Loss Cap: <input style={{ width: '60px', padding: '4px', backgroundColor: '#333', border: 'none', color: 'white' }} defaultValue={300} /></label>
-          <label style={{ display: 'block', marginBottom: '8px' }}>Max Positions: <input style={{ width: '60px', padding: '4px', backgroundColor: '#333', border: 'none', color: 'white' }} defaultValue={3} /></label>
-          <label style={{ display: 'block', marginBottom: '8px' }}>Max Drawdown: <input style={{ width: '60px', padding: '4px', backgroundColor: '#333', border: 'none', color: 'white' }} defaultValue={15} /> %</label>
+          <label style={{ display: 'block', marginBottom: '8px' }}>
+            Daily Loss Cap: <input style={{ width: '60px', padding: '4px', backgroundColor: '#333', border: 'none', color: 'white' }} defaultValue={300} />
+          </label>
+          <label style={{ display: 'block', marginBottom: '8px' }}>
+            Max Positions: <input style={{ width: '60px', padding: '4px', backgroundColor: '#333', border: 'none', color: 'white' }} defaultValue={3} />
+          </label>
+          <label style={{ display: 'block', marginBottom: '8px' }}>
+            Max Drawdown: <input style={{ width: '60px', padding: '4px', backgroundColor: '#333', border: 'none', color: 'white' }} defaultValue={15} /> %
+          </label>
         </div>
+
         <div>
           <h3 style={{ color: '#a0a0a0', marginBottom: '12px' }}>Panels</h3>
-          <label style={{ display: 'block', marginBottom: '6px' }}><input type="checkbox" defaultChecked /> Equity</label>
-          <label style={{ display: 'block', marginBottom: '6px' }}><input type="checkbox" defaultChecked /> Daily P&L</label>
-          <label style={{ display: 'block', marginBottom: '6px' }}><input type="checkbox" defaultChecked /> Positions</label>
+          <label style={{ display: 'block', marginBottom: '8px' }}>
+            <input type="checkbox" defaultChecked /> Equity Curve
+          </label>
+          <label style={{ display: 'block', marginBottom: '8px' }}>
+            <input type="checkbox" defaultChecked /> Live Activity
+          </label>
+          <label style={{ display: 'block', marginBottom: '8px' }}>
+            <input type="checkbox" defaultChecked /> Trade Log
+          </label>
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* ────── MAIN CONTENT ────── */}
       <div style={{ flex: 1, padding: '20px' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: '48px', height: '48px', backgroundColor: '#10b981', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '20px' }}>KP</div>
-            <div>
-              <h1 style={{ margin: 0, fontSize: '24px' }}>Alphastream</h1>
-              <p style={{ margin: 0, color: '#a0a0a0', fontSize: '14px' }}>@Kevin_Phan25 • {new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} EST</p>
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>AlphaStream Dashboard</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              onClick={handleScan}
+              disabled={loading}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: loading ? '#555' : '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {loading ? 'Scanning...' : 'Scan Now'}
+            </button>
+            <button
+              onClick={handleReset}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#ef4444',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Reset
+            </button>
+            <div style={{ width: '40px', height: '40px', backgroundColor: '#10b981', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+              KP
             </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ backgroundColor: '#10b981', padding: '8px 16px', borderRadius: '9999px', fontWeight: 'bold', fontSize: '14px' }}>
-              {data.winRate}% Win Rate
-            </div>
-            <button onClick={handleReset} style={{ padding: '8px 16px', backgroundColor: '#333', border: 'none', color: 'white', borderRadius: '4px' }}>Reset</button>
           </div>
         </div>
 
-        {/* Metrics Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
-          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+        {/* Metrics */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
             <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Equity</div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>$ {data.equity.toLocaleString()}</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>${data.equity.toFixed(2)}</div>
           </div>
-          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
             <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Positions</div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{data.positions}/3</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{data.positions}/3</div>
           </div>
-          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
             <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Daily Loss</div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>$ {data.dailyLoss}/300</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold', color: data.dailyLoss > 250 ? '#ef4444' : 'inherit' }}>
+              ${data.dailyLoss.toFixed(2)} / $300
+            </div>
           </div>
-          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
+            <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Win Rate</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{data.winRate}%</div>
+          </div>
+          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
             <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Last Scan</div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{data.lastScan}</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{data.lastScan}</div>
           </div>
-        </div>
-
-        {/* Manual Scan Button */}
-        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-          <button
-            onClick={handleScan}
-            disabled={loading}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: loading ? '#666' : '#10b981',
-              border: 'none',
-              color: 'white',
-              borderRadius: '4px',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              cursor: loading ? 'not-allowed' : 'pointer'
-            }}
-          >
-            {loading ? 'Scanning...' : 'Manual Scan'}
-          </button>
         </div>
 
         {/* Equity Curve */}
-        <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
-          <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: '#10b981' }}>↗</span> Equity Curve
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
+        <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px', marginBottom: '24px', height: '300px' }}>
+          <h3 style={{ marginBottom: '16px', color: '#10b981' }}>Equity Curve</h3>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData.length ? chartData : [{ name: 'Start', equity: data.equity }]}>
               <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-              <XAxis dataKey="name" stroke="#666" />
-              <YAxis stroke="#666" />
-              <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: 'none', color: 'white' }} />
+              <XAxis dataKey="name" stroke="#a0a0a0" />
+              <YAxis stroke="#a0a0a0" />
+              <Tooltip contentStyle={{ backgroundColor: '#333', border: 'none' }} />
               <Line type="monotone" dataKey="equity" stroke="#10b981" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
@@ -175,12 +212,10 @@ export default function Home() {
 
         {/* Live Activity */}
         <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px' }}>
-          <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: '#10b981' }}>↗</span> Live Activity
-          </h3>
-          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-            {data.logs.map((log, index) => (
-              <div key={index} style={{ padding: '8px 0', borderBottom: '1px solid #333', color: '#a0a0a0' }}>
+          <h3 style={{ marginBottom: '16px', color: '#10b981' }}>Live Activity</h3>
+          <div style={{ maxHeight: '300px', overflowY: 'auto', fontSize: '14px' }}>
+            {data.logs.map((log, i) => (
+              <div key={i} style={{ padding: '4px 0', borderBottom: '1px solid #333' }}>
                 {log}
               </div>
             ))}
