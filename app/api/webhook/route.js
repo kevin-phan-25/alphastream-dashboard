@@ -16,6 +16,7 @@ const SECRET = 'alphastream-bot-secure-2025!x7k9';
 export async function POST(req) {
   const headerSecret = req.headers.get('x-webhook-secret');
   if (headerSecret !== SECRET) {
+    console.log('Invalid secret:', headerSecret);
     return new Response('Unauthorized', { status: 401 });
   }
 
