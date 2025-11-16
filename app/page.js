@@ -14,7 +14,7 @@ export default function Home() {
   });
   const [loading, setLoading] = useState(false);
 
-  // Poll for live data
+  // Poll for live data from GAS
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -28,12 +28,12 @@ export default function Home() {
       }
     };
 
-    fetchData(); // Initial
-    const interval = setInterval(fetchData, 10000); // 10s poll
+    fetchData(); // Initial load
+    const interval = setInterval(fetchData, 10000); // Poll every 10s
     return () => clearInterval(interval);
   }, []);
 
-  // Scan button handler
+  // Manual Scan Button Handler
   const handleScan = async () => {
     setLoading(true);
     try {
@@ -41,6 +41,8 @@ export default function Home() {
       if (response.ok) {
         data.logs.unshift(`[${new Date().toLocaleTimeString()}] Manual scan triggered`);
         setData({ ...data });
+      } else {
+        data.logs.unshift(`[${new Date().toLocaleTimeString()}] Scan failed: ${response.status}`);
       }
     } catch (error) {
       data.logs.unshift(`[${new Date().toLocaleTimeString()}] Scan error: ${error.message}`);
@@ -48,7 +50,7 @@ export default function Home() {
     setLoading(false);
   };
 
-  // Reset button handler
+  // Reset Button Handler
   const handleReset = () => {
     setData({
       equity: 99998.93,
@@ -61,6 +63,7 @@ export default function Home() {
     });
   };
 
+  // Equity curve data
   const chartData = data.trades.slice().reverse().map((trade, index) => ({
     name: `Trade ${index + 1}`,
     equity: data.equity + (trade.pnl || 0)
@@ -72,7 +75,7 @@ export default function Home() {
       <div style={{ width: '260px', backgroundColor: '#1a1a1a', padding: '20px', height: '100vh', overflowY: 'auto' }}>
         <div style={{ marginBottom: '24px' }}>
           <h3 style={{ color: '#a0a0a0', marginBottom: '12px' }}>Settings</h3>
-          <input style={{ width: '100%', padding: '8px', backgroundColor: '#333', border: 'none', color: 'white', borderRadius: '4px', marginBottom: '12px' }} defaultValue="Alphastream" />
+          <input style={{ width: '100%', padding: '8px', backgroundColor: '#333', border: 'none', color: 'white', borderRadius: '4px', marginBottom: '12px' }} defaultValue="Alphastream" placeholder="Bot Name" />
           <input type="file" accept="image/*" style={{ width: '100%' }} />
           <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
             <button style={{ flex: 1, padding: '8px', backgroundColor: '#333', border: 'none', color: 'white', borderRadius: '4px' }}>Dark</button>
@@ -95,6 +98,7 @@ export default function Home() {
 
       {/* Main Content */}
       <div style={{ flex: 1, padding: '20px' }}>
+        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ width: '48px', height: '48px', backgroundColor: '#10b981', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '20px' }}>KP</div>
@@ -111,6 +115,7 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Metrics */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
           <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
             <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Equity</div>
@@ -130,6 +135,23 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Manual Scan Button */}
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          <button onClick={handleScan} disabled={loading} style={{ 
+            padding: '12px 24px', 
+            backgroundColor: loading ? '#666' : '#10b981', 
+            border: 'none', 
+            color: 'white', 
+            borderRadius: '4px', 
+            fontSize: '16px', 
+            fontWeight: 'bold', 
+            cursor: loading ? 'not-allowed' : 'pointer' 
+          }}>
+            {loading ? 'Scanning...' : 'Manual Scan'}
+          </button>
+        </div>
+
+        {/* Equity Curve */}
         <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
           <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ color: '#10b981' }}>↗</span> Equity Curve
@@ -145,6 +167,7 @@ export default function Home() {
           </ResponsiveContainer>
         </div>
 
+        {/* Live Activity */}
         <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px' }}>
           <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ color: '#10b981' }}>↗</span> Live Activity
@@ -156,13 +179,6 @@ export default function Home() {
               </div>
             ))}
           </div>
-        </div>
-
-        {/* Scan Button */}
-        <div style={{ textAlign: 'center', marginTop: '20px' }}>
-          <button onClick={handleScan} disabled={loading} style={{ padding: '12px 24px', backgroundColor: '#10b981', border: 'none', color: 'white', borderRadius: '4px', fontSize: '16px', fontWeight: 'bold' }}>
-            {loading ? 'Scanning...' : 'Manual Scan'}
-          </button>
         </div>
       </div>
     </div>
