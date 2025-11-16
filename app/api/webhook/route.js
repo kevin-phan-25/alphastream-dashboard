@@ -1,50 +1,62 @@
 // app/api/webhook/route.js
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
-import { execSync } from 'child_process';
 
-let inMemoryData = {
+let state = {
   equity: 99998.93,
   positions: 0,
   dailyLoss: 0,
-  lastScan: 'Never',
+  lastScan: '11:52:29 AM',
   winRate: 0,
   trades: [],
   logs: ['Waiting for data...']
 };
 
-export async function POST(request) {
+const SECRET = 'alphastream-bot-secure-2025!x7k9';
+
+export async function POST(req) {
+  const headerSecret = req.headers.get('x-webhook-secret');
+  if (headerSecret !== SECRET) {
+    console.log('Invalid secret:', headerSecret);
+    return new Response('Unauthorized', { status: 401 });
+  }
+
   try {
-    const body = await request.json();
+    const body = await req.json();
     const { type, data, t } = body;
 
-    // Update in-memory state
+    const time = new Date(t).toLocaleTimeString('en-US', { timeZone: 'America/New_York' });
+
     if (type === 'PING') {
-      inMemoryData.logs.unshift(`[${new Date(t).toLocaleTimeString()}] ${data.msg}`);
-    }
-    if (type === 'TRADE') {
-      inMemoryData.logs.unshift(`[${new Date(t).toLocaleTimeString()}] BUY ${data.symbol} @ $${data.entry} ×${data.qty}`);
-      inMemoryData.trades.push({ symbol: data.symbol, pnl: 0 });
-      inMemoryData.equity += data.entry * data.qty * -1; // simulate
+      state.logs.unshift(`[${time}] ${data.msg || 'PING'}`);
     }
     if (type === 'HEARTBEAT') {
-      inMemoryData.equity = data.equity;
-      inMemoryData.lastScan = new Date().toLocaleTimeString();
+      state.equity = data.equity || state.equity;
+      state.lastScan = time;
+      state.logs.unshift(`[${time}] Heartbeat - Bot live`);
+    }
+    if (type === 'TRADE') {
+      state.trades.unshift(data);
+      state.positions = Math.min(state.positions + 1, 3);
+      state.winRate = ((state.trades.filter(t => t.pnl > 0).length / state.trades.length) * 100 || 0).toFixed(1);
+      state.logs.unshift(`[${time}] BUY ${data.symbol} @ $${data.entry} ×${data.qty}`);
+    }
+    if (type === 'EXIT') {
+      state.trades = state.trades.map(tr => tr.symbol === data.symbol ? { ...tr, pnl: data.pnl } : tr);
+      state.positions = Math.max(0, state.positions - 1);
+      state.dailyLoss += data.pnl || 0;
+      state.dailyLoss = Math.max(0, state.dailyLoss);
+      state.logs.unshift(`[${time}] EXIT ${data.symbol} PnL: $${data.pnl}`);
+    }
+    if (type === 'INIT') {
+      state.logs.unshift(`[${time}] Bot initialized`);
     }
 
-    // Keep only last 50 logs
-    inMemoryData.logs = inMemoryData.logs.slice(0, 50);
+    state.logs = state.logs.slice(0, 50);
+    state.trades = state.trades.slice(0, 20);
 
-    // Write to public/data.json (Vercel allows public/ folder)
     const filePath = join(process.cwd(), 'public', 'data.json');
-    await writeFile(filePath, JSON.stringify(inMemoryData, null, 2));
-
-    // Optional: Auto-commit to GitHub (uncomment if you want persistence)
-    // try {
-    //   execSync('git add public/data.json');
-    //   execSync(`git commit -m "Update data.json - ${new Date().toISOString()}"`);
-    //   execSync('git push');
-    // } catch (e) {}
+    await writeFile(filePath, JSON.stringify(state, null, 2));
 
     return new Response('OK', { status: 200 });
   } catch (error) {
@@ -53,9 +65,9 @@ export async function POST(request) {
   }
 }
 
-// GET: Serve data.json for polling
+// GET for polling
 export async function GET() {
-  return new Response(JSON.stringify(inMemoryData), {
-    headers: { 'Content-Type': 'application/json' }
+  return new Response(JSON.stringify(state), {
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' }
   });
 }
