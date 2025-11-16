@@ -2,11 +2,8 @@
   "equity": 99998.93,
   "positions": 0,
   "dailyLoss": 0,
-  "lastScan": "11:52:29 AM",
+  "lastScan": "Never",
   "winRate": 0,
   "trades": [],
-  "logs": [
-    "Waiting for data...",
-    "[11:52:29 AM] Bot initialized"
-  ]
+  "logs": ["Waiting for data..."]
 }
