@@ -1,17 +1,15 @@
+// vercel.json
 {
-  "builds": [
+  "crons": [
     {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
+      "path": "/api/cron",
+      "schedule": "* * * * *"
     }
   ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+  "functions": {
+    "api/**/*.js": {
+      "memory": 1024,
+      "maxDuration": 60
     }
-  ]
+  }
 }
