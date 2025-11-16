@@ -25,12 +25,38 @@ export default function Home() {
   const [pnlData, setPnlData] = useState<{ time: string; equity: number }[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark'); // NEW
 
-  // === THEME TOGGLE ===
+  // === RISK LIMITS (Editable + Persistent) ===
+  const [dailyLossCap, setDailyLossCap] = useState(() => {
+    const saved = localStorage.getItem('dailyLossCap');
+    return saved ? parseInt(saved, 10) : 300;
+  });
+  const [maxPositions, setMaxPositions] = useState(() => {
+    const saved = localStorage.getItem('maxPositions');
+    return saved ? parseInt(saved, 10) : 3;
+  });
+  const [maxDrawdown, setMaxDrawdown] = useState(() => {
+    const saved = localStorage.getItem('maxDrawdown');
+    return saved ? parseFloat(saved) : 15;
+  });
+
+  // === THEME (Dark/Light Toggle + Persistent) ===
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('theme');
+    return (saved as 'dark' | 'light') || 'dark';
+  });
+
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
+
+  // === PERSISTENCE ===
+  useEffect(() => {
+    localStorage.setItem('dailyLossCap', dailyLossCap.toString());
+    localStorage.setItem('maxPositions', maxPositions.toString());
+    localStorage.setItem('maxDrawdown', maxDrawdown.toString());
+    localStorage.setItem('theme', theme);
+  }, [dailyLossCap, maxPositions, maxDrawdown, theme]);
 
   // === THEME COLORS ===
   const colors = {
@@ -47,8 +73,6 @@ export default function Home() {
       green: '#10b981',
       red: '#ef4444',
       yellow: '#fbbf24',
-      buttonDark: '#10b981',
-      buttonLight: '#333',
     },
     light: {
       bg: '#f3f4f6',
@@ -63,11 +87,8 @@ export default function Home() {
       green: '#10b981',
       red: '#ef4444',
       yellow: '#f59e0b',
-      buttonDark: '#1f2937',
-      buttonLight: '#e5e7eb',
     }
   };
-
   const c = colors[theme];
 
   // === SSE REAL-TIME ===
@@ -86,7 +107,7 @@ export default function Home() {
         }
         if (payload.type === 'SCANNER') setLastScan(time);
         if (payload.type === 'TRADE') {
-          setPositions(prev => Math.min(prev + 1, 3));
+          setPositions(prev => Math.min(prev + 1, maxPositions));
           setTrades(prev => [{ symbol: payload.data.symbol, entry: payload.data.entry, qty: payload.data.qty }, ...prev]);
         }
         if (payload.type === 'EXIT') {
@@ -101,7 +122,7 @@ export default function Home() {
     };
     evtSource.onerror = () => { setIsConnected(false); evtSource.close(); };
     return () => evtSource.close();
-  }, []);
+  }, [equity, maxPositions]);
 
   // === MANUAL SCAN ===
   const handleScan = async () => {
@@ -138,8 +159,12 @@ export default function Home() {
           <button
             onClick={toggleTheme}
             style={{
-              flex: 1, padding: '8px', backgroundColor: theme === 'dark' ? c.green : c.buttonLight,
-              color: 'white', border: 'none', borderRadius: '4px', fontWeight: theme === 'dark' ? 'bold' : 'normal'
+              flex: 1, padding: '8px',
+              backgroundColor: theme === 'dark' ? c.green : c.input,
+              color: theme === 'dark' ? 'white' : c.text,
+              border: 'none',
+              borderRadius: '4px',
+              fontWeight: theme === 'dark' ? 'bold' : 'normal'
             }}
           >
             Dark
@@ -147,8 +172,12 @@ export default function Home() {
           <button
             onClick={toggleTheme}
             style={{
-              flex: 1, padding: '8px', backgroundColor: theme === 'light' ? c.green : c.buttonLight,
-              color: theme === 'light' ? 'white' : c.text, border: 'none', borderRadius: '4px', fontWeight: theme === 'light' ? 'bold' : 'normal'
+              flex: 1, padding: '8px',
+              backgroundColor: theme === 'light' ? c.green : c.input,
+              color: theme === 'light' ? 'white' : c.text,
+              border: 'none',
+              borderRadius: '4px',
+              fontWeight: theme === 'light' ? 'bold' : 'normal'
             }}
           >
             Light
@@ -156,15 +185,89 @@ export default function Home() {
         </div>
 
         <h3 style={{ color: c.green, marginBottom: '12px' }}>Risk Limits</h3>
-        <label style={{ display: 'block', marginBottom: '8px', color: c.textMuted }}>
-          Daily Loss Cap: <input style={{ width: '60px', padding: '4px', backgroundColor: c.input, border: 'none', color: c.text }} defaultValue={300} />
-        </label>
-        <label style={{ display: 'block', marginBottom: '8px', color: c.textMuted }}>
-          Max Positions: <input style={{ width: '60px', padding: '4px', backgroundColor: c.input, border: 'none', color: c.text }} defaultValue={3} />
-        </label>
-        <label style={{ display: 'block', marginBottom: '8px', color: c.textMuted }}>
-          Max Drawdown: <input style={{ width: '60px', padding: '4px', backgroundColor: c.input, border: 'none', color: c.text }} defaultValue={15} /> %
-        </label>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <label style={{ color: c.textMuted, minWidth: '130px' }}>Daily Loss Cap:</label>
+          <input
+            type="number"
+            value={dailyLossCap}
+            onChange={(e) => setDailyLossCap(Math.max(0, parseInt(e.target.value) || 0))}
+            style={{
+              width: '80px',
+              padding: '4px 8px',
+              backgroundColor: c.input,
+              border: `1px solid ${c.border}`,
+              color: c.text,
+              borderRadius: '4px'
+            }}
+          />
+          <span style={{ color: c.textMuted }}>$</span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <label style={{ color: c.textMuted, minWidth: '130px' }}>Max Positions:</label>
+          <input
+            type="number"
+            value={maxPositions}
+            onChange={(e) => setMaxPositions(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+            style={{
+              width: '80px',
+              padding: '4px 8px',
+              backgroundColor: c.input,
+              border: `1px solid ${c.border}`,
+              color: c.text,
+              borderRadius: '4px'
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+          <label style={{ color: c.textMuted, minWidth: '130px' }}>Max Drawdown:</label>
+          <input
+            type="number"
+            value={maxDrawdown}
+            onChange={(e) => setMaxDrawdown(Math.max(0, Math.min(50, parseFloat(e.target.value) || 0)))}
+            step="0.1"
+            style={{
+              width: '80px',
+              padding: '4px 8px',
+              backgroundColor: c.input,
+              border: `1px solid ${c.border}`,
+              color: c.text,
+              borderRadius: '4px'
+            }}
+          />
+          <span style={{ color: c.textMuted }}>%</span>
+        </div>
+
+        <div style={{ marginTop: '12px' }}>
+          <button
+            onClick={() => {
+              fetch('/api/webhook', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Webhook-Secret': 'alphastream-bot-secure-2025!x7k9'
+                },
+                body: JSON.stringify({
+                  type: 'RISK_UPDATE',
+                  data: { dailyLossCap, maxPositions, maxDrawdown },
+                  t: new Date().toISOString()
+                })
+              });
+            }}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: c.green,
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '12px'
+            }}
+          >
+            Apply to Bot
+          </button>
+        </div>
 
         <h3 style={{ color: c.textMuted, marginTop: '24px', marginBottom: '12px' }}>Panels</h3>
         <label style={{ display: 'block', marginBottom: '6px' }}><input type="checkbox" defaultChecked /> Equity Curve</label>
@@ -172,7 +275,7 @@ export default function Home() {
         <label style={{ display: 'block', marginBottom: '6px' }}><input type="checkbox" defaultChecked /> Trade Log</label>
       </div>
 
-      {/* MAIN */}
+      {/* MAIN CONTENT */}
       <div style={{ flex: 1, padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -210,11 +313,11 @@ export default function Home() {
           </div>
           <div style={{ backgroundColor: c.card, padding: '16px', borderRadius: '8px', textAlign: 'center', border: `1px solid ${c.border}` }}>
             <div style={{ color: c.textMuted }}>Positions</div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{positions}/3</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{positions}/{maxPositions}</div>
           </div>
           <div style={{ backgroundColor: c.card, padding: '16px', borderRadius: '8px', textAlign: 'center', border: `1px solid ${c.border}` }}>
             <div style={{ color: c.textMuted }}>Daily Loss</div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>$0.00 / $300</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>$0.00 / ${dailyLossCap}</div>
           </div>
           <div style={{ backgroundColor: c.card, padding: '16px', borderRadius: '8px', textAlign: 'center', border: `1px solid ${c.border}` }}>
             <div style={{ color: c.textMuted }}>Last Scan</div>
