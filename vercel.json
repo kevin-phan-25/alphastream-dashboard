@@ -1,19 +1,17 @@
 {
-  "crons": [
+  "builds": [
     {
-      "path": "/api/cron",
-      "schedule": "* * * * *"
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
     }
   ],
-  "functions": {
-    "api/**/*.js": {
-      "memory": 1024,
-      "maxDuration": 60
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
-  },
-  "build": {
-    "env": {
-      "VITE_API_URL": "https://alphastream-full.vercel.app"
-    }
-  }
+  ]
 }
