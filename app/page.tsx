@@ -146,7 +146,7 @@ export default function Home() {
     setLoading(false);
   };
 
-  // === RESET BUTTON (Clears Everything) ===
+  // === RESET BUTTON ===
   const handleReset = () => {
     setLogs([]);
     setTrades([]);
@@ -154,7 +154,6 @@ export default function Home() {
     setPositions(0);
     setLastScan('Never');
     setEquity(99998.93);
-    setLoading(false);
     setLogs(prev => [{
       type: 'SYSTEM',
       data: { msg: 'Dashboard reset by user' },
@@ -162,7 +161,7 @@ export default function Home() {
     }, ...prev]);
   };
 
-  // === APPLY TO BOT (Sends Risk Limits to GAS) ===
+  // === APPLY TO BOT ===
   const handleApplyRisk = () => {
     fetch('/api/webhook', {
       method: 'POST',
@@ -327,7 +326,7 @@ export default function Home() {
                 backgroundColor: loading ? '#666' : c.green,
                 color: 'white',
                 border: 'none',
-               : '6px'
+                borderRadius: '6px'
               }}
             >
               {loading ? 'Scanning...' : 'Scan Now'}
