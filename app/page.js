@@ -14,6 +14,7 @@ export default function Home() {
   });
   const [loading, setLoading] = useState(false);
 
+  // Poll data.json every 10 seconds
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -32,22 +33,26 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  // Manual Scan Button
   const handleScan = async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/scan', { method: 'POST' });
       if (response.ok) {
-        data.logs.unshift(`[${new Date().toLocaleTimeString()}] Manual scan triggered`);
+        data.logs.unshift(`[${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}] Manual scan triggered`);
         setData({ ...data });
       } else {
-        data.logs.unshift(`[${new Date().toLocaleTimeString()}] Scan failed: ${response.status}`);
+        data.logs.unshift(`[${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}] Scan failed: ${response.status}`);
+        setData({ ...data });
       }
     } catch (error) {
-      data.logs.unshift(`[${new Date().toLocaleTimeString()}] Scan error: ${error.message}`);
+      data.logs.unshift(`[${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}] Scan error: ${error.message}`);
+      setData({ ...data });
     }
     setLoading(false);
   };
 
+  // Reset Button
   const handleReset = () => {
     setData({
       equity: 99998.93,
@@ -60,6 +65,7 @@ export default function Home() {
     });
   };
 
+  // Equity Curve Data
   const chartData = data.trades.slice().reverse().map((trade, index) => ({
     name: `Trade ${index + 1}`,
     equity: data.equity + (trade.pnl || 0)
@@ -67,7 +73,7 @@ export default function Home() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0f0f0f', color: 'white', fontFamily: 'monospace' }}>
-      {/* Sidebar - unchanged */}
+      {/* Sidebar */}
       <div style={{ width: '260px', backgroundColor: '#1a1a1a', padding: '20px', height: '100vh', overflowY: 'auto' }}>
         <div style={{ marginBottom: '24px' }}>
           <h3 style={{ color: '#a0a0a0', marginBottom: '12px' }}>Settings</h3>
@@ -94,6 +100,7 @@ export default function Home() {
 
       {/* Main Content */}
       <div style={{ flex: 1, padding: '20px' }}>
+        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ width: '48px', height: '48px', backgroundColor: '#10b981', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '20px' }}>KP</div>
@@ -110,6 +117,7 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Metrics Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
           <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
             <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Equity</div>
@@ -120,4 +128,65 @@ export default function Home() {
             <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{data.positions}/3</div>
           </div>
           <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
-            <div style={{ color: '#a0a0a0',
+            <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Daily Loss</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>$ {data.dailyLoss}/300</div>
+          </div>
+          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+            <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Last Scan</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{data.lastScan}</div>
+          </div>
+        </div>
+
+        {/* Manual Scan Button */}
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          <button
+            onClick={handleScan}
+            disabled={loading}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: loading ? '#666' : '#10b981',
+              border: 'none',
+              color: 'white',
+              borderRadius: '4px',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: loading ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {loading ? 'Scanning...' : 'Manual Scan'}
+          </button>
+        </div>
+
+        {/* Equity Curve */}
+        <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
+          <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: '#10b981' }}>↗</span> Equity Curve
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+              <XAxis dataKey="name" stroke="#666" />
+              <YAxis stroke="#666" />
+              <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: 'none', color: 'white' }} />
+              <Line type="monotone" dataKey="equity" stroke="#10b981" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Live Activity */}
+        <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px' }}>
+          <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: '#10b981' }}>↗</span> Live Activity
+          </h3>
+          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+            {data.logs.map((log, index) => (
+              <div key={index} style={{ padding: '8px 0', borderBottom: '1px solid #333', color: '#a0a0a0' }}>
+                {log}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
