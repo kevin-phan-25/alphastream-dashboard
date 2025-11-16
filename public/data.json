@@ -5,5 +5,8 @@
   "lastScan": "11:52:29 AM",
   "winRate": 0,
   "trades": [],
-  "logs": ["Waiting for data..."]
+  "logs": [
+    "Waiting for data...",
+    "[11:52:29 AM] Bot initialized"
+  ]
 }
