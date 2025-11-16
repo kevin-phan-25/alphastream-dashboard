@@ -1,3 +1,4 @@
+// api/cron.js
 import { scan } from '../services/scanner.js';
 import { log } from '../utils/logger.js';
 
