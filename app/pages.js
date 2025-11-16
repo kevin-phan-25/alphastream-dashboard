@@ -16,121 +16,117 @@ export default function Home() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch('/data.json?t=' + Date.now());
-        const json = await res.json();
-        setData(prev => ({
-          ...prev,
-          ...json.data,
-          lastScan: new Date(json.t || Date.now()).toLocaleTimeString(),
-          logs: json.type === 'HEARTBEAT' 
-            ? [`[${new Date().toLocaleTimeString()}] BOT LIVE`, ...prev.logs.slice(0, 49)]
-            : json.type === 'TRADE'
-            ? [`BUY ${json.data.symbol} @ $${json.data.entry} ×${json.data.qty}`, ...prev.logs.slice(0, 49)]
-            : prev.logs
-        }));
-      } catch (e) {}
+        const response = await fetch('/data.json?t=' + Date.now());
+        if (response.ok) {
+          const newData = await response.json();
+          setData(newData);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
     };
-    fetchData();
-    const i = setInterval(fetchData, 10000);
-    return () => clearInterval(i);
+
+    fetchData(); // Initial load
+    const interval = setInterval(fetchData, 10000); // Poll every 10s for GAS updates
+    return () => clearInterval(interval);
   }, []);
 
-  const chartData = data.trades.map((t, i) => ({
-    name: `T${i + 1}`,
-    equity: data.equity
-  })).reverse();
+  // Equity curve data from trades
+  const chartData = data.trades.slice().reverse().map((trade, index) => ({
+    name: `Trade ${index + 1}`,
+    equity: data.equity + (trade.pnl || 0)
+  }));
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6 font-mono">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-teal-500 rounded-full flex items-center justify-center text-2xl font-bold">KP</div>
-          <div>
-            <h1 className="text-2xl font-bold">AlphaStream</h1>
-            <p className="text-sm text-gray-400">@Kevin_Phan25 • {new Date().toLocaleTimeString()} EST</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="bg-teal-600 text-white px-4 py-2 rounded-full text-sm font-bold">
-            {data.winRate}% Win Rate
-          </div>
-          <button className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">Reset</button>
-        </div>
-      </div>
-
-      {/* Metrics */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-gray-800 p-4 rounded-lg">
-          <div className="text-sm text-gray-400">Equity</div>
-          <div className="text-2xl font-bold">$ {data.equity.toLocaleString()}</div>
-        </div>
-        <div className="bg-gray-800 p-4 rounded-lg">
-          <div className="text-sm text-gray-400">Positions</div>
-          <div className="text-2xl font-bold">{data.positions}/3</div>
-        </div>
-        <div className="bg-gray-800 p-4 rounded-lg">
-          <div className="text-sm text-gray-400">Daily Loss</div>
-          <div className="text-2xl font-bold">$ {data.dailyLoss}/300</div>
-        </div>
-        <div className="bg-gray-800 p-4 rounded-lg">
-          <div className="text-sm text-gray-400">Last Scan</div>
-          <div className="text-2xl font-bold">{data.lastScan}</div>
-        </div>
-      </div>
-
-      {/* Equity Curve */}
-      <div className="bg-gray-800 p-6 rounded-lg mb-6">
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <span className="text-green-400">↗</span> Equity Curve
-        </h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-            <XAxis dataKey="name" stroke="#666" />
-            <YAxis stroke="#666" />
-            <Tooltip contentStyle={{ background: '#1a1a1a', border: 'none' }} />
-            <Line type="monotone" dataKey="equity" stroke="#10b981" strokeWidth={2} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Live Activity */}
-      <div className="bg-gray-800 p-6 rounded-lg">
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <span className="text-green-400">↗</span> Live Activity
-        </h3>
-        <div className="space-y-2 max-h-64 overflow-y-auto">
-          {data.logs.map((log, i) => (
-            <div key={i} className="text-sm text-gray-300">{log}</div>
-          ))}
-        </div>
-      </div>
-
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0f0f0f', color: 'white', fontFamily: 'monospace' }}>
       {/* Sidebar */}
-      <div className="fixed left-0 top-0 h-full w-64 bg-gray-800 p-6 space-y-6 overflow-y-auto">
+      <div style={{ width: '250px', backgroundColor: '#1a1a1a', padding: '20px', height: '100vh', overflowY: 'auto' }}>
+        <div style={{ marginBottom: '20px' }}>
+          <h3 style={{ color: '#a0a0a0', marginBottom: '10px' }}>Settings</h3>
+          <input style={{ width: '100%', padding: '8px', marginBottom: '10px', backgroundColor: '#333', border: 'none', color: 'white', borderRadius: '4px' }} defaultValue="Alphastream" placeholder="Bot Name" />
+          <input type="file" accept="image/*" style={{ width: '100%', marginBottom: '10px' }} />
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button style={{ flex: 1, padding: '8px', backgroundColor: '#333', border: 'none', color: 'white', borderRadius: '4px' }}>🌙</button>
+            <button style={{ flex: 1, padding: '8px', backgroundColor: '#333', border: 'none', color: 'white', borderRadius: '4px' }}>☀️</button>
+          </div>
+        </div>
+        <div style={{ marginBottom: '20px' }}>
+          <h3 style={{ color: '#10b981', marginBottom: '10px' }}>Risk Limits</h3>
+          <label style={{ display: 'block', marginBottom: '10px' }}>Daily Loss Cap: <input style={{ width: '60px', padding: '4px', backgroundColor: '#333', border: 'none', color: 'white' }} defaultValue={300} /></label>
+          <label style={{ display: 'block', marginBottom: '10px' }}>Max Positions: <input style={{ width: '60px', padding: '4px', backgroundColor: '#333', border: 'none', color: 'white' }} defaultValue={3} /></label>
+          <label style={{ display: 'block', marginBottom: '10px' }}>Max Drawdown: <input style={{ width: '60px', padding: '4px', backgroundColor: '#333', border: 'none', color: 'white' }} defaultValue={15} /> %</label>
+        </div>
         <div>
-          <h3 className="text-sm font-bold text-gray-400 mb-2">Settings</h3>
-          <input className="w-full bg-gray-700 rounded px-3 py-2 text-sm" defaultValue="AlphaStream" />
-          <div className="mt-2 bg-gray-600 h-20 rounded flex items-center justify-center text-gray-400">Avatar</div>
-          <div className="flex gap-2 mt-2">
-            <button className="flex-1 bg-gray-700 py-2 rounded">Dark</button>
-            <button className="flex-1 bg-gray-700 py-2 rounded">Light</button>
+          <h3 style={{ color: '#a0a0a0', marginBottom: '10px' }}>Panels</h3>
+          <label style={{ display: 'block', marginBottom: '5px' }}><input type="checkbox" defaultChecked /> Equity</label>
+          <label style={{ display: 'block', marginBottom: '5px' }}><input type="checkbox" defaultChecked /> Daily P&L</label>
+          <label style={{ display: 'block', marginBottom: '5px' }}><input type="checkbox" defaultChecked /> Positions</label>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div style={{ flex: 1, padding: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '48px', height: '48px', backgroundColor: '#10b981', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 'bold' }}>KP</div>
+            <div>
+              <h1 style={{ margin: 0, fontSize: '24px' }}>Alphastream</h1>
+              <p style={{ margin: 0, color: '#a0a0a0', fontSize: '14px' }}>@Kevin_Phan25 • {new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} EST</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ backgroundColor: '#10b981', padding: '8px 16px', borderRadius: '9999px', fontSize: '14px', fontWeight: 'bold' }}>
+              {data.winRate}% Win Rate
+            </div>
+            <button style={{ padding: '8px 16px', backgroundColor: '#333', border: 'none', color: 'white', borderRadius: '4px' }}>Reset</button>
           </div>
         </div>
 
-        <div>
-          <h3 className="text-sm font-bold text-teal-400 mb-2">Risk Limits</h3>
-          <label className="block text-sm mb-1">Daily Loss Cap <input className="w-full bg-gray-700 rounded px-2 py-1 text-sm" defaultValue={300} /></label>
-          <label className="block text-sm mb-1">Max Positions <input className="w-full bg-gray-700 rounded px-2 py-1 text-sm" defaultValue={3} /></label>
-          <label className="block text-sm mb-1">Max Drawdown <input className="w-full bg-gray-700 rounded px-2 py-1 text-sm" defaultValue={15} /> %</label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
+          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+            <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Equity</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>$ {data.equity.toLocaleString()}</div>
+          </div>
+          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+            <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Positions</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{data.positions}/3</div>
+          </div>
+          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+            <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Daily Loss</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>$ {data.dailyLoss}/300</div>
+          </div>
+          <div style={{ backgroundColor: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+            <div style={{ color: '#a0a0a0', fontSize: '14px' }}>Last Scan</div>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{data.lastScan}</div>
+          </div>
         </div>
 
-        <div>
-          <h3 className="text-sm font-bold text-gray-400 mb-2">Show Panels</h3>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" defaultChecked /> Equity</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" defaultChecked /> Positions</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" defaultChecked /> Daily Loss</label>
+        <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
+          <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: '#10b981' }}>↗</span> Equity Curve
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+              <XAxis dataKey="name" stroke="#666" />
+              <YAxis stroke="#666" />
+              <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: 'none', color: 'white' }} />
+              <Line type="monotone" dataKey="equity" stroke="#10b981" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={{ backgroundColor: '#1a1a1a', padding: '20px', borderRadius: '8px' }}>
+          <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: '#10b981' }}>↗</span> Live Activity
+          </h3>
+          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+            {data.logs.map((log, index) => (
+              <div key={index} style={{ padding: '8px 0', borderBottom: '1px solid #333', color: '#a0a0a0' }}>
+                {log}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
