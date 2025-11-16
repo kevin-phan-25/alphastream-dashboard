@@ -1,7 +1,6 @@
 // app/api/sse/route.ts
 import { NextRequest } from 'next/server';
 
-// ADD THIS LINE TO PREVENT PRERENDER
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
@@ -11,13 +10,12 @@ export async function GET(request: NextRequest) {
       globalThis.sseClients.push(controller);
 
       const heartbeat = setInterval(() => {
-        controller.enqueue(`data: ${JSON.stringify({ type: 'heartbeat', data: { up: true } })}\n\n`);
+        controller.enqueue(`data: ${JSON.stringify({ type: 'heartbeat', data: { up: true }, t: new Date().toISOString() })}\n\n`);
       }, 30000);
 
       request.signal.addEventListener('abort', () => {
         clearInterval(heartbeat);
-        const index = globalThis.sseClients.indexOf(controller);
-        if (index > -1) globalThis.sseClients.splice(index, 1);
+        globalThis.sseClients = globalThis.sseClients.filter(c => c !== controller);
       });
     }
   });
@@ -27,7 +25,6 @@ export async function GET(request: NextRequest) {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
     },
   });
 }
