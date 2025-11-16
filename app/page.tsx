@@ -26,10 +26,12 @@ export default function Home() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // === DEFAULTS (Safe for SSR) ===
+  // === RISK LIMITS (Editable + Persistent) ===
   const [dailyLossCap, setDailyLossCap] = useState(300);
   const [maxPositions, setMaxPositions] = useState(3);
   const [maxDrawdown, setMaxDrawdown] = useState(15);
+
+  // === THEME (Dark/Light Toggle + Persistent) ===
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   // === LOAD FROM localStorage (Client-Only) ===
@@ -144,6 +146,44 @@ export default function Home() {
     setLoading(false);
   };
 
+  // === RESET BUTTON (Clears Everything) ===
+  const handleReset = () => {
+    setLogs([]);
+    setTrades([]);
+    setPnlData([]);
+    setPositions(0);
+    setLastScan('Never');
+    setEquity(99998.93);
+    setLoading(false);
+    setLogs(prev => [{
+      type: 'SYSTEM',
+      data: { msg: 'Dashboard reset by user' },
+      t: new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })
+    }, ...prev]);
+  };
+
+  // === APPLY TO BOT (Sends Risk Limits to GAS) ===
+  const handleApplyRisk = () => {
+    fetch('/api/webhook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Webhook-Secret': 'alphastream-bot-secure-2025!x7k9'
+      },
+      body: JSON.stringify({
+        type: 'RISK_UPDATE',
+        data: { dailyLossCap, maxPositions, maxDrawdown },
+        t: new Date().toISOString()
+      })
+    }).then(() => {
+      setLogs(prev => [{
+        type: 'SYSTEM',
+        data: { msg: `Risk limits applied: $${dailyLossCap}, ${maxPositions} pos, ${maxDrawdown}% DD` },
+        t: new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })
+      }, ...prev]);
+    });
+  };
+
   const winRate = trades.length > 0
     ? ((trades.filter(t => t.pnl && t.pnl > 0).length / trades.filter(t => t.pnl !== undefined).length) * 100).toFixed(1)
     : 0;
@@ -154,10 +194,10 @@ export default function Home() {
       <div style={{ width: '260px', backgroundColor: c.sidebar, padding: '20px', height: '100vh', overflowY: 'auto', borderRight: `1px solid ${c.border}` }}>
         <h3 style={{ color: c.textMuted, marginBottom: '12px' }}>Settings</h3>
         <input
-          style={{ width: '100%', padding: '8px', backgroundColor: c.input, border: 'none', color: c.text, borderRadius: '4px', marginBottom: '12px' }}
+          style={{ width: '100%', padding: '8px', backgroundColor: c.input, border: 'none', color: c.text, borderRadius: '4px', marginBottom: '24px' }}
           defaultValue="Alphastream"
         />
-        <input type="file" accept="image/*" style={{ width: '100%', marginBottom: '12px' }} />
+
         <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
           <button
             onClick={toggleTheme}
@@ -245,20 +285,7 @@ export default function Home() {
 
         <div style={{ marginTop: '12px' }}>
           <button
-            onClick={() => {
-              fetch('/api/webhook', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'X-Webhook-Secret': 'alphastream-bot-secure-2025!x7k9'
-                },
-                body: JSON.stringify({
-                  type: 'RISK_UPDATE',
-                  data: { dailyLossCap, maxPositions, maxDrawdown },
-                  t: new Date().toISOString()
-                })
-              });
-            }}
+            onClick={handleApplyRisk}
             style={{
               padding: '6px 12px',
               backgroundColor: c.green,
@@ -300,12 +327,23 @@ export default function Home() {
                 backgroundColor: loading ? '#666' : c.green,
                 color: 'white',
                 border: 'none',
-                borderRadius: '6px'
+               : '6px'
               }}
             >
               {loading ? 'Scanning...' : 'Scan Now'}
             </button>
-            <button style={{ padding: '8px 16px', backgroundColor: c.red, color: 'white', border: 'none', borderRadius: '6px' }}>Reset</button>
+            <button
+              onClick={handleReset}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: c.red,
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px'
+              }}
+            >
+              Reset
+            </button>
           </div>
         </div>
 
