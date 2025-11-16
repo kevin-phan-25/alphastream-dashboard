@@ -1,4 +1,3 @@
-// app/api/webhook/route.js
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -17,7 +16,6 @@ const SECRET = 'alphastream-bot-secure-2025!x7k9';
 export async function POST(req) {
   const headerSecret = req.headers.get('x-webhook-secret');
   if (headerSecret !== SECRET) {
-    console.log('Invalid secret:', headerSecret);
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -65,7 +63,6 @@ export async function POST(req) {
   }
 }
 
-// GET for polling
 export async function GET() {
   return new Response(JSON.stringify(state), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' }
