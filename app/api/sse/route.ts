@@ -10,7 +10,11 @@ export async function GET(request: NextRequest) {
       globalThis.sseClients.push(controller);
 
       const heartbeat = setInterval(() => {
-        controller.enqueue(`data: ${JSON.stringify({ type: 'heartbeat', data: { up: true }, t: new Date().toISOString() })}\n\n`);
+        controller.enqueue(`data: ${JSON.stringify({
+          type: 'HEARTBEAT',
+          data: { equity: 99998.93, up: true },
+          t: new Date().toISOString()
+        })}\n\n`);
       }, 30000);
 
       request.signal.addEventListener('abort', () => {
