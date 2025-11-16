@@ -26,37 +26,40 @@ export default function Home() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // === RISK LIMITS (Editable + Persistent) ===
-  const [dailyLossCap, setDailyLossCap] = useState(() => {
-    const saved = localStorage.getItem('dailyLossCap');
-    return saved ? parseInt(saved, 10) : 300;
-  });
-  const [maxPositions, setMaxPositions] = useState(() => {
-    const saved = localStorage.getItem('maxPositions');
-    return saved ? parseInt(saved, 10) : 3;
-  });
-  const [maxDrawdown, setMaxDrawdown] = useState(() => {
-    const saved = localStorage.getItem('maxDrawdown');
-    return saved ? parseFloat(saved) : 15;
-  });
+  // === DEFAULTS (Safe for SSR) ===
+  const [dailyLossCap, setDailyLossCap] = useState(300);
+  const [maxPositions, setMaxPositions] = useState(3);
+  const [maxDrawdown, setMaxDrawdown] = useState(15);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
-  // === THEME (Dark/Light Toggle + Persistent) ===
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('theme');
-    return (saved as 'dark' | 'light') || 'dark';
-  });
+  // === LOAD FROM localStorage (Client-Only) ===
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedLossCap = localStorage.getItem('dailyLossCap');
+      const savedMaxPos = localStorage.getItem('maxPositions');
+      const savedDrawdown = localStorage.getItem('maxDrawdown');
+      const savedTheme = localStorage.getItem('theme');
+
+      if (savedLossCap) setDailyLossCap(parseInt(savedLossCap, 10));
+      if (savedMaxPos) setMaxPositions(parseInt(savedMaxPos, 10));
+      if (savedDrawdown) setMaxDrawdown(parseFloat(savedDrawdown));
+      if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme);
+    }
+  }, []);
+
+  // === SAVE TO localStorage ===
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dailyLossCap', dailyLossCap.toString());
+      localStorage.setItem('maxPositions', maxPositions.toString());
+      localStorage.setItem('maxDrawdown', maxDrawdown.toString());
+      localStorage.setItem('theme', theme);
+    }
+  }, [dailyLossCap, maxPositions, maxDrawdown, theme]);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
-
-  // === PERSISTENCE ===
-  useEffect(() => {
-    localStorage.setItem('dailyLossCap', dailyLossCap.toString());
-    localStorage.setItem('maxPositions', maxPositions.toString());
-    localStorage.setItem('maxDrawdown', maxDrawdown.toString());
-    localStorage.setItem('theme', theme);
-  }, [dailyLossCap, maxPositions, maxDrawdown, theme]);
 
   // === THEME COLORS ===
   const colors = {
