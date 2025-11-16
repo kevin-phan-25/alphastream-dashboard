@@ -1,17 +1,18 @@
-// pages/api/webhook.js
+// app/api/webhook/route.js
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
 
 const SECRET = 'alphastream-bot-secure-2025!x7k9';
 
-export default async function handler(req, res) {
-  if (req.headers['x-webhook-secret'] !== SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+export async function POST(req) {
+  const header = req.headers.get('x-webhook-secret');
+  if (header !== SECRET) return new Response('Unauthorized', { status: 401 });
 
-  const data = req.body;
+  const body = await req.json();
+  const data = JSON.stringify(body, null, 2);
+
   const filePath = join(process.cwd(), 'public', 'data.json');
-  await writeFile(filePath, JSON.stringify(data, null, 2));
+  await writeFile(filePath, data);
 
-  res.status(200).json({ ok: true });
+  return new Response('OK', { status: 200 });
 }
