@@ -4,6 +4,10 @@
 
 @layer base {
   html {
-    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100;
+    @apply bg-gray-50 dark:bg-gray-900;
   }
+}
+
+.monster-highlight {
+  animation: pulse 2s infinite;
 }
