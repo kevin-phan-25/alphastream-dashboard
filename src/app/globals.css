@@ -8,8 +8,42 @@
   }
 }
 
-@layer components {
-  .glass {
-    @apply backdrop-blur-xl bg-white/10 dark:bg-gray-900/10 border border-white/20 dark:border-gray-700/50 rounded-3xl;
-  }
+/* === DARK MODE TEXT & ICON VISIBILITY FIX === */
+.dark {
+  color-scheme: dark;
+}
+
+.dark * {
+  color: #f3f4f6 !important;           /* Bright gray-100 text */
+}
+
+.dark h1, .dark h2, .dark h3, .dark p, .dark span, .dark div {
+  color: #ffffff !important;
+}
+
+/* Icons — force bright in dark mode */
+.dark svg {
+  fill: #e5e7eb !important;
+  stroke: #e5e7eb !important;
+  color: #e5e7eb !important;
+}
+
+/* Sun/Moon toggle icon — always visible */
+.dark .lucide-sun, .dark .lucide-moon {
+  fill: #fbbf24 !important;   /* Bright yellow sun */
+  stroke: #fbbf24 !important;
+}
+.lucide-sun, .lucide-moon {
+  fill: #1f2937 !important;   /* Dark sun/moon in light mode */
+  stroke: #1f2937 !important;
+}
+
+/* Card background in dark mode — slightly lighter for contrast */
+.dark .glass {
+  @apply bg-gray-900/80 border-gray-700/70;
+}
+
+/* Ensure nav text is bright */
+.dark nav a, .dark .font-bold, .dark .text-xl {
+  color: #ffffff !important;
 }
