@@ -3,51 +3,30 @@
 @tailwind utilities;
 
 @layer base {
-  html {
-    @apply scroll-smooth;
+  .dark {
+    color-scheme: dark;
   }
-}
-
-/* === DARK MODE TEXT & ICON VISIBILITY FIX === */
-.dark {
-  color-scheme: dark;
-}
-
-.dark * {
-  color: #f3f4f6 !important;           /* Bright gray-100 text */
-}
-
-.dark h1, .dark h2, .dark h3, .dark p, .dark span, .dark div {
-  color: #ffffff !important;
-}
-
-/* Icons — force bright in dark mode */
-.dark svg {
-  fill: #e5e7eb !important;
-  stroke: #e5e7eb !important;
-  color: #e5e7eb !important;
-}
-
-/* Sun/Moon toggle icon — always visible */
-.dark .lucide-sun, .dark .lucide-moon {
-  fill: #fbbf24 !important;   /* Bright yellow sun */
-  stroke: #fbbf24 !important;
-}
-.lucide-sun, .lucide-moon {
-  fill: #1f2937 !important;   /* Dark sun/moon in light mode */
-  stroke: #1f2937 !important;
-}
-
-/* Card background in dark mode — slightly lighter for contrast */
-.dark .glass {
-  @apply bg-gray-900/80 border-gray-700/70;
-}
-
-/* Ensure nav text is bright */
-.dark nav a, .dark .font-bold, .dark .text-xl {
-  color: #ffffff !important;
-}
-
-.drop-shadow-glow {
-  filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.9));
+  
+  /* Bright readable text in dark mode */
+  .dark * {
+    color: #f1f5f9 !important;
+  }
+  
+  .dark h1, .dark h2, .dark h3, .dark h4, .dark p, .dark span, .dark div {
+    color: #ffffff !important;
+  }
+  
+  .dark svg {
+    stroke: #e2e8f0 !important;
+    fill: #e2e8f0 !important;
+  }
+  
+  /* Glowing effects */
+  .drop-shadow-glow {
+    filter: drop-shadow(0 0 12px currentColor);
+  }
+  
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
 }
