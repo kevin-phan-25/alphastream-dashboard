@@ -47,3 +47,7 @@
 .dark nav a, .dark .font-bold, .dark .text-xl {
   color: #ffffff !important;
 }
+
+.drop-shadow-glow {
+  filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.9));
+}
