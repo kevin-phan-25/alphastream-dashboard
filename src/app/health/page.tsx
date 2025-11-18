@@ -1,18 +1,18 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 export default function Health() {
-  const [data, setData] = useState<any>({});
+  const [data, setData] = useState({});
 
   useEffect(() => {
-    axios.get(`${process.env.NEXT_PUBLIC_BOT_URL}/`).then(res => setData(res.data));
+    axios.get(`${process.env.NEXT_PUBLIC_BOT_URL}/`).then((res) => setData(res.data)).catch(console.error);
   }, []);
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg">
-      <h2 className="text-2xl font-bold mb-4">Raw Bot Health</h2>
-      <pre className="bg-gray-900 text-green-400 p-4 rounded overflow-x-auto">
+    <div className="space-y-4">
+      <h2 className="text-2xl font-bold">Bot Health Raw</h2>
+      <pre className="bg-gray-100 dark:bg-gray-800 p-6 rounded-xl overflow-auto text-sm">
         {JSON.stringify(data, null, 2)}
       </pre>
     </div>
