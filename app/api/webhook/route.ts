@@ -1,21 +1,23 @@
-// app/api/webhook/route.ts
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
-  const secret = request.headers.get('x-webhook-secret');
-  if (secret !== process.env.WEBHOOK_SECRET) {
-    return new Response('Unauthorized', { status: 401 });
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const secret = body.secret || '';
+
+  // Validate secret (from bot LOG_WEBHOOK_SECRET)
+  if (process.env.LOG_WEBHOOK_SECRET && secret !== process.env.LOG_WEBHOOK_SECRET) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const body = await request.json();
-
-  if (globalThis.sseClients) {
-    globalThis.sseClients.forEach(client => {
-      try {
-        client.write(`data: ${JSON.stringify(body)}\n\n`);
-      } catch {}
+  // Log to GAS or sheet (adapt to your GAS doPost)
+  try {
+    await fetch(process.env.GAS_SHEET_URL!, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
     });
+    return NextResponse.json({ status: 'OK' });
+  } catch (e) {
+    return NextResponse.json({ error: 'Log failed' }, { status: 500 });
   }
-
-  return new Response('OK', { status: 200 });
 }
