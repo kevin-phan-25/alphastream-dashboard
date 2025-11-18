@@ -1,7 +1,9 @@
+'use client';
+
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import { Sun, Moon } from 'lucide-react';  // Icons for toggle
+import { Sun, Moon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -11,21 +13,24 @@ export const metadata: Metadata = {
   description: 'Live Dashboard',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
-    // Load from localStorage
     const saved = localStorage.getItem('darkMode') === 'true';
     setDarkMode(saved);
-    document.documentElement.classList.toggle('dark', saved);
+    if (saved) document.documentElement.classList.add('dark');
   }, []);
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;
     setDarkMode(newMode);
     document.documentElement.classList.toggle('dark', newMode);
-    localStorage.setItem('darkMode', newMode.toString());
+    localStorage.setItem('darkMode', String(newMode));
   };
 
   return (
@@ -41,7 +46,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <a href="/trades" className="hover:underline">Trades</a>
                 <a href="/health" className="hover:underline">Health</a>
               </nav>
-              <button onClick={toggleDarkMode} className="p-2 rounded-full bg-white/20 hover:bg-white/30">
+              <button
+                onClick={toggleDarkMode}
+                className="p-2 rounded-full bg-white/20 hover:bg-white/30 transition"
+                aria-label="Toggle dark mode"
+              >
                 {darkMode ? <Sun size={20} /> : <Moon size={20} />}
               </button>
             </div>
