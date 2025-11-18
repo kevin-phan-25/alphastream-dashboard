@@ -1,8 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    esmExternals: true
-  }
+  env: {
+    customKey: 'my-value',
+  },
+  images: {
+    domains: ['example.com'],
+  },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
