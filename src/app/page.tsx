@@ -1,4 +1,3 @@
-// src/app/page.tsx — FINAL: Equity never overflows + perfect responsive
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -39,7 +38,13 @@ export default function Home() {
 
   const isLive = data.status === "ONLINE" && !data.dry_mode;
 
-  if (loading) return <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black flex items-center justify-center text-5xl font-black text-purple-400">Loading...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black flex items-center justify-center text-5xl font-black text-purple-400">
+        Loading Elite Mode...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-pink-900 text-white">
@@ -58,20 +63,18 @@ export default function Home() {
         <div className="max-w-5xl mx-auto text-center space-y-16">
 
           <h2 className="text-6xl md:text-8xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-            AlphaStream — Elite Mode
+            AlphaStream v30.0 — Elite Mode
           </h2>
 
           {/* Status Circle */}
-          */}
           <div className="flex justify-center">
             <div className="w-64 h-64 rounded-full bg-gradient-to-r from-green-600/40 to-cyan-600/40 border-8 border-green-400 shadow-2xl flex items-center justify-center animate-pulse">
               <Activity className="w-32 h-32 text-green-400" />
             </div>
           </div>
 
-          {/* STATS GRID — EQUITY IS NOW SAFE */}
+          {/* Stats Grid — Equity 100% Safe */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {/* STATUS */}
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
               <p className="text-gray-400 text-sm">STATUS</p>
               <p className={`font-black text-4xl mt-3 ${isLive ? 'text-green-400' : 'text-yellow-400'}`}>
@@ -79,7 +82,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* POSITIONS — CLICKABLE */}
             <div 
               onClick={() => setShowPositions(true)}
               className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 cursor-pointer hover:scale-105 transition"
@@ -90,7 +92,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* EQUITY — THIS ONE IS NOW 100% SAFE */}
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
               <p className="text-gray-400 text-sm">EQUITY</p>
               <p className="font-black text-3xl md:text-4xl lg:text-5xl mt-3 text-cyan-400 break-all leading-tight">
@@ -98,7 +99,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* DAILY P&L 
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
               <p className="text-gray-400 text-sm">DAILY P&L</p>
               <p className={`font-black text-4xl mt-3 ${data.dailyPnL?.includes('-') ? 'text-red-400' : 'text-green-400'}`}>
@@ -113,12 +113,17 @@ export default function Home() {
             disabled={scanning}
             className="px-32 py-16 text-6xl font-black rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-2xl disabled:opacity-60"
           >
-            {scanning ? <>SCANNING <RefreshCw className="inline ml-8 w-16 h-16 animate-spin" /></> : <>MANUAL SCAN <Rocket className="inline ml-8 w-16 h-16" /></>}
+            {scanning ? (
+              <>SCANNING <RefreshCw className="inline ml-8 w-16 h-16 animate-spin" /></>
+            ) : (
+              <>MANUAL SCAN <Rocket className="inline ml-8 w-16 h-16" /></>
+            )}
           </button>
+
         </div>
       </main>
 
-      {/* POSITIONS MODAL — UNCHANGED */}
+      {/* POSITIONS MODAL */}
       {showPositions && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-50 flex items-center justify-center p-6">
           <div className="bg-gray-900/95 border border-white/20 rounded-3xl p-10 max-w-4xl w-full max-h-screen overflow-y-auto">
@@ -128,6 +133,7 @@ export default function Home() {
                 <X className="w-10 h-10 text-gray-400 hover:text-white" />
               </button>
             </div>
+
             {(!data.positions || data.positions.length === 0) ? (
               <p className="text-center text-2xl text-gray-400 py-20">No open positions</p>
             ) : (
