@@ -82,9 +82,9 @@ export default function Home() {
         {/* Title */}
         <div>
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 bg-clip-text text-transparent mb-4">
-            {data.bot || "AlphaStream v29.0"}
+            {data.bot || "AlphaStream v30.0"}
           </h1>
-          <p className="text-xl text-gray-400">{data.version || "v29.0"}</p>
+          <p className="text-xl text-gray-400">{data.version || "v30.0"}</p>
         </div>
 
         {/* Status Circle */}
