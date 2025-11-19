@@ -1,3 +1,4 @@
+// src/app/page.tsx — FINAL v33.0 DASHBOARD
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -41,7 +42,7 @@ export default function Home() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-pink-900 flex items-center justify-center text-5xl font-black text-purple-400">
-        Loading Elite Mode...
+        Loading v33.0...
       </div>
     );
   }
@@ -49,13 +50,13 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-pink-900 text-white">
 
-      {/* Fixed Header */}
+      {/* Header */}
       <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-black/80 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
           <h1 className="text-4xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            Ultimate Bot
+            AlphaStream v33.0
           </h1>
-          <span className="text-2xl font-bold text-cyan-400">ELITE AUTONOMOUS</span>
+          <span className="text-2xl font-bold text-cyan-400">FUNDING READY</span>
         </div>
       </header>
 
@@ -63,7 +64,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto text-center space-y-16">
 
           <h2 className="text-6xl md:text-8xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-            AlphaStream — Elite Mode
+            AlphaStream — Funding Ready
           </h2>
 
           {/* Status Circle */}
@@ -74,7 +75,7 @@ export default function Home() {
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-10">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
               <p className="text-gray-400 text-sm">STATUS</p>
               <p className={`font-black text-4xl mt-3 ${isLive ? 'text-green-400' : 'text-yellow-400'}`}>
@@ -104,54 +105,37 @@ export default function Home() {
             </div>
           </div>
 
-          {/* === LIVE TRADE LOG === */}
+          {/* Trade Log */}
           <div className="mt-20">
-            <h2 className="text-5xl md:text-6xl font-black mb-10 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+            <h3 className="text-5xl font-black mb-8 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
               Live Trade Log
-            </h2>
-            <div className="bg-white/5 backdrop-blur-xl rounded-3xl border border-white/20 p-8 max-h-screen overflow-y-auto">
+            </h3>
+            <div className="bg-white/5 backdrop-blur-xl rounded-3xl border border-white/20 p-8 max-h-96 overflow-y-auto">
               {(!data.tradeLog || data.tradeLog.length === 0) ? (
-                <p className="text-center text-2xl text-gray-400 py-20">
-                  No trades executed yet — waiting for AI signals...
-                </p>
+                <p className="text-center text-2xl text-gray-400 py-20">No trades yet — waiting for signals...</p>
               ) : (
                 <div className="space-y-5">
                   {data.tradeLog.slice().reverse().map((t: any) => (
-                    <div
-                      key={t.id}
-                      className={`p-6 rounded-2xl border-2 transition-all ${
-                        t.type === "ENTRY"
-                          ? "bg-green-900/40 border-green-500 shadow-lg shadow-green-500/20"
-                          : "bg-red-900/40 border-red-500 shadow-lg shadow-red-500/20"
-                      }`}
-                    >
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div key={t.id} className={`p-6 rounded-2xl border-2 transition-all ${t.type === "ENTRY" ? "bg-green-900/40 border-green-500" : "bg-red-900/40 border-red-500"}`}>
+                      <div className="flex justify-between items-center">
                         <div className="text-left">
-                          <div className="flex items-center gap-4">
-                            <span className="text-4xl font-black text-white">{t.symbol}</span>
-                            <span className={`text-2xl font-bold ${t.type === "ENTRY" ? "text-green-400" : "text-red-400"}`}>
-                              {t.type === "ENTRY" ? "BUY" : "SELL"}
-                            </span>
-                            <span className="text-xl text-gray-300">
-                              {t.qty} shares @ ${parseFloat(t.price).toFixed(2)}
-                            </span>
-                          </div>
-                          <p className="text-gray-400 text-sm mt-2">
-                            {new Date(t.timestamp).toLocaleString()} • {t.reason}
-                          </p>
+                          <span className="text-4xl font-black">{t.symbol}</span>
+                          <span className={`ml-4 text-2xl font-bold ${t.type === "ENTRY" ? "text-green-400" : "text-red-400"}`}>
+                            {t.type === "ENTRY" ? "BUY" : "SELL"} {t.qty} @ ${t.price}
+                          </span>
                         </div>
-
                         <div className="text-right">
-                          <p className="text-3xl font-black text-cyan-400">
-                            ${t.value.toLocaleString()}
-                          </p>
-                          {t.pnl !== null && (
+                          <p className="text-3xl font-black text-cyan-400">${t.value.toLocaleString()}</p>
+                          {t.pnl && (
                             <p className={`text-2xl font-bold mt-1 ${t.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                              P&L: {t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(2)}
+                              P&L: {t.pnl >= 0 ? "+" : ""}${t.pnl}
                             </p>
                           )}
                         </div>
                       </div>
+                      <p className="text-gray-400 text-sm mt-2">
+                        {new Date(t.timestamp).toLocaleString()} • {t.reason}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -159,7 +143,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Manual Scan Button */}
+          {/* Manual Scan */}
           <button
             onClick={triggerScan}
             disabled={scanning}
@@ -171,7 +155,6 @@ export default function Home() {
               <>MANUAL SCAN <Rocket className="inline ml-8 w-16 h-16" /></>
             )}
           </button>
-
         </div>
       </main>
 
