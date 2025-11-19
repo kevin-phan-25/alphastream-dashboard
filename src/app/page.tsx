@@ -63,7 +63,7 @@ export default function Home() {
         <div className="max-w-5xl mx-auto text-center space-y-16">
 
           <h2 className="text-6xl md:text-8xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-            AlphaStream v30.0 — Elite Mode
+            AlphaStream — Elite Mode
           </h2>
 
           {/* Status Circle */}
