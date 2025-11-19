@@ -1,80 +1,105 @@
 'use client';
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Zap, Activity, AlertTriangle, Rocket } from 'lucide-react';
 
-export default function Home() {
-  const [status, setStatus] = useState<any>({ status: 'loading', dry_mode: true });
-  const [scanning, setScanning] = useState(false);
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { Sun, Moon, Zap } from 'lucide-react';
+import { useState, useEffect } from 'react';
+
+const inter = Inter({ subsets: ['latin'] });
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
-    const fetch = async () => {
-      try {
-        const res = await axios.get(`${process.env.NEXT_PUBLIC_BOT_URL}/`);
-        setStatus(res.data);
-      } catch {
-        setStatus({ status: 'OFFLINE', dry_mode: true });
-      }
-    };
-    fetch();
-    const id = setInterval(fetch, 30000);
-    return () => clearInterval(id);
+    const saved = localStorage.getItem('darkMode') === 'true';
+    setDarkMode(saved);
+    if (saved) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
   }, []);
 
-  const trigger = async () => {
-    setScanning(true);
-    try {
-      await axios.post(`${process.env.NEXT_PUBLIC_BOT_URL}/`, {
-        secret: process.env.NEXT_PUBLIC_FORWARD_SECRET
-      });
-      alert('SCAN TRIGGERED — FULL SEND');
-    } catch {
-      alert('Check FORWARD_SECRET');
-    }
-    setScanning(false);
+  const toggle = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    document.documentElement.classList.toggle('dark', newMode);
+    localStorage.setItem('darkMode', String(newMode));
   };
 
   return (
-    <div className="space-y-10">
-      <div className="backdrop-blur-xl bg-white/10 dark:bg-gray-900/10 border border-white/20 dark:border-gray-700/50 rounded-3xl shadow-2xl p-10 text-center">
-        <div className="flex justify-center mb-8">
-          <div className={`w-32 h-32 rounded-full flex items-center justify-center ${status.status === 'LIVE' ? 'bg-green-500/20' : 'bg-red-500/20'} animate-pulse`}>
-            {status.status === 'LIVE' ? <Activity className="w-16 h-16 text-green-500" /> : <AlertTriangle className="w-16 h-16 text-red-500" />}
+    <html lang="en" className={darkMode ? 'dark' : ''}>
+      <head>
+        <title>AlphaStream v24 ELITE</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+      <body className={`${inter.className} min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50 dark:from-black dark:via-purple-950/40 dark:to-blue-950/30 transition-all duration-1000`}>
+        
+        {/* HEADER */}
+        <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-2xl bg-white/70 dark:bg-black/80 border-b border-white/20 dark:border-white/10">
+          <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
+            
+            {/* Logo */}
+            <div className="flex items-center gap-4">
+              <Zap className="w-10 h-10 text-purple-600 dark:text-purple-400 animate-pulse drop-shadow-lg" />
+              <h1 className="text-4xl font-black bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 bg-clip-text text-transparent tracking-tighter">
+                AlphaStream v24
+              </h1>
+            </div>
+
+            {/* Nav + Theme Toggle */}
+            <div className="flex items-center gap-10">
+              <nav className="hidden lg:flex gap-10 font-semibold text-lg">
+                <a href="/" className="text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition">
+                  Scan
+                </a>
+                <a href="/positions" className="text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition">
+                  Positions
+                </a>
+                <a href="/trades" className="text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition">
+                  Trades
+                </a>
+                <a href="/health" className="text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition">
+                  Health
+                </a>
+              </nav>
+
+              {/* Theme Toggle Button */}
+              <button
+                onClick={toggle}
+                className="relative p-3 rounded-full bg-gradient-to-br from-gray-200/80 to-gray-300/80 dark:from-gray-800/80 dark:to-gray-900/80 backdrop-blur-xl border border-white/30 dark:border-white/20 shadow-2xl hover:scale-110 transition-all duration-300"
+              >
+                <div className="w-7 h-7 flex items-center justify-center">
+                  {darkMode ? (
+                    <Sun className="w-full h-full text-yellow-400 drop-shadow-glow" />
+                  ) : (
+                    <Moon className="w-full h-full text-indigo-900 dark:text-gray-300" />
+                  )}
+                </div>
+              </button>
+            </div>
           </div>
-        </div>
+        </header>
 
-        <h2 className="text-5xl font-black mb-6 bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 bg-clip-text text-transparent">
-          {status.bot || 'AlphaStream v27 ELITE'}
-        </h2>
+        {/* MAIN CONTENT */}
+        <main className="pt-28 pb-20 px-6 max-w-7xl mx-auto">
+          {children}
+        </main>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-xl font-bold">
-          <div>Status: <span className={status.status === 'LIVE' ? 'text-green-500' : 'text-red-500'}>{status.status}</span></div>
-          <div>Positions: <span className="text-purple-600">{status.positions || 0}/{status.max_pos || 3}</span></div>
-          <div>Mode: <span className={status.dry_mode ? 'text-yellow-500' : 'text-green-500'}>{status.dry_mode ? 'DRY' : 'LIVE'}</span></div>
-          <div>Engine: <span className="text-cyan-500">v27</span></div>
-        </div>
-
-        {status.dry_mode && (
-          <div className="mt-8 p-6 bg-yellow-500/20 border border-yellow-500/50 rounded-2xl text-yellow-600 font-bold text-lg">
-            DRY MODE ACTIVE — Switch to LIVE for real trades
+        {/* Mobile Bottom Nav (Optional) */}
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-black/90 backdrop-blur-2xl border-t border-white/20 dark:border-white/10">
+          <div className="flex justify-around py-4">
+            <a href="/" className="text-purple-600 dark:text-purple-400">Scan</a>
+            <a href="/positions" className="text-gray-600 dark:text-gray-400">Positions</a>
+            <a href="/trades" className="text-gray-600 dark:text-gray-400">Trades</a>
+            <a href="/health" className="text-gray-600 dark:text-gray-400">Health</a>
           </div>
-        )}
-      </div>
-
-      <div className="flex justify-center">
-        <button
-          onClick={trigger}
-          disabled={scanning || status.dry_mode}
-          className="group relative px-16 py-10 text-3xl font-black text-white rounded-3xl overflow-hidden shadow-2xl transition-all duration-500 disabled:opacity-50"
-          style={{ background: scanning ? 'linear-gradient(90deg, #f97316, #ef4444)' : 'linear-gradient(90deg, #a855f7, #ec4899)' }}
-        >
-          <span className="relative z-10 flex items-center gap-6">
-            {scanning ? 'SCANNING...' : 'MANUAL SCAN'}
-            <Rocket className="w-12 h-12 group-hover:rotate-12 transition" />
-          </span>
-          <div className="absolute inset-0 bg-white/30 translate-y-full group-hover:translate-y-0 transition-transform duration-700" />
-        </button>
-      </div>
-    </div>
+        </nav>
+      </body>
+    </html>
   );
 }
