@@ -98,7 +98,7 @@ export default function Home() {
             {/* EQUITY — WIDER BOX + RESPONSIVE FONT + NO SMOOSH */}
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 col-span-1 md:col-span-1">
               <p className="text-gray-400 text-sm">EQUITY</p>
-              <p className="font-black text-3xl sm:text-4xl md:text-5xl lg:text-6xl mt-4 text-cyan-400 leading-none tracking-tight">
+              <p className="font-black text-3xl sm:text-3xl md:text-3xl lg:text-3xl mt-3 text-cyan-400 leading-none tracking-tight">
                 {data.equity || "$0.00"}
               </p>
             </div>
