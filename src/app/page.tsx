@@ -56,7 +56,7 @@ export default function Home() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 to-purple-900 flex items-center justify-center">
-        <div className="text-white text-3xl font-bold animate-pulse">Loading AlphaStream v29.0...</div>
+        <div className="text-white text-3xl font-bold animate-pulse">Loading AlphaStream v30.0...</div>
       </div>
     );
   }
@@ -84,7 +84,6 @@ export default function Home() {
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 bg-clip-text text-transparent mb-4">
             {data.bot || "AlphaStream v30.0"}
           </h1>
-          <p className="text-xl text-gray-400">{data.version || "v30.0"}</p>
         </div>
 
         {/* Status Circle */}
