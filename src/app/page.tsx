@@ -44,14 +44,14 @@ export default function Home() {
         </div>
 
         <h2 className="text-5xl font-black mb-6 bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 bg-clip-text text-transparent">
-          {status.bot || 'AlphaStream v24 ELITE'}
+          {status.bot || 'AlphaStream v27 ELITE'}
         </h2>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-xl font-bold">
           <div>Status: <span className={status.status === 'LIVE' ? 'text-green-500' : 'text-red-500'}>{status.status}</span></div>
           <div>Positions: <span className="text-purple-600">{status.positions || 0}/{status.max_pos || 3}</span></div>
           <div>Mode: <span className={status.dry_mode ? 'text-yellow-500' : 'text-green-500'}>{status.dry_mode ? 'DRY' : 'LIVE'}</span></div>
-          <div>Engine: <span className="text-cyan-500">v24</span></div>
+          <div>Engine: <span className="text-cyan-500">v27</span></div>
         </div>
 
         {status.dry_mode && (
