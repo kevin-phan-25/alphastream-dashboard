@@ -2,31 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  .dark {
-    color-scheme: dark;
-  }
-  
-  /* Bright readable text in dark mode */
-  .dark * {
-    color: #f1f5f9 !important;
-  }
-  
-  .dark h1, .dark h2, .dark h3, .dark h4, .dark p, .dark span, .dark div {
-    color: #ffffff !important;
-  }
-  
-  .dark svg {
-    stroke: #e2e8f0 !important;
-    fill: #e2e8f0 !important;
-  }
-  
-  /* Glowing effects */
-  .drop-shadow-glow {
-    filter: drop-shadow(0 0 12px currentColor);
-  }
-  
-  .animate-pulse {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
+.bg-grid-white\/5 {
+  background-image: 
+    linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size: 50px 50px;
 }
