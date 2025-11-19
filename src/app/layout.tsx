@@ -7,7 +7,7 @@ import { Zap } from 'lucide-react';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'AlphaStream v30.0 ELITE',
+  title: 'AlphaStream',
   description: 'Fully Autonomous Trading System',
 };
 
