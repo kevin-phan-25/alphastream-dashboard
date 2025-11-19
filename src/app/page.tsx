@@ -1,4 +1,4 @@
-// src/app/page.tsx — FINAL v33.0 DASHBOARD
+// src/app/page.tsx — v34.0 DASHBOARD WITH WIN RATE + FULL LOGS
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -42,7 +42,7 @@ export default function Home() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-pink-900 flex items-center justify-center text-5xl font-black text-purple-400">
-        Loading v33.0...
+        Loading v34.0...
       </div>
     );
   }
@@ -54,9 +54,9 @@ export default function Home() {
       <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-black/80 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
           <h1 className="text-4xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            AlphaStream v33.0
+            AlphaStream v34.0
           </h1>
-          <span className="text-2xl font-bold text-cyan-400">ELITE AUTOMATION</span>
+          <span className="text-2xl font-bold text-cyan-400">Elite Automation</span>
         </div>
       </header>
 
@@ -64,7 +64,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto text-center space-y-16">
 
           <h2 className="text-6xl md:text-8xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-            AlphaStream — Elite Mode
+            AlphaStream — ELITE MODE
           </h2>
 
           {/* Status Circle */}
@@ -100,12 +100,30 @@ export default function Home() {
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
               <p className="text-gray-400 text-sm">DAILY P&L</p>
               <p className={`font-black text-4xl mt-3 ${data.dailyPnL?.includes('-') ? 'text-red-400' : 'text-green-400'}`}>
-                {data.dailyPnL || "+0.00%"}
+                {data.dailyPnL || "0.00%"}
               </p>
             </div>
           </div>
 
-          {/* Trade Log */}
+          {/* BACKTESTING STATS */}
+          {data.backtest && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-6 max-w-5xl mx-auto">
+              {[
+                { label: "Total Trades", value: data.backtest.totalTrades || 0, color: "text-purple-400" },
+                { label: "Win Rate", value: data.backtest.winRate || "0%", color: "text-cyan-400" },
+                { label: "Wins", value: data.backtest.wins || 0, color: "text-green-400" },
+                { label: "Losses", value: data.backtest.losses || 0, color: "text-red-400" },
+                { label: "Net P&L", value: `$${data.backtest.totalPnL || "0.00"}`, color: data.backtest.totalPnL >= 0 ? "text-green-400" : "text-red-400" },
+              ].map((stat) => (
+                <div key={stat.label} className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20">
+                  <p className="text-gray-400 text-sm">{stat.label}</p>
+                  <p className={`font-black text-4xl mt-3 ${stat.color}`}>{stat.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Live Trade Log */}
           <div className="mt-20">
             <h3 className="text-5xl font-black mb-8 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
               Live Trade Log
@@ -126,7 +144,7 @@ export default function Home() {
                         </div>
                         <div className="text-right">
                           <p className="text-3xl font-black text-cyan-400">${t.value.toLocaleString()}</p>
-                          {t.pnl && (
+                          {t.pnl !== undefined && (
                             <p className={`text-2xl font-bold mt-1 ${t.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
                               P&L: {t.pnl >= 0 ? "+" : ""}${t.pnl}
                             </p>
