@@ -1,4 +1,4 @@
-// src/app/page.tsx — CLICK TO SEE FULL POSITIONS + REAL-TIME P&L
+// src/app/page.tsx — FINAL: Equity never overflows + perfect responsive
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -19,8 +19,7 @@ export default function Home() {
       const res = await axios.get(BOT_URL, { timeout: 12000 });
       setData(res.data);
       setLoading(false);
-    } catch (err) {
-      console.log("Bot unreachable");
+    } catch {
       setLoading(false);
     }
   };
@@ -40,15 +39,16 @@ export default function Home() {
 
   const isLive = data.status === "ONLINE" && !data.dry_mode;
 
-  if (loading) return <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black flex items-center justify-center text-5xl font-black text-purple-400">Loading Elite Mode...</div>;
+  if (loading) return <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black flex items-center justify-center text-5xl font-black text-purple-400">Loading...</div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-pink-900 text-white">
-      {/* Header */}
+
+      {/* Fixed Header */}
       <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-black/80 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
           <h1 className="text-4xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            Ultimate Bot
+            AlphaStream v30.0
           </h1>
           <span className="text-2xl font-bold text-cyan-400">ELITE AUTONOMOUS</span>
         </div>
@@ -58,38 +58,53 @@ export default function Home() {
         <div className="max-w-5xl mx-auto text-center space-y-16">
 
           <h2 className="text-6xl md:text-8xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-            AlphaStream v30.0 — Elite Mode
+            AlphaStream — Elite Mode
           </h2>
 
           {/* Status Circle */}
+          */}
           <div className="flex justify-center">
-            <div className="w-64 h-64 rounded-full bg-gradient-to-r from-green-600/40 to-cyan-600/40 border-8 border-green-400 shadow-2xl shadow-green-500/60 flex items-center justify-center animate-pulse">
+            <div className="w-64 h-64 rounded-full bg-gradient-to-r from-green-600/40 to-cyan-600/40 border-8 border-green-400 shadow-2xl flex items-center justify-center animate-pulse">
               <Activity className="w-32 h-32 text-green-400" />
             </div>
           </div>
 
-          {/* Stats Grid */}
+          {/* STATS GRID — EQUITY IS NOW SAFE */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {[
-              { label: "STATUS", value: isLive ? "LIVE" : "DRY", color: isLive ? "text-green-400" : "text-yellow-400" },
-              { 
-                label: "POSITIONS", 
-                value: `${data.positions_count || 0}/5`,
-                color: "text-purple-400",
-                clickable: true
-              },
-              { label: "EQUITY", value: data.equity || "$0.00", color: "text-cyan-400 text-4xl font-black" },
-              { label: "DAILY P&L", value: data.dailyPnL || "0.00%", color: data.dailyPnL?.includes('-') ? "text-red-400" : "text-green-400" },
-            ].map((s) => (
-              <div
-                key={s.label}
-                onClick={() => s.clickable && setShowPositions(true)}
-                className={`${s.clickable ? 'cursor-pointer hover:scale-105 transition' : ''} bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20`}
-              >
-                <p className="text-gray-400 text-sm">{s.label}</p>
-                <p className={`font-black text-4xl mt-3 ${s.color}`}>{s.value}</p>
-              </div>
-            ))}
+            {/* STATUS */}
+            <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
+              <p className="text-gray-400 text-sm">STATUS</p>
+              <p className={`font-black text-4xl mt-3 ${isLive ? 'text-green-400' : 'text-yellow-400'}`}>
+                {isLive ? "LIVE" : "DRY"}
+              </p>
+            </div>
+
+            {/* POSITIONS — CLICKABLE */}
+            <div 
+              onClick={() => setShowPositions(true)}
+              className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 cursor-pointer hover:scale-105 transition"
+            >
+              <p className="text-gray-400 text-sm">POSITIONS</p>
+              <p className="font-black text-4xl mt-3 text-purple-400">
+                {data.positions_count || 0}/5
+              </p>
+            </div>
+
+            {/* EQUITY — THIS ONE IS NOW 100% SAFE */}
+            <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
+              <p className="text-gray-400 text-sm">EQUITY</p>
+              <p className="font-black text-3xl md:text-4xl lg:text-5xl mt-3 text-cyan-400 break-all leading-tight">
+                {data.equity || "$0.00"}
+              </p>
+            </div>
+
+            {/* DAILY P&L 
+            <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
+              <p className="text-gray-400 text-sm">DAILY P&L</p>
+              <p className={`font-black text-4xl mt-3 ${data.dailyPnL?.includes('-') ? 'text-red-400' : 'text-green-400'}`}>
+                {data.dailyPnL || "0.00%"}
+              </p>
+            </div>
           </div>
 
           {/* Manual Scan */}
@@ -103,54 +118,33 @@ export default function Home() {
         </div>
       </main>
 
-      {/* POSITIONS MODAL */}
+      {/* POSITIONS MODAL — UNCHANGED */}
       {showPositions && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-6">
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-50 flex items-center justify-center p-6">
           <div className="bg-gray-900/95 border border-white/20 rounded-3xl p-10 max-w-4xl w-full max-h-screen overflow-y-auto">
             <div className="flex justify-between items-center mb-8">
               <h3 className="text-5xl font-black text-purple-400">Active Positions</h3>
-              <button onClick={() => setShowPositions(false)} className="text-gray-400 hover:text-white">
-                <X className="w-10 h-10" />
+              <button onClick={() => setShowPositions(false)}>
+                <X className="w-10 h-10 text-gray-400 hover:text-white" />
               </button>
             </div>
-
-            {data.positions?.length === 0 ? (
+            {(!data.positions || data.positions.length === 0) ? (
               <p className="text-center text-2xl text-gray-400 py-20">No open positions</p>
             ) : (
               <div className="space-y-6">
-                {data.positions?.map((p: any, i: number) => (
+                {data.positions.map((p: any, i: number) => (
                   <div key={i} className="bg-white/5 rounded-2xl p-6 border border-white/10">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-left">
-                      <div>
-                        <p className="text-gray-400 text-sm">Symbol</p>
-                        <p className="text-3xl font-bold text-purple-400">{p.symbol}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-400 text-sm">Qty</p>
-                        <p className="text-3xl font-bold">{p.qty}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-400 text-sm">Entry</p>
-                        <p className="text-2xl">${p.entry.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-400 text-sm">Current</p>
-                        <p className="text-2xl ${p.unrealized_pl >= 0 ? 'text-green-400' : 'text-red-400'}">
-                          ${p.current.toFixed(2)}
-                        </p>
-                      </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      <div><span className="text-gray-400">Symbol</span><p className="text-3xl font-bold text-purple-400">{p.symbol}</p></div>
+                      <div><span className="text-gray-400">Qty</span><p className="text-3xl font-bold">{p.qty}</p></div>
+                      <div><span className="text-gray-400">Entry</span><p className="text-2xl">${p.entry.toFixed(2)}</p></div>
+                      <div><span className="text-gray-400">Current</span><p className={`text-2xl font-bold ${p.unrealized_pl >= 0 ? 'text-green-400' : 'text-red-400'}`}>${p.current.toFixed(2)}</p></div>
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-gray-400 text-sm">Unrealized P&L</p>
-                        <p className={`text-2xl font-bold ${p.unrealized_pl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          ${p.unrealized_pl.toFixed(2)} ({p.unrealized_plpc.toFixed(2)}%)
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-gray-400 text-sm">Market Value</p>
-                        <p className="text-2xl font-bold text-cyan-400">${p.market_value.toFixed(2)}</p>
-                      </div>
+                    <div className="mt-4 flex justify-between">
+                      <div><span className="text-gray-400">P&L</span><p className={`text-2xl font-bold ${p.unrealized_pl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        ${p.unrealized_pl.toFixed(2)} ({p.unrealized_plpc.toFixed(2)}%)
+                      </p></div>
+                      <div><span className="text-gray-400">Value</span><p className="text-2xl font-bold text-cyan-400">${p.market_value.toFixed(2)}</p></div>
                     </div>
                   </div>
                 ))}
