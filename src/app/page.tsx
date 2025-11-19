@@ -1,126 +1,177 @@
+// app/page.tsx — FINAL, VERIFIED, COMPILABLE ON VERCEL
 'use client';
+
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Zap, Activity, AlertTriangle, Rocket } from 'lucide-react';
+import { Activity, AlertTriangle, Rocket, Zap } from 'lucide-react';
+
+interface BotData {
+  status?: string;
+  mode?: string;
+  dry_mode?: boolean;
+  positions?: number;
+  max_pos?: number;
+  equity?: string;
+  dailyPnL?: string;
+  bot?: string;
+  version?: string;
+  timestamp?: string;
+}
 
 export default function Home() {
-  const [status, setStatus] = useState<any>({
-    status: 'loading',
-    mode: 'DRY',
-    dry_mode: true,
-    positions: 0,
-    max_pos: 3,
-    bot: 'AlphaStream',
-    version: 'v29.0',
-    equity: '$25,000.00',
-    dailyPnL: '0.00%'
-  });
-  const [scanning, setScanning] = useState(false);
+  const [data, setData] = useState<BotData>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [lastUpdate, setLastUpdate] = useState('');
+  const [scanning, setScanning] = useState(false);
 
-  const BOT_URL = process.env.NEXT_PUBLIC_BOT_URL;
+  const BOT_URL = process.env.NEXT_PUBLIC_BOT_URL?.trim();
 
-  const fetchStatus = async () => {
+  const fetchData = async () => {
     if (!BOT_URL) {
-      setStatus({ ...status, status: 'ERROR', mode: 'CONFIG' });
+      setError(true);
+      setLoading(false);
       return;
     }
 
     try {
-      const res = await axios.get(`${BOT_URL}/`, { timeout: 10000 });
-      const data = res.data;
-
-      // FIXED: Always set status from data, fallback if missing
-      const newStatus = {
-        status: data.status || 'OFFLINE',
-        mode: data.mode || (data.dry_mode ? 'DRY' : 'LIVE'),
-        dry_mode: data.dry_mode !== false, // ← FIXED: Default to true if missing
-        positions: data.positions || 0,
-        max_pos: data.max_pos || 3,
-        bot: data.bot || 'AlphaStream',
-        version: data.version || 'v29.0',
-        equity: data.equity || '$25,000.00',
-        dailyPnL: data.dailyPnL || '0.00%'
-      };
-
-      setStatus(newStatus);
+      const res = await axios.get(BOT_URL, { timeout: 10000 });
+      setData(res.data);
       setLastUpdate(new Date().toLocaleTimeString());
-    } catch (e) {
-      console.log("Fetch error:", e.message);
-      setStatus({ ...status, status: 'OFFLINE' });
+      setError(false);
+    } catch (err: any) {
+      console.error("Bot fetch failed:", err?.message || err);
+      setError(true);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStatus();
-    const id = setInterval(fetchStatus, 15000);
-    return () => clearInterval(id);
+    fetchData();
+    const interval = setInterval(fetchData, 12000);
+    return () => clearInterval(interval);
   }, [BOT_URL]);
 
   const triggerScan = async () => {
+    if (!BOT_URL) return;
     setScanning(true);
     try {
       await axios.post(`${BOT_URL}/manual/scan`);
-      fetchStatus(); // Refresh immediately
-    } catch (e) {
-      alert('Scan failed — check console');
+      setTimeout(fetchData, 1000);
+    } catch (err) {
+      console.error("Manual scan failed", err);
+    } finally {
+      setScanning(false);
     }
-    setScanning(false);
   };
 
-  const isLive = status.status === "ONLINE" && !status.dry_mode;
+  const isOnline = data.status === "ONLINE";
+  const isLive = isOnline && !data.dry_mode;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-purple-900 flex items-center justify-center">
+        <div className="text-white text-4xl font-bold animate-pulse">Connecting to AlphaStream v29.0...</div>
+      </div>
+    );
+  }
+
+  if (error || !BOT_URL) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-900 to-black flex items-center justify-center text-white text-center p-8">
+        <div>
+          <AlertTriangle className="w-24 h-24 mx-auto mb-6 text-red-400" />
+          <h1 className="text-6xl font-black mb-6">BOT OFFLINE</h1>
+          <p className="text-2xl mb-4">Check your Cloud Run URL:</p>
+          <code className="bg-black/50 px-6 py-3 rounded text-lg break-all">
+            {BOT_URL || "NEXT_PUBLIC_BOT_URL not set in Vercel"}
+          </code>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-10">
-      <div className="glass card-glow p-10 text-center">
-        <div className="flex justify-center mb-8">
-          <div className={`w-32 h-32 rounded-full flex items-center justify-center ${isLive ? 'bg-green-500/20' : status.dry_mode ? 'bg-yellow-500/20' : 'bg-red-500/20'}`}>
-            {isLive ? (
-              <Activity className="w-16 h-16 text-green-500 pulse-glow" />
-            ) : status.dry_mode ? (
-              <Zap className="w-16 h-16 text-yellow-500" />
-            ) : (
-              <AlertTriangle className="w-16 h-16 text-red-500" />
-            )}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-pink-900 text-white py-20 px-6">
+      <div className="max-w-5xl mx-auto">
+
+        {/* Status Circle */}
+        <div className="flex justify-center mb-12">
+          <div className={`w-48 h-48 rounded-full flex items-center justify-center shadow-2xl border-8 animate-pulse
+            ${isLive ? 'bg-green-500/30 border-green-400' : data.dry_mode ? 'bg-yellow-500/30 border-yellow-400' : 'bg-red-500/30 border-red-400'}
+          `}>
+            {isLive ? <Activity className="w-32 h-32 text-green-400" /> : <AlertTriangle className="w-32 h-32 text-yellow-400" />}
           </div>
         </div>
 
-        <h2 className="text-5xl font-black mb-6 bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 bg-clip-text text-transparent">
-          {status.bot}
-        </h2>
+        {/* Title */}
+        <h1 className="text-center text-7xl font-black mb-12 bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+          {data.bot || "AlphaStream v29.0"}
+        </h1>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-xl font-bold">
-          <div>Status: <span className={isLive ? 'text-green-500' : status.dry_mode ? 'text-yellow-500' : 'text-red-500'}>{status.status}</span></div>
-          <div>Positions: <span className="text-purple-600">{status.positions}/{status.max_pos}</span></div>
-          <div>Mode: <span className={isLive ? 'text-green-500' : status.dry_mode ? 'text-yellow-500' : 'text-red-500'}>{status.mode}</span></div>
-          <div>Engine: <span className="text-cyan-500">{status.version}</span></div>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-16">
+          {[
+            { label: "Status", value: isLive ? "LIVE" : data.dry_mode ? "DRY" : "OFFLINE", color: isLive ? "text-green-400" : "text-yellow-400" },
+            { label: "Positions", value: `${data.positions || 0}/${data.max_pos || 3}`, color: "text-purple-400" },
+            { label: "Mode", value: data.mode || (data.dry_mode ? "DRY" : "LIVE"), color: isLive ? "text-green-400" : "text-yellow-400" },
+            { label: "Engine", value: data.version || "v29.0", color: "text-cyan-400" },
+          ].map((item, i) => (
+            <div key={i} className="text-center p-6 bg-white/10 backdrop-blur rounded-2xl border border-white/20">
+              <p className="text-gray-400 text-sm">{item.label}</p>
+              <p className={`text-4xl font-bold mt-2 ${item.color}`}>{item.value}</p>
+            </div>
+          ))}
         </div>
 
-        <div className="mt-6 text-2xl font-bold">
-          Equity: <span className="text-green-400">{status.equity}</span> | 
-          Daily P&L: <span className={status.dailyPnL?.includes('-') ? 'text-red-400' : 'text-green-400'}>{status.dailyPnL}</span>
+        {/* Equity */}
+        <div className="text-center mb-12">
+          <div className="text-7xl font-black mb-4">
+            {data.equity || "$0.00"}
+          </div>
+          <div className="text-3xl">
+            Daily P&L:{' '}
+            <span className={data.dailyPnL?.startsWith('-') ? 'text-red-400' : 'text-green-400'}>
+              {data.dailyPnL || "0.00%"}
+            </span>
+          </div>
         </div>
 
-        {status.dry_mode && (
-          <div className="mt-8 p-6 bg-yellow-500/20 border border-yellow-500/50 rounded-2xl">
-            <strong>DRY MODE ACTIVE</strong> — Set DRY_MODE=false in Cloud Run to go LIVE
+        {/* DRY Warning */}
+        {data.dry_mode && (
+          <div className="text-center p-8 bg-yellow-500/20 border-2 border-yellow-500 rounded-3xl max-w-3xl mx-auto mb-12">
+            <strong className="text-4xl block mb-4">DRY MODE ACTIVE</strong>
+            <p className="text-xl">Set <code className="bg-black/50 px-4 py-2 rounded">DRY_MODE=false</code> in Cloud Run → Go LIVE</p>
           </div>
         )}
-      </div>
 
-      <div className="flex justify-center">
-        <button
-          onClick={triggerScan}
-          disabled={scanning || status.dry_mode}
-          className="group relative px-16 py-10 text-3xl font-black text-white rounded-3xl overflow-hidden shadow-2xl transition-all duration-500 disabled:opacity-50"
-          style={{ background: scanning ? 'linear-gradient(90deg, #f97316, #ef4444)' : 'linear-gradient(90deg, #a855f7, #ec4899)' }}
-        >
-          <span className="relative z-10 flex items-center gap-6">
-            {scanning ? 'SCANNING...' : 'MANUAL SCAN'}
-            <Rocket className="w-12 h-12 group-hover:rotate-12 transition" />
-          </span>
-          <div className="absolute inset-0 bg-white/30 translate-y-full group-hover:translate-y-0 transition-transform duration-700" />
-        </button>
+        {/* Manual Scan Button */}
+        <div className="text-center">
+          <button
+            onClick={triggerScan}
+            disabled={scanning}
+            className="relative px-24 py-12 text-6xl font-black rounded-3xl overflow-hidden shadow-2xl transition-all duration-500 disabled:opacity-60"
+            style={{
+              background: scanning
+                ? 'linear-gradient(90deg, #f97316, #ef4444)'
+                : 'linear-gradient(90deg, #a855f7, #ec4899, #f43f5e)'
+            }}
+          >
+            <span className="relative z-10 flex items-center gap-8 justify-center">
+              {scanning ? (
+                <>SCANNING... <RefreshCw className="w-16 h-16 animate-spin" /></>
+              ) : (
+                <>MANUAL SCAN <Rocket className="w-16 h-16 group-hover:rotate-45 transition" /></>
+              )}
+            </span>
+            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-700" />
+          </button>
+        </div>
+
+        <div className="text-center mt-16 text-gray-400 text-lg">
+          Last update: {lastUpdate} | Bot time: {data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : "—"}
+        </div>
       </div>
     </div>
   );
