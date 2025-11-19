@@ -21,7 +21,19 @@ export default function Home() {
     const fetch = async () => {
       try {
         const res = await axios.get(`${process.env.NEXT_PUBLIC_BOT_URL}/`, { timeout: 8000 });
-        setStatus(res.data || status);
+        if (res.data) {
+          setStatus({
+            status: res.data.status || 'OFFLINE',
+            mode: res.data.mode || (res.data.dry_mode ? 'DRY' : 'LIVE'),
+            dry_mode: res.data.dry_mode || true,
+            positions: res.data.positions || 0,
+            max_pos: res.data.max_pos || 3,
+            bot: res.data.bot || 'AlphaStream',
+            version: res.data.version || 'v29.0',
+            equity: res.data.equity || '$25,000.00',
+            dailyPnL: res.data.dailyPnL || '0.00%'
+          });
+        }
       } catch (e) {
         console.log("Bot offline, retrying...");
         setStatus({ ...status, status: 'OFFLINE', mode: 'DRY' });
@@ -36,7 +48,7 @@ export default function Home() {
     setScanning(true);
     try {
       await axios.post(`${process.env.NEXT_PUBLIC_BOT_URL}/manual/scan`);
-      alert('MANUAL SCAN — FULL SEND ACTIVATED');
+      alert('SCAN TRIGGERED — FULL SEND');
     } catch (e) {
       alert('Scan failed — check bot URL');
     }
@@ -59,14 +71,14 @@ export default function Home() {
         </div>
 
         <h2 className="text-5xl font-black mb-6 bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 bg-clip-text text-transparent">
-          {status.bot || 'AlphaStream v29.0'}
+          {status.bot}
         </h2>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-xl font-bold">
-          <div>Status: <span className={isLive ? 'text-green-500' : 'text-red-500'}>{isLive ? 'LIVE' : 'OFFLINE'}</span></div>
-          <div>Positions: <span className="text-purple-600">{status.positions || 0}/{status.max_pos || 3}</span></div>
-          <div>Mode: <span className={status.dry_mode ? 'text-yellow-500' : 'text-green-500'}>{status.dry_mode ? 'DRY' : 'LIVE'}</span></div>
-          <div>Engine: <span className="text-cyan-500">{status.version || 'v29.0'}</span></div>
+          <div>Status: <span className={isLive ? 'text-green-500' : 'text-red-500'}>{status.status}</span></div>
+          <div>Positions: <span className="text-purple-600">{status.positions}/{status.max_pos}</span></div>
+          <div>Mode: <span className={status.dry_mode ? 'text-yellow-500' : 'text-green-500'}>{status.mode}</span></div>
+          <div>Engine: <span className="text-cyan-500">{status.version}</span></div>
         </div>
 
         <div className="mt-6 text-2xl font-bold">
