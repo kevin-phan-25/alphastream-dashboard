@@ -34,7 +34,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={darkMode ? 'dark' : ''}>
       <head>
-        <title>AlphaStream v24 ELITE</title>
+        <title>AlphaStream v29 ELITE</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body className={`${inter.className} min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50 dark:from-black dark:via-purple-950/40 dark:to-blue-950/30 transition-all duration-1000`}>
@@ -47,7 +47,7 @@ export default function RootLayout({
             <div className="flex items-center gap-4">
               <Zap className="w-10 h-10 text-purple-600 dark:text-purple-400 animate-pulse drop-shadow-lg" />
               <h1 className="text-4xl font-black bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 bg-clip-text text-transparent tracking-tighter">
-                AlphaStream v24
+                AlphaStream v29
               </h1>
             </div>
 
