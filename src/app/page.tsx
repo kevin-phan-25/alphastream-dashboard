@@ -56,7 +56,7 @@ export default function Home() {
           <h1 className="text-4xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
             AlphaStream v34.0
           </h1>
-          <span className="text-2xl font-bold text-cyan-400">FUNDING READY</span>
+          <span className="text-2xl font-bold text-cyan-400">Elite Automation</span>
         </div>
       </header>
 
@@ -64,7 +64,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto text-center space-y-16">
 
           <h2 className="text-6xl md:text-8xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-            AlphaStream — Funding Ready
+            AlphaStream — ELITE MODE
           </h2>
 
           {/* Status Circle */}
@@ -92,7 +92,7 @@ export default function Home() {
 
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
               <p className="text-gray-400 text-sm">EQUITY</p>
-              <p className="font-black text-5xl md:text-6xl lg:text-7xl mt-4 text-cyan-400 leading-none tracking-tight">
+              <p className="font-black text-3xl md:text-3xl lg:text-3xl mt-3 text-cyan-400 leading-none tracking-tight">
                 {data.equity || "$0.00"}
               </p>
             </div>
