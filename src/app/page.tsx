@@ -40,7 +40,7 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 to-black flex items-center justify-center text-5xl font-black text-purple-400">
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-pink-900 flex items-center justify-center text-5xl font-black text-purple-400">
         Loading Elite Mode...
       </div>
     );
@@ -49,11 +49,11 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-pink-900 text-white">
 
-      {/* Fixed Header */}
+      {/* Header */}
       <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-black/80 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
           <h1 className="text-4xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            AlphaStream v30.0
+            Ultimate Bot
           </h1>
           <span className="text-2xl font-bold text-cyan-400">ELITE AUTONOMOUS</span>
         </div>
@@ -73,8 +73,10 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Stats Grid — Equity 100% Safe */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          {/* Stats Grid — EQUITY BOX IS NOW BIGGER & PERFECT */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-10">
+
+            {/* STATUS */}
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
               <p className="text-gray-400 text-sm">STATUS</p>
               <p className={`font-black text-4xl mt-3 ${isLive ? 'text-green-400' : 'text-yellow-400'}`}>
@@ -82,6 +84,7 @@ export default function Home() {
               </p>
             </div>
 
+            {/* POSITIONS */}
             <div 
               onClick={() => setShowPositions(true)}
               className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 cursor-pointer hover:scale-105 transition"
@@ -92,17 +95,19 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
+            {/* EQUITY — WIDER BOX + RESPONSIVE FONT + NO SMOOSH */}
+            <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 col-span-1 md:col-span-1">
               <p className="text-gray-400 text-sm">EQUITY</p>
-              <p className="font-black text-3xl md:text-4xl lg:text-5xl mt-3 text-cyan-400 break-all leading-tight">
+              <p className="font-black text-3xl sm:text-4xl md:text-5xl lg:text-6xl mt-4 text-cyan-400 leading-none tracking-tight">
                 {data.equity || "$0.00"}
               </p>
             </div>
 
+            {/* DAILY P&L */}
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
               <p className="text-gray-400 text-sm">DAILY P&L</p>
               <p className={`font-black text-4xl mt-3 ${data.dailyPnL?.includes('-') ? 'text-red-400' : 'text-green-400'}`}>
-                {data.dailyPnL || "0.00%"}
+                {data.dailyPnL || "+0.00%"}
               </p>
             </div>
           </div>
@@ -111,7 +116,7 @@ export default function Home() {
           <button
             onClick={triggerScan}
             disabled={scanning}
-            className="px-32 py-16 text-6xl font-black rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-2xl disabled:opacity-60"
+            className="px-32 py-16 text-6xl font-black rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-2xl disabled:opacity-60 transition-all"
           >
             {scanning ? (
               <>SCANNING <RefreshCw className="inline ml-8 w-16 h-16 animate-spin" /></>
@@ -123,7 +128,7 @@ export default function Home() {
         </div>
       </main>
 
-      {/* POSITIONS MODAL */}
+      {/* POSITIONS MODAL (unchanged) */}
       {showPositions && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-50 flex items-center justify-center p-6">
           <div className="bg-gray-900/95 border border-white/20 rounded-3xl p-10 max-w-4xl w-full max-h-screen overflow-y-auto">
@@ -133,7 +138,6 @@ export default function Home() {
                 <X className="w-10 h-10 text-gray-400 hover:text-white" />
               </button>
             </div>
-
             {(!data.positions || data.positions.length === 0) ? (
               <p className="text-center text-2xl text-gray-400 py-20">No open positions</p>
             ) : (
