@@ -48,7 +48,7 @@ export default function Home() {
       <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-black/80 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
           <h1 className="text-4xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            AlphaStream v30.0
+            Ultimate Bot
           </h1>
           <span className="text-2xl font-bold text-cyan-400">ELITE AUTONOMOUS</span>
         </div>
