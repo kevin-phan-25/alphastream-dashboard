@@ -7,7 +7,7 @@ import { Zap } from 'lucide-react';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'AlphaStream v29.0 ELITE',
+  title: 'AlphaStream v30.0 ELITE',
   description: 'Fully Autonomous Trading System',
 };
 
@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="flex items-center gap-4">
               <Zap className="w-12 h-12 text-purple-400 animate-pulse" />
               <h1 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 bg-clip-text text-transparent">
-                AlphaStream v29.0
+                AlphaStream v30.0
               </h1>
             </div>
             <div className="text-2xl font-bold text-cyan-400">ELITE AUTONOMOUS</div>
