@@ -1,4 +1,4 @@
-// src/app/page.tsx — FINAL v35.0 DASHBOARD
+// src/app/page.tsx — FINAL v33.0 DASHBOARD
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,7 +10,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [showPositions, setShowPositions] = useState(false);
-  const [showBacktest, setShowBacktest] = useState(false);
 
   const BOT_URL = process.env.NEXT_PUBLIC_BOT_URL?.trim();
 
@@ -43,7 +42,7 @@ export default function Home() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-pink-900 flex items-center justify-center text-5xl font-black text-purple-400">
-        Loading v35.0...
+        Loading v33.0...
       </div>
     );
   }
@@ -55,7 +54,7 @@ export default function Home() {
       <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-black/80 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
           <h1 className="text-4xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            AlphaStream v35.0
+            AlphaStream v33.0
           </h1>
           <span className="text-2xl font-bold text-cyan-400">ELITE AUTOMATION</span>
         </div>
@@ -65,7 +64,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto text-center space-y-16">
 
           <h2 className="text-6xl md:text-8xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-            AlphaStream — ELITE MODE
+            AlphaStream — Elite Mode
           </h2>
 
           {/* Status Circle */}
@@ -93,7 +92,7 @@ export default function Home() {
 
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
               <p className="text-gray-400 text-sm">EQUITY</p>
-              <p className="font-black text-3xl md:text-3xl mt-3 text-cyan-400 leading-none tracking-tight">
+              <p className="font-black text-3xl md:text-3xl lg:text-3xl mt-3 text-cyan-400 leading-none tracking-tight">
                 {data.equity || "$0.00"}
               </p>
             </div>
@@ -101,37 +100,19 @@ export default function Home() {
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
               <p className="text-gray-400 text-sm">DAILY P&L</p>
               <p className={`font-black text-4xl mt-3 ${data.dailyPnL?.includes('-') ? 'text-red-400' : 'text-green-400'}`}>
-                {data.dailyPnL || "0.00%"}
+                {data.dailyPnL || "+0.00%"}
               </p>
             </div>
           </div>
 
-          {/* Backtesting Stats */}
-          {data.backtest && (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-8 max-w-5xl mx-auto">
-              {[
-                { label: "Total Trades", value: data.backtest.trades || 0 },
-                { label: "Win Rate", value: data.backtest.winRate || "0%" },
-                { label: "Wins", value: data.backtest.wins || 0 },
-                { label: "Losses", value: data.backtest.losses || 0 },
-                { label: "Net P&L", value: `$${data.backtest.totalPnL || "0.00"}` },
-              ].map((s) => (
-                <div key={s.label} className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20">
-                  <p className="text-gray-400 text-sm">{s.label}</p>
-                  <p className="font-black text-4xl mt-3 text-cyan-400">{s.value}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Live Trade Log */}
+          {/* Trade Log */}
           <div className="mt-20">
             <h3 className="text-5xl font-black mb-8 bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
               Live Trade Log
             </h3>
             <div className="bg-white/5 backdrop-blur-xl rounded-3xl border border-white/20 p-8 max-h-96 overflow-y-auto">
               {(!data.tradeLog || data.tradeLog.length === 0) ? (
-                <p className="text-center text-2xl text-gray-400 py-20">No trades yet — waiting for momentum...</p>
+                <p className="text-center text-2xl text-gray-400 py-20">No trades yet — waiting for signals...</p>
               ) : (
                 <div className="space-y-5">
                   {data.tradeLog.slice().reverse().map((t: any) => (
