@@ -51,32 +51,24 @@ export default function Home() {
     }
   };
 
-  // v80.3 Data Mapping
-  const version = data.version || "v80.3";
+  // v81.0 Data
+  const version = data.version || "v81.0";
   const equity = data.equity || "$0.00";
   const dailyPnL = data.dailyPnL || "+$0.00";
   const positions = data.positions || [];
   const positionsCount = positions.length;
+  const stats = data.stats || { wins: 0, losses: 0, total: 0, winRate: "0.0%" };
   const tradeLog = data.tradeLog || [];
 
-  // Real Win Rate from actual exits
-  const closedTrades = tradeLog.filter((t: any) => t.type === "EXIT");
-  const winningTrades = closedTrades.filter((t: any) => 
-    t.reason?.includes("TP") || t.reason?.includes("Trailing") || (t.price > t.entry)
-  );
-  const winRate = closedTrades.length > 0
-    ? ((winningTrades.length / closedTrades.length) * 100).toFixed(1) + "%"
-    : "0.0%";
-
-  const isLive = data.mode === "LIVE" || !data.dry_mode;
+  const isLive = !data.dry_mode;
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <Crown className="w-16 h-16 mx-auto text-yellow-500 animate-pulse mb-6" />
-          <div className="text-4xl font-bold text-yellow-400">AlphaStream v80.3</div>
-          <p className="text-lg text-purple-300 mt-3">Connecting to Alpaca...</p>
+          <div className="text-4xl font-bold text-yellow-400">AlphaStream v81.0</div>
+          <p className="text-lg text-purple-300 mt-3">Final Perfection Loading...</p>
         </div>
       </div>
     );
@@ -104,7 +96,7 @@ export default function Home() {
             </h1>
             <p className="text-sm text-purple-300 flex items-center gap-2 mt-1">
               <Globe className="w-4 h-4" />
-              Yahoo Nuclear Momentum • Real Alpaca Data
+              Yahoo Nuclear Momentum • Final Perfection
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -120,7 +112,7 @@ export default function Home() {
 
           <div className="text-center mt-8">
             <h2 className="text-5xl md:text-7xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-              NUCLEAR MOMENTUM
+              FINAL PERFECTION
             </h2>
           </div>
 
@@ -145,13 +137,15 @@ export default function Home() {
             >
               <Swords className="w-10 h-10 mx-auto text-orange-400 mb-2" />
               <p className="text-4xl font-bold text-orange-300">{positionsCount}/5</p>
-              <p className="text-sm text-gray-400 mt-1">Positions</p>
+              <p className="text-sm text-gray-400 mt-1">Active Positions</p>
             </div>
 
             <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 text-center border border-white/10 hover:scale-105 transition">
               <Zap className="w-10 h-10 mx-auto text-yellow-400 mb-2" />
-              <p className="text-4xl font-bold text-yellow-300">{winRate}</p>
-              <p className="text-sm text-gray-400 mt-1">Win Rate</p>
+              <p className="text-4xl font-bold text-yellow-300">{stats.winRate}</p>
+              <p className="text-sm text-gray-400 mt-1">
+                Win Rate ({stats.wins}W / {stats.losses}L)
+              </p>
             </div>
           </div>
 
@@ -171,6 +165,21 @@ export default function Home() {
               Last scan: <span className="font-semibold text-cyan-300">{lastScan || "Never"}</span>
             </p>
           </div>
+
+          {/* Trade Log Preview */}
+          {tradeLog.length > 0 && (
+            <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10">
+              <h3 className="text-xl font-bold text-purple-300 mb-4">Recent Trades</h3>
+              <div className="space-y-2 text-sm">
+                {tradeLog.slice(-8).reverse().map((t: any, i: number) => (
+                  <div key={i} className="flex justify-between text-gray-300">
+                    <span>{t.type} {t.symbol} ×{t.qty}</span>
+                    <span>@ ${t.price} — <span className="text-cyan-400">{t.reason || "Entry"}</span></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
