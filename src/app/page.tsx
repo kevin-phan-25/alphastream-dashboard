@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
   Globe, Shield, Swords, Crown, RefreshCw, X, DollarSign,
-  Target, BarChart3, Zap, AlertTriangle
+  Target, BarChart3, Zap, AlertTriangle, TrendingUp
 } from 'lucide-react';
 
 export default function Home() {
@@ -51,20 +51,22 @@ export default function Home() {
     }
   };
 
-  // Dynamic stats
-  const version = data.version || "v80.2";
-  const equity = data.equity || "$100,000.00";
+  // v80.3 Data Mapping
+  const version = data.version || "v80.3";
+  const equity = data.equity || "$0.00";
   const dailyPnL = data.dailyPnL || "+$0.00";
   const positions = data.positions || [];
   const positionsCount = positions.length;
   const tradeLog = data.tradeLog || [];
 
-  // Real win rate calculation
+  // Real Win Rate from actual exits
   const closedTrades = tradeLog.filter((t: any) => t.type === "EXIT");
-  const winningTrades = closedTrades.filter((t: any) => t.reason?.includes("TP") || t.reason?.includes("Trailing"));
-  const winRate = closedTrades.length > 0 
+  const winningTrades = closedTrades.filter((t: any) => 
+    t.reason?.includes("TP") || t.reason?.includes("Trailing") || (t.price > t.entry)
+  );
+  const winRate = closedTrades.length > 0
     ? ((winningTrades.length / closedTrades.length) * 100).toFixed(1) + "%"
-    : "N/A";
+    : "0.0%";
 
   const isLive = data.mode === "LIVE" || !data.dry_mode;
 
@@ -73,8 +75,8 @@ export default function Home() {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <Crown className="w-16 h-16 mx-auto text-yellow-500 animate-pulse mb-6" />
-          <div className="text-4xl font-bold text-yellow-400">AlphaStream v80.2</div>
-          <p className="text-lg text-purple-300 mt-3">Connecting to nuclear engine...</p>
+          <div className="text-4xl font-bold text-yellow-400">AlphaStream v80.3</div>
+          <p className="text-lg text-purple-300 mt-3">Connecting to Alpaca...</p>
         </div>
       </div>
     );
@@ -94,7 +96,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
-      {/* Header */}
       <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-black/90 border-b border-purple-500/20">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div>
@@ -103,26 +104,26 @@ export default function Home() {
             </h1>
             <p className="text-sm text-purple-300 flex items-center gap-2 mt-1">
               <Globe className="w-4 h-4" />
-              Yahoo Nuclear Momentum • Unblockable
+              Yahoo Nuclear Momentum • Real Alpaca Data
             </p>
           </div>
-          <span className={`px-6 py-2 rounded-full text-sm font-bold ${isLive ? 'bg-green-600' : 'bg-amber-600'}`}>
-            {isLive ? "LIVE TRADING" : "PAPER MODE"}
-          </span>
+          <div className="flex items-center gap-4">
+            <span className={`px-6 py-2 rounded-full text-sm font-bold ${isLive ? 'bg-green-600' : 'bg-amber-600'}`}>
+              {isLive ? "LIVE TRADING" : "PAPER MODE"}
+            </span>
+          </div>
         </div>
       </header>
 
       <main className="pt-24 px-6 pb-20">
         <div className="max-w-6xl mx-auto space-y-10">
 
-          {/* Title */}
           <div className="text-center mt-8">
             <h2 className="text-5xl md:text-7xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
               NUCLEAR MOMENTUM
             </h2>
           </div>
 
-          {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 text-center border border-white/10 hover:scale-105 transition">
               <DollarSign className="w-10 h-10 mx-auto text-cyan-400 mb-2" />
@@ -154,7 +155,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Scan Button */}
           <div className="text-center">
             <button
               onClick={triggerScan}
@@ -186,13 +186,10 @@ export default function Home() {
             </div>
             <div className="space-y-4">
               {positions.map((p: any) => {
-                const current = Number(p.current) || 0;
-                const entry = Number(p.entry) || 0;
-                const pnlPct = entry > 0 ? ((current - entry) / entry) * 100 : 0;
-
+                const pnlPct = p.entry > 0 ? ((p.current - p.entry) / p.entry) * 100 : 0;
                 return (
                   <div key={p.symbol} className="bg-white/5 rounded-xl p-6 border border-white/10">
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-6 text-center md:text-left">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
                       <div>
                         <p className="text-gray-400 text-sm">Symbol</p>
                         <p className="text-2xl font-bold text-purple-300">{p.symbol}</p>
@@ -203,12 +200,12 @@ export default function Home() {
                       </div>
                       <div>
                         <p className="text-gray-400 text-sm">Entry</p>
-                        <p className="text-xl">${entry.toFixed(2)}</p>
+                        <p className="text-xl">${Number(p.entry).toFixed(2)}</p>
                       </div>
                       <div>
                         <p className="text-gray-400 text-sm">Current</p>
                         <p className={`text-xl font-bold ${pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          ${current.toFixed(2)}
+                          ${Number(p.current).toFixed(2)}
                         </p>
                       </div>
                       <div>
