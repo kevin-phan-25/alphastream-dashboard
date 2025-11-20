@@ -74,12 +74,12 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
           <div>
             <h1 className="text-4xl font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
-              AlphaStream v82.0
+              AlphaStream v82.1
             </h1>
             <p className="text-sm text-purple-300 mt-1">Yahoo Nuclear Momentum • Prop-Firm Ready</p>
           </div>
-          <span className={`px-6 py-3 rounded-full font-bold ${data.dry_mode ? 'bg-amber-600' : 'bg-green-600 animate-pulse'}`}>
-            {data.dry_mode ? "PAPER MODE" : "LIVE TRADING"}
+          <span className={`px-6 py-3 rounded-full font-bold ${data.mode === 'PAPER' ? 'bg-amber-600' : 'bg-green-600 animate-pulse'}`}>
+            {data.mode === 'PAPER' ? "PAPER MODE" : "LIVE TRADING"}
           </span>
         </div>
       </header>
@@ -92,6 +92,7 @@ export default function Home() {
             </h2>
           </div>
 
+          {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
             {/* Equity */}
             <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 text-center border border-white/10 hover:scale-105 transition">
@@ -150,7 +151,7 @@ export default function Home() {
             Last scan: <span className="font-bold text-cyan-300">{lastScan || "Never"}</span>
           </div>
 
-          {/* Trade Log */}
+          {/* Live Trade Log */}
           <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10">
             <h3 className="text-2xl font-bold text-purple-300 mb-6 text-center">LIVE TRADE LOG</h3>
             <div className="space-y-3 text-lg font-mono max-h-96 overflow-y-auto">
