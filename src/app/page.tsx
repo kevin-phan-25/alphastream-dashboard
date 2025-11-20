@@ -81,7 +81,6 @@ export default function Home() {
             <h1 className="text-4xl font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
               AlphaStream v81.3
             </h1>
-            <p className="text-sm text-purple-300 mt-1">Yahoo Nuclear Momentum • Real Alpaca</p>
           </div>
           <span className={`px-6 py-3 rounded-full font-bold ${data.dry_mode ? 'bg-amber-600' : 'bg-green-600 animate-pulse'}`}>
             {data.dry_mode ? "PAPER MODE" : "LIVE TRADING"}
