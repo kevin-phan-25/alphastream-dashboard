@@ -101,7 +101,7 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
             <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 text-center border border-white/10 hover:scale-105 transition">
               <DollarSign className="w-12 h-12 mx-auto text-cyan-400 mb-3" />
-              <p className="text-4xl font-bold text-cyan-300">{equity}</p>
+              <p className="text-3xl font-bold text-cyan-300">{equity}</p>
               <p className="text-gray-400">Equity</p>
             </div>
 
