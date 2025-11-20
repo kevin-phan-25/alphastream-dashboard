@@ -61,7 +61,7 @@ export default function Home() {
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-pink-900 flex items-center justify-center">
         <div className="text-3xl font-bold text-purple-300 animate-pulse flex items-center gap-3">
           <Flame className="w-10 h-10" />
-          AlphaStream v47.0
+          AlphaStream v49.0
         </div>
       </div>
     );
@@ -74,11 +74,11 @@ export default function Home() {
       <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-black/90 border-b border-white/10">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-2xl md:text-3xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            AlphaStream v47.0
+            AlphaStream v49.0
           </h1>
           <div className="flex items-center gap-3">
             <span className="text-sm md:text-lg font-medium text-cyan-400 hidden sm:block">
-              MASSIVE.COM
+              ELITE AUTOMATION
             </span>
             <span className={`px-4 py-1.5 rounded-full text-sm md:text-base font-bold ${isLive ? 'bg-green-600' : 'bg-yellow-600'}`}>
               {isLive ? "LIVE" : "PAPER"}
@@ -95,9 +95,6 @@ export default function Home() {
             <h2 className="text-4xl md:text-6xl font-black bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">
               TOP MOVERS CRUSHER
             </h2>
-            <p className="text-sm md:text-lg text-gray-300 mt-2">
-              7.5%+ Gainers • 800k+ Volume • Real-Time
-            </p>
           </div>
 
           {/* Pulse */}
