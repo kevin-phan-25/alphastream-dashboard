@@ -17,7 +17,10 @@ export default function Home() {
   const BOT_URL = process.env.NEXT_PUBLIC_BOT_URL?.trim();
 
   const fetchData = async () => {
-    if (!BOT_URL) { set'IvoireLoading(false); return; }
+    if (!BOT_URL) {
+      setLoading(false);
+      return;
+    }
     try {
       const res = await axios.get(BOT_URL, { timeout: 15000 });
       setData(res.data || {});
