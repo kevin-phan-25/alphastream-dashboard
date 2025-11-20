@@ -1,8 +1,9 @@
-// src/app/page.tsx — v81.3 Dashboard
 'use client';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { RefreshCw, X, DollarSign, Target, Swords, Zap, AlertTriangle, Activity } from 'lucide-react';
+import {
+  RefreshCw, X, DollarSign, Target, Swords, Zap, AlertTriangle, Activity
+} from 'lucide-react';
 
 export default function Home() {
   const [data, setData] = useState<any>({});
@@ -16,10 +17,9 @@ export default function Home() {
   const fetchData = async () => {
     if (!BOT_URL) return setLoading(false);
     try {
-      const res = await axios.get(BOT_URL, { timeout: 20000 });
+      const res = await axios.get(BOT_URL, { timeout: 15000 });
       setData(res.data);
     } catch (err) {
-      console.error("Fetch failed:", err);
       setData({ status: "OFFLINE" });
     } finally {
       setLoading(false);
@@ -36,14 +36,10 @@ export default function Home() {
     if (!BOT_URL || scanning) return;
     setScanning(true);
     setLastScan(new Date().toLocaleTimeString());
-    try {
-      await axios.post(`${BOT_URL}/scan`, {}, { timeout: 20000 });
-      setTimeout(fetchData, 2000);
-    } catch (e) {
-      console.error("Scan failed:", e);
-    } finally {
+    axios.post(`${BOT_URL}/scan`).finally(() => {
       setScanning(false);
-    }
+      setTimeout(fetchData, 2000);
+    });
   };
 
   const equity = data.equity || "$0.00";
@@ -53,7 +49,9 @@ export default function Home() {
 
   const exits = tradeLog.filter((t: any) => t.type === "EXIT");
   const wins = exits.filter((t: any) => parseFloat(t.pnl || "0") > 0).length;
-  const winRate = exits.length > 0 ? ((wins / exits.length) * 100).toFixed(1) + "%" : "0.0%";
+  const winRate = exits.length > 0 
+    ? ((wins / exits.length) * 100).toFixed(1) + "%" 
+    : "0.0%";
 
   if (loading) {
     return (
@@ -69,7 +67,7 @@ export default function Home() {
         <div className="text-center">
           <AlertTriangle className="w-24 h-24 mx-auto text-red-500 mb-6" />
           <h1 className="text-5xl font-black text-red-400">BOT OFFLINE</h1>
-          <p className="text-xl text-gray-400 mt-4">Check BOT_URL and backend v81.3</p>
+          <p className="text-xl text-gray-400 mt-4">Check BOT_URL in Vercel</p>
         </div>
       </div>
     );
@@ -93,6 +91,7 @@ export default function Home() {
 
       <main className="pt-32 px-6">
         <div className="max-w-6xl mx-auto space-y-12">
+
           <div className="text-center">
             <h2 className="text-6xl md:text-8xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
               NUCLEAR MOMENTUM
@@ -167,31 +166,62 @@ export default function Home() {
         </div>
       </main>
 
-      {showPositions && positions.length > 0 && (
-        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-6" onClick={() => setShowPositions(false)}>
-          <div className="bg-gray-900/95 backdrop-blur-xl rounded-3xl p-10 max-w-5xl w-full max-h-[90vh] overflow-y-auto border-2 border-purple-500" onClick={e => e.stopPropagation()}>
+      {/* POSITIONS MODAL FIXED */}
+      {showPositions && (
+        <div
+          className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-6"
+          onClick={() => setShowPositions(false)}
+        >
+          <div
+            className="bg-gray-900/95 backdrop-blur-xl rounded-3xl p-10 max-w-5xl w-full max-h-[90vh] overflow-y-auto border-2 border-purple-500"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-8">
               <h3 className="text-4xl font-black text-purple-400">ACTIVE BATTLES</h3>
               <button onClick={() => setShowPositions(false)}>
                 <X className="w-10 h-10 text-gray-400 hover:text-white" />
               </button>
             </div>
-            <div className="space-y-6">
-              {positions.map((p: any) => {
-                const pnlPct = p.entry > 0 ? ((p.current - p.entry) / p.entry) * 100 : 0;
-                return (
-                  <div key={p.symbol} className="bg-black/40 rounded-2xl p-6 border border-purple-500/50">
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-6 text-center md:text-left">
-                      <div><p className="text-gray-400">Symbol</p><p className="text-3xl font-bold text-purple-300">{p.symbol}</p></div>
-                      <div><p className="text-gray-400">Qty</p><p className="text-2xl">{p.qty}</p></div>
-                      <div><p className="text-gray-400">Entry</p><p className="text-xl">${Number(p.entry).toFixed(2)}</p></div>
-                      <div><p className="text-gray-400">Current</p><p className={`text-xl font-bold ${pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>${Number(p.current).toFixed(2)}</p></div>
-                      <div><p className="text-gray-400">P&L</p><p className={`text-3xl font-black ${pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%</p></div>
+
+            {positions.length === 0 ? (
+              <p className="text-center text-gray-400 text-2xl py-10">No positions currently</p>
+            ) : (
+              <div className="space-y-6">
+                {positions.map((p: any) => {
+                  const pnlPct = p.entry > 0 ? ((p.current - p.entry) / p.entry) * 100 : 0;
+                  return (
+                    <div key={p.symbol} className="bg-black/40 rounded-2xl p-6 border border-purple-500/50">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-6 text-center md:text-left">
+                        <div>
+                          <p className="text-gray-400">Symbol</p>
+                          <p className="text-3xl font-bold text-purple-300">{p.symbol}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400">Qty</p>
+                          <p className="text-2xl">{p.qty}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400">Entry</p>
+                          <p className="text-xl">${Number(p.entry).toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400">Current</p>
+                          <p className={`text-xl font-bold ${pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            ${Number(p.current).toFixed(2)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400">P&L</p>
+                          <p className={`text-3xl font-black ${pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
