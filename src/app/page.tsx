@@ -82,11 +82,8 @@ export default function Home() {
           {/* Hero Title */}
           <div className="text-center">
             <h2 className="text-8xl md:text-9xl font-black bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-400 bg-clip-text text-transparent leading-tight">
-              PROP CRUSHER
+              ALPHASTREAM - ELITE MODE
             </h2>
-            <p className="text-3xl md:text-4xl mt-8 text-gray-300 font-medium">
-              7.5%+ Gainers • 800k+ Volume • Real Massive.com Data
-            </p>
           </div>
 
           {/* Pulse Animation */}
@@ -100,12 +97,12 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-10">
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-12 border border-white/20 text-center hover:scale-105 transition">
               <p className="text-gray-300 text-xl">EQUITY</p>
-              <p className="text-6xl md:text-7xl font-black text-cyan-300 mt-4">{equity}</p>
+              <p className="text-6xl md:text-3xl font-black text-cyan-300 mt-4">{equity}</p>
             </div>
 
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-12 border border-white/20 text-center hover:scale-105 transition">
               <p className="text-gray-300 text-xl">DAILY P&L</p>
-              <p className={`text-6xl md:text-7xl font-black mt-4 ${dailyPnL.startsWith('-') ? 'text-red-400' : 'text-green-400'}`}>
+              <p className={`text-6xl md:text-3xl font-black mt-4 ${dailyPnL.startsWith('-') ? 'text-red-400' : 'text-green-400'}`}>
                 {dailyPnL}
               </p>
             </div>
@@ -130,17 +127,17 @@ export default function Home() {
           <div className="grid grid-cols-3 gap-10 max-w-5xl mx-auto">
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-12 border border-white/20 text-center">
               <TrendingUp className="w-28 h-28 mx-auto text-green-400 mb-6" />
-              <p className="text-8xl font-black text-green-400">{wins}</p>
+              <p className="text-6xl font-black text-green-400">{wins}</p>
               <p className="text-2xl text-gray-400 mt-4">WINS</p>
             </div>
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-12 border border-white/20 text-center">
               <AlertTriangle className="w-28 h-28 mx-auto text-red-400 mb-6" />
-              <p className="text-8xl font-black text-red-400">{losses}</p>
+              <p className="text-6xl font-black text-red-400">{losses}</p>
               <p className="text-2xl text-gray-400 mt-4">LOSSES</p>
             </div>
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-12 border border-white/20 text-center">
               <Activity className="w-28 h-28 mx-auto text-purple-400 mb-6" />
-              <p className="text-8xl font-black text-purple-400">{totalTrades}</p>
+              <p className="text-6xl font-black text-purple-400">{totalTrades}</p>
               <p className="text-2xl text-gray-400 mt-4">TRADES</p>
             </div>
           </div>
