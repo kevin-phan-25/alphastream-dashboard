@@ -118,7 +118,7 @@ export default function Home() {
               className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 text-center border border-white/10 cursor-pointer hover:scale-110 transition"
             >
               <Swords className="w-12 h-12 mx-auto text-orange-400 mb-3" />
-              <p className="text-5xl font-black text-orange-300">{positions.length}/5</p>
+              <p className="text-5xl font-black text-orange-300">{positions.length}</p>
               <p className="text-gray-400">Positions</p>
             </div>
 
@@ -166,7 +166,6 @@ export default function Home() {
         </div>
       </main>
 
-      {/* POSITIONS MODAL FIXED */}
       {showPositions && (
         <div
           className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-6"
@@ -174,17 +173,17 @@ export default function Home() {
         >
           <div
             className="bg-gray-900/95 backdrop-blur-xl rounded-3xl p-10 max-w-5xl w-full max-h-[90vh] overflow-y-auto border-2 border-purple-500"
-            onClick={(e) => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-8">
-              <h3 className="text-4xl font-black text-purple-400">ACTIVE BATTLES</h3>
+              <h3 className="text-4xl font-black text-purple-400">ACTIVE POSITIONS</h3>
               <button onClick={() => setShowPositions(false)}>
                 <X className="w-10 h-10 text-gray-400 hover:text-white" />
               </button>
             </div>
 
             {positions.length === 0 ? (
-              <p className="text-center text-gray-400 text-2xl py-10">No positions currently</p>
+              <p className="text-center text-gray-400 text-xl py-12">No positions currently.</p>
             ) : (
               <div className="space-y-6">
                 {positions.map((p: any) => {
