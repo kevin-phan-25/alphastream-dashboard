@@ -2,9 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Nuclear Grid Background */
 .bg-grid-white\/5 {
-  background-image: 
-    linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
   background-size: 50px 50px;
+}
+
+/* Glassmorphism Cards */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Hover Scale Effect */
+.hover-scale {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hover-scale:hover {
+  transform: scale(1.05);
+}
+
+/* Nuclear Button Glow */
+.nuclear-glow {
+  box-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
+}
+.nuclear-glow:hover {
+  box-shadow: 0 0 50px rgba(168, 85, 247, 0.8);
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
 }
