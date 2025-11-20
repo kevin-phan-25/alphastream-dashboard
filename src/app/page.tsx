@@ -45,7 +45,7 @@ export default function Home() {
     );
   }
 
-  // Safely extract values for v37.0
+  // Safely extract values for v38.0
   const equity = data.equity ? (typeof data.equity === "string" ? data.equity : `$${Number(data.equity).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`) : "$0.00";
   const dailyPnL = data.dailyPnL || "+$0.00";
   const positionsCount = data.positions_count ?? data.positions ?? 0;
@@ -64,7 +64,7 @@ export default function Home() {
             AlphaStream v37.0
           </h1>
           <div className="flex items-center gap-6">
-            <span className="text-2xl font-bold text-cyan-400">PROP CHALLENGE CRUSHER</span>
+            <span className="text-2xl font-bold text-cyan-400">ELITE AUTOMATION</span>
             <span className={`px-6 py-3 rounded-full font-bold text-xl ${isLive ? 'bg-green-600' : 'bg-yellow-600'}`}>
               {isLive ? "LIVE" : "PAPER"}
             </span>
@@ -99,21 +99,21 @@ export default function Home() {
 
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
               <p className="text-gray-400 text-sm">DAILY P&L</p>
-              <p className={`font-black text-5xl mt-4 ${dailyPnL.includes('-') ? 'text-red-400' : 'text-green-400'}`}>
+              <p className={`font-black text-3xl mt-3 ${dailyPnL.includes('-') ? 'text-red-400' : 'text-green-400'}`}>
                 {dailyPnL}
               </p>
             </div>
 
             <div onClick={() => setShowPositions(true)} className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 cursor-pointer hover:scale-105 transition">
               <p className="text-gray-400 text-sm">POSITIONS</p>
-              <p className="font-black text-6xl mt-4 text-purple-400">
+              <p className="font-black text-3xl mt-3 text-purple-400">
                 {positionsCount}<span className="text-4xl text-gray-400">/4</span>
               </p>
             </div>
 
             <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
               <p className="text-gray-400 text-sm">WIN RATE</p>
-              <p className="font-black text-6xl mt-4 text-yellow-400">{winRate}</p>
+              <p className="font-black text-3xl mt-3 text-yellow-400">{winRate}</p>
             </div>
           </div>
 
