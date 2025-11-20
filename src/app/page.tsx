@@ -45,8 +45,7 @@ export default function Home() {
     }
   };
 
-  // Safe data access
-  const version = data.version || "v70.0";
+  const version = data.version || "v71.0";
   const equity = data.equity || "$100,000.00";
   const dailyPnL = data.dailyPnL || "+$0.00";
   const positionsCount = data.positions_count ?? data.positions?.length ?? 0;
@@ -89,11 +88,11 @@ export default function Home() {
             <h1 className="text-3xl md:text-4xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
               AlphaStream {version}
             </h1>
-            <p className="text-sm text-purple-300">FMP Momentum Engine</p>
+            <p className="text-sm text-purple-300">FMP-Powered Momentum Engine</p>
           </div>
           <div className="flex items-center gap-6">
             <span className={`px-6 py-3 rounded-full text-lg font-bold ${isLive ? 'bg-green-600 animate-pulse' : 'bg-yellow-600'}`}>
-              {isLive ? "LIVE" : "PAPER"}
+              {isLive ? "LIVE TRADING" : "PAPER MODE"}
             </span>
           </div>
         </div>
