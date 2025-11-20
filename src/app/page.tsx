@@ -2,9 +2,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
-  Activity, Rocket, RefreshCw, X, TrendingUp, AlertTriangle,
-  Zap, Flame, DollarSign, Target, BarChart3, Globe,
-  Shield, Swords, Crown, Timer
+  Globe, Shield, Swords, Crown, RefreshCw, X, DollarSign,
+  Target, BarChart3, Zap, AlertTriangle
 } from 'lucide-react';
 
 export default function Home() {
@@ -52,21 +51,30 @@ export default function Home() {
     }
   };
 
-  const version = data.version || "v80.1";
+  // Dynamic stats
+  const version = data.version || "v80.2";
   const equity = data.equity || "$100,000.00";
   const dailyPnL = data.dailyPnL || "+$0.00";
-  const positionsCount = data.positions_count ?? data.positions?.length ?? 0;
-  const winRate = data.backtest?.winRate || "98.7%";
+  const positions = data.positions || [];
+  const positionsCount = positions.length;
+  const tradeLog = data.tradeLog || [];
+
+  // Real win rate calculation
+  const closedTrades = tradeLog.filter((t: any) => t.type === "EXIT");
+  const winningTrades = closedTrades.filter((t: any) => t.reason?.includes("TP") || t.reason?.includes("Trailing"));
+  const winRate = closedTrades.length > 0 
+    ? ((winningTrades.length / closedTrades.length) * 100).toFixed(1) + "%"
+    : "N/A";
+
   const isLive = data.mode === "LIVE" || !data.dry_mode;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-red-950 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
-          <Crown className="w-24 h-24 mx-auto text-yellow-400 animate-pulse mb-8" />
-          <div className="text-6xl font-black text-yellow-300">AlphaStream v80.1</div>
-          <p className="text-2xl text-purple-300 mt-6">FINAL BOSS PATCH</p>
-          <p className="text-lg text-cyan-400 mt-2">Unblockable • got-scraping • Nuclear</p>
+          <Crown className="w-16 h-16 mx-auto text-yellow-500 animate-pulse mb-6" />
+          <div className="text-4xl font-bold text-yellow-400">AlphaStream v80.2</div>
+          <p className="text-lg text-purple-300 mt-3">Connecting to nuclear engine...</p>
         </div>
       </div>
     );
@@ -75,133 +83,145 @@ export default function Home() {
   if (data.status === "OFFLINE" || !BOT_URL) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-900 via-black to-purple-900 flex items-center justify-center p-6">
-        <div className="text-center max-w-md">
-          <AlertTriangle className="w-28 h-28 mx-auto text-red-500 mb-8 animate-pulse" />
-          <h1 className="text-6xl font-black text-red-400 mb-4">BOT OFFLINE</h1>
-          <p className="text-xl text-gray-300">Check BOT_URL in Vercel</p>
+        <div className="text-center">
+          <AlertTriangle className="w-20 h-20 mx-auto text-red-500 mb-6" />
+          <h1 className="text-4xl font-bold text-red-400">BOT OFFLINE</h1>
+          <p className="text-gray-300 mt-4">Check BOT_URL in Vercel</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-red-950 text-white">
-      <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-black/95 border-b border-yellow-600/30">
-        <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+      {/* Header */}
+      <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-black/90 border-b border-purple-500/20">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div>
-            <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 bg-clip-text text-transparent">
-              AlphaStream <span className="text-white">v80.1</span>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              AlphaStream <span className="text-white text-2xl">{version}</span>
             </h1>
-            <p className="text-base text-yellow-300 flex items-center gap-3 mt-1">
-              <Shield className="w-5 h-5" />
-              FINAL BOSS PATCH • Unblockable • 98.7% Win Rate
+            <p className="text-sm text-purple-300 flex items-center gap-2 mt-1">
+              <Globe className="w-4 h-4" />
+              Yahoo Nuclear Momentum • Unblockable
             </p>
           </div>
-          <div className="flex items-center gap-8">
-            <span className={`px-8 py-4 rounded-full text-xl font-black ${isLive ? 'bg-green-600 animate-pulse shadow-lg shadow-green-600/50' : 'bg-gradient-to-r from-yellow-500 to-orange-600'}`}>
-              {isLive ? "LIVE TRADING" : "PAPER MODE"}
-            </span>
-          </div>
+          <span className={`px-6 py-2 rounded-full text-sm font-bold ${isLive ? 'bg-green-600' : 'bg-amber-600'}`}>
+            {isLive ? "LIVE TRADING" : "PAPER MODE"}
+          </span>
         </div>
       </header>
 
-      <main className="pt-40 px-6 pb-20">
-        <div className="max-w-7xl mx-auto space-y-16">
-          <div className="text-center">
-            <h2 className="text-7xl md:text-9xl font-black bg-gradient-to-r from-yellow-300 via-orange-400 to-red-500 bg-clip-text text-transparent leading-tight">
-              UNBLOCKABLE
+      <main className="pt-24 px-6 pb-20">
+        <div className="max-w-6xl mx-auto space-y-10">
+
+          {/* Title */}
+          <div className="text-center mt-8">
+            <h2 className="text-5xl md:text-7xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
+              NUCLEAR MOMENTUM
             </h2>
-            <p className="text-3xl text-yellow-300 mt-6 font-bold">Yahoo Cannot Stop Us</p>
-            <p className="text-xl text-cyan-300 mt-3">got-scraping + Nuclear Logic</p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div className="bg-gradient-to-br from-purple-900/50 to-black/70 backdrop-blur-xl rounded-3xl p-10 text-center border border-yellow-600/40 hover:scale-105 transition shadow-2xl">
-              <DollarSign className="w-14 h-14 mx-auto text-yellow-400 mb-4" />
-              <p className="text-5xl font-black text-yellow-300">{equity}</p>
-              <p className="text-gray-300 mt-3 text-lg">Account Equity</p>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 text-center border border-white/10 hover:scale-105 transition">
+              <DollarSign className="w-10 h-10 mx-auto text-cyan-400 mb-2" />
+              <p className="text-3xl font-bold text-cyan-300">{equity}</p>
+              <p className="text-sm text-gray-400 mt-1">Equity</p>
             </div>
-            <div className="bg-gradient-to-br from-green-900/50 to-black/70 backdrop-blur-xl rounded-3xl p-10 text-center border border-green-600/40 hover:scale-105 transition shadow-2xl">
-              <Target className="w-14 h-14 mx-auto text-green-400 mb-4" />
-              <p className={`text-5xl font-black ${dailyPnL.startsWith('-') ? 'text-red-400' : 'text-green-400'}`}>
+
+            <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 text-center border border-white/10 hover:scale-105 transition">
+              <Target className="w-10 h-10 mx-auto text-green-400 mb-2" />
+              <p className={`text-3xl font-bold ${dailyPnL.startsWith('-') ? 'text-red-400' : 'text-green-400'}`}>
                 {dailyPnL}
               </p>
-              <p className="text-gray-300 mt-3 text-lg">Daily P&L</p>
+              <p className="text-sm text-gray-400 mt-1">Daily P&L</p>
             </div>
-            <div onClick={() => setShowPositions(true)} className="bg-gradient-to-br from-orange-900/50 to-black/70 backdrop-blur-xl rounded-3xl p-10 text-center border border-orange-600/40 cursor-pointer hover:scale-110 transition shadow-2xl">
-              <Swords className="w-14 h-14 mx-auto text-orange-400 mb-4" />
-              <p className="text-7xl font-black text-orange-300">{positionsCount}/5</p>
-              <p className="text-gray-300 mt-3 text-lg">Active Battles</p>
+
+            <div
+              onClick={() => setShowPositions(true)}
+              className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 text-center border border-white/10 cursor-pointer hover:scale-110 transition"
+            >
+              <Swords className="w-10 h-10 mx-auto text-orange-400 mb-2" />
+              <p className="text-4xl font-bold text-orange-300">{positionsCount}/5</p>
+              <p className="text-sm text-gray-400 mt-1">Positions</p>
             </div>
-            <div className="bg-gradient-to-br from-red-900/50 to-black/70 backdrop-blur-xl rounded-3xl p-10 text-center border border-red-600/40 hover:scale-105 transition shadow-2xl">
-              <Zap className="w-14 h-14 mx-auto text-red-400 mb-4" />
-              <p className="text-7xl font-black text-red-300">{winRate}</p>
-              <p className="text-gray-300 mt-3 text-lg">Win Rate</p>
+
+            <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 text-center border border-white/10 hover:scale-105 transition">
+              <Zap className="w-10 h-10 mx-auto text-yellow-400 mb-2" />
+              <p className="text-4xl font-bold text-yellow-300">{winRate}</p>
+              <p className="text-sm text-gray-400 mt-1">Win Rate</p>
             </div>
           </div>
 
+          {/* Scan Button */}
           <div className="text-center">
             <button
               onClick={triggerScan}
               disabled={scanning}
-              className="px-40 py-16 text-6xl font-black rounded-full bg-gradient-to-r from-orange-600 via-red-600 to-purple-700 hover:scale-110 shadow-3xl disabled:opacity-50 transition-all flex items-center gap-6 mx-auto border-4 border-yellow-500/50"
+              className="px-24 py-8 text-3xl font-bold rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 transition-all flex items-center gap-4 mx-auto shadow-2xl"
             >
-              <RefreshCw className={`w-16 h-16 ${scanning ? 'animate-spin' : ''}`} />
-              {scanning ? "NUCLEAR SCANNING..." : "FORCE NUCLEAR SCAN"}
+              <RefreshCw className={`w-10 h-10 ${scanning ? 'animate-spin' : ''}`} />
+              {scanning ? "SCANNING..." : "FORCE SCAN"}
             </button>
           </div>
 
           <div className="text-center">
-            <p className="text-2xl text-yellow-300">
-              Last scan: <span className="font-bold text-orange-300">{lastScan || "Awaiting Orders"}</span>
+            <p className="text-lg text-purple-300">
+              Last scan: <span className="font-semibold text-cyan-300">{lastScan || "Never"}</span>
             </p>
           </div>
         </div>
       </main>
 
-      {showPositions && data.positions && (
-        <div className="fixed inset-0 bg-black/98 z-50 flex items-center justify-center p-8" onClick={() => setShowPositions(false)}>
-          <div className="bg-gradient-to-br from-gray-900 to-black rounded-3xl p-12 max-w-6xl w-full max-h-screen overflow-y-auto border-4 border-yellow-600/60 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-10">
-              <h3 className="text-6xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
-                ACTIVE BATTLES
-              </h3>
+      {/* Positions Modal */}
+      {showPositions && positions.length > 0 && (
+        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-6" onClick={() => setShowPositions(false)}>
+          <div className="bg-gray-900 rounded-2xl p-8 max-w-4xl w-full max-h-screen overflow-y-auto border border-purple-500/50" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-3xl font-bold text-purple-400">ACTIVE POSITIONS</h3>
               <button onClick={() => setShowPositions(false)}>
-                <X className="w-14 h-14 text-gray-400 hover:text-white transition" />
+                <X className="w-8 h-8 text-gray-400" />
               </button>
             </div>
+            <div className="space-y-4">
+              {positions.map((p: any) => {
+                const current = Number(p.current) || 0;
+                const entry = Number(p.entry) || 0;
+                const pnlPct = entry > 0 ? ((current - entry) / entry) * 100 : 0;
 
-            {data.positions.length === 0 ? (
-              <div className="text-center py-40">
-                <Shield className="w-32 h-32 mx-auto text-gray-600 mb-8" />
-                <p className="text-4xl text-gray-400">All positions closed. Ready for next war.</p>
-              </div>
-            ) : (
-              <div className="space-y-8">
-                {data.positions.map((p: any) => {
-                  const current = Number(p.current) || 0;
-                  const entry = Number(p.entry) || 0;
-                  const pnlPct = entry > 0 ? ((current - entry) / entry) * 100 : 0;
-
-                  return (
-                    <div key={p.symbol} className="bg-gradient-to-r from-purple-900/40 to-black/80 rounded-3xl p-10 border-2 border-yellow-600/50">
-                      <div className="grid grid-cols-2 md:grid-cols-6 gap-8 items-center">
-                        <div><p className="text-gray-400 text-lg">Symbol</p><p className="text-5xl font-black text-yellow-300">{p.symbol}</p></div>
-                        <div><p className="text-gray-400">Qty</p><p className="text-4xl font-bold text-white">{p.qty}</p></div>
-                        <div><p className="text-gray-400">Entry</p><p className="text-3xl text-cyan-300">${entry.toFixed(2)}</p></div>
-                        <div><p className="text-gray-400">Current</p><p className={`text-3xl font-bold ${pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>${current.toFixed(2)}</p></div>
-                        <div><p className="text-gray-400">P&L %</p><p className={`text-4xl font-black ${pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                return (
+                  <div key={p.symbol} className="bg-white/5 rounded-xl p-6 border border-white/10">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-6 text-center md:text-left">
+                      <div>
+                        <p className="text-gray-400 text-sm">Symbol</p>
+                        <p className="text-2xl font-bold text-purple-300">{p.symbol}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 text-sm">Qty</p>
+                        <p className="text-xl font-semibold">{p.qty}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 text-sm">Entry</p>
+                        <p className="text-xl">${entry.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 text-sm">Current</p>
+                        <p className={`text-xl font-bold ${pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          ${current.toFixed(2)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 text-sm">P&L</p>
+                        <p className={`text-2xl font-bold ${pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%
-                        </p></div>
-                        <div><p className="text-gray-400">Unrealized</p><p className={`text-4xl font-black ${p.unrealized_pl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {p.unrealized_pl >= 0 ? "+" : ""}${Math.abs(p.unrealized_pl || 0).toFixed(2)}
-                        </p></div>
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
