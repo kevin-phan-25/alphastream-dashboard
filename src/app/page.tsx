@@ -70,7 +70,7 @@ export default function Home() {
             <h1 className="text-5xl font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
               AlphaStream v98
             </h1>
-            <p className="text-xl text-orange-400 font-bold">Warrior Pattern Engine</p>
+            <p className="text-xl text-orange-400 font-bold">ELITE Pattern Engine</p>
           </div>
           <div className="text-right">
             <span className="px-8 py-3 rounded-full text-2xl font-black bg-gradient-to-r from-emerald-500 to-green-600">
@@ -166,7 +166,7 @@ export default function Home() {
           <div className="bg-gradient-to-br from-purple-900 to-black rounded-3xl p-10 max-w-4xl w-full max-h-screen overflow-y-auto border-4 border-purple-500" onClick={e => e.stopPropagation()}>
             <h2 className="text-5xl font-black text-center text-yellow-400 mb-8">TRADE HISTORY</h2>
             {trades.trades.length === 0 ? (
-              <p className="text-center text-3xl text-gray-400">No trades yet — waiting for first Warrior hit</p>
+              <p className="text-center text-3xl text-gray-400">No trades yet — waiting for first ELITE hit</p>
             ) : (
               <div className="space-y-4">
                 {trades.trades.slice().reverse().map((t: any, i: number) => (
