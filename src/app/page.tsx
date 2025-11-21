@@ -5,12 +5,12 @@ import { RefreshCw, Activity, Trophy, Package, TrendingUp, X } from 'lucide-reac
 
 export default function Home() {
   const [bot, setBot] = useState<any>({});
-  const [perf, setPerf] = useState<any>({ stats: {}, equityCurve: [] });
+  const [perf, setPerf] = useState<any>({ stats: {}, equityCurve: [], trades: [] });
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
-  const [showWinRate, setShowWinRate] = useState(false);
-  const [showPositions, setShowPositions] = useState(false);
-  const canvas = useRef<HTMLCanvasElement>(null);
+  const [showWin, setShowWin] = useState(false);
+  const [showPos, setShowPos] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
 
@@ -19,7 +19,7 @@ export default function Home() {
       const [b, p] = await Promise.all([axios.get(URL), axios.get(URL + "/performance")]);
       setBot(b.data);
       setPerf(p.data);
-    } catch {} finally { setLoading(false); }
+    } catch { } finally { setLoading(false); }
   };
 
   useEffect(() => { fetch(); const i = setInterval(fetch, 10000); return () => clearInterval(i); }, []);
@@ -33,8 +33,9 @@ export default function Home() {
 
   // Equity Curve
   useEffect(() => {
-    if (!canvas.current || perf.equityCurve.length < 2) return;
-    const ctx = canvas.current.getContext('2d')!;
+    const canvas = canvasRef.current;
+    if (!canvas || perf.equityCurve.length < 2) return;
+    const ctx = canvas.getContext('2d')!;
     const pts = perf.equityCurve;
     const min = Math.min(...pts.map((p: any) => p.equity));
     const max = Math.max(...pts.map((p: any) => p.equity));
@@ -85,12 +86,12 @@ export default function Home() {
             <p className={`text-4xl font-black ${unreal.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>{unreal}</p>
             <p className="text-gray-300">Unrealized</p>
           </div>
-          <div onClick={() => setShowWinRate(true)} className="bg-white/10 rounded-2xl p-6 text-center border-2 border-yellow-500 hover:scale-110 cursor-pointer transition">
+          <div onClick={() => setShowWin(true)} className="bg-white/10 rounded-2xl p-6 text-center border-2 border-yellow-500 hover:scale-110 cursor-pointer transition">
             <Trophy className="w-16 h-16 mx-auto text-yellow-400 mb-1" />
             <p className="text-5xl font-black text-yellow-400">{s.winRate || "0.0"}%</p>
             <p className="text-gray-300">Win Rate</p>
           </div>
-          <div onClick={() => setShowPositions(true)} className="bg-white/10 rounded-2xl p-6 text-center border-2 border-orange-500 hover:scale-110 cursor-pointer transition">
+          <div onClick={() => setShowPos(true)} className="bg-white/10 rounded-2xl p-6 text-center border-2 border-orange-500 hover:scale-110 cursor-pointer transition">
             <Package className="w-16 h-16 mx-auto text-orange-400 mb-1" />
             <p className="text-5xl font-black text-orange-300">{bot.positions || 0}</p>
             <p className="text-gray-300">Positions</p>
@@ -101,9 +102,9 @@ export default function Home() {
           <h3 className="text-4xl font-black text-center text-cyan-400 mb-6">LIVE EQUITY CURVE</h3>
           <div className="h-80 bg-black/40 rounded-2xl overflow-hidden">
             {perf.equityCurve.length > 1 ? (
-              <canvas ref={canvas} width={1000} height={320} className="w-full" />
+              <canvas ref={canvasRef} width={1000} height={320} className="w-full" />
             ) : (
-              <p className="h-full flex items-center justify-center text-gray-2xl text-gray-500">Waiting for trades...</p>
+              <p className="h-full flex items-center justify-center text-gray-500 text-2xl">Waiting for trades...</p>
             )}
           </div>
         </div>
@@ -140,13 +141,13 @@ export default function Home() {
         </div>
       </main>
 
-      {/* CLEAN WIN RATE MODAL */}
-      {showWinRate && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setShowWinRate(false)}>
-          <div className="bg-gradient-to-br from-purple-900 to-pink-900 rounded-3xl p-12 max-w-md border-4 border-yellow-500" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-8">
+      {/* WIN RATE MODAL */}
+      {showWin && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setShowWin(false)}>
+          <div className="bg-gradient-to-br from-purple-900 to-pink-900 rounded-3xl p-12 border-4 border-yellow-500 max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
               <h3 className="text-4xl font-black text-yellow-400">WIN RATE</h3>
-              <X className="w-10 h-10 cursor-pointer text-gray-400 hover:text-white" onClick={() => setShowWinRate(false)} />
+              <X className="w-10 h-10 cursor-pointer" onClick={() => setShowWin(false)} />
             </div>
             <div className="text-center space-y-4">
               <p className="text-7xl font-black text-yellow-400">{s.winRate || "0.0"}%</p>
@@ -158,18 +159,16 @@ export default function Home() {
         </div>
       )}
 
-      {/* CLEAN POSITIONS MODAL */}
-      {showPositions && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setShowPositions(false)}>
-          <div className="bg-gradient-to-br from-orange-900 to-red-900 rounded-3xl p-12 max-w-md border-4 border-orange-500" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-8">
+      {/* POSITIONS MODAL */}
+      {showPos && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setShowPos(false)}>
+          <div className="bg-gradient-to-br from-orange-900 to-red-900 rounded-3xl p-12 border-4 border-orange-500 max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
               <h3 className="text-4xl font-black text-orange-400">POSITIONS</h3>
-              <X className="w-10 h-10 cursor-pointer text-gray-400 hover:text-white" onClick={() => setShowPositions(false)} />
+              <X className="w-10 h-10 cursor-pointer" onClick={() => setShowPos(false)} />
             </div>
-            <p className="text-7xl font-black text-center text-orange-300">
-              {bot.positions || 0}
-            </p>
-            <p className="text-2xl text-center text-gray-300 mt-4">ACTIVE ROCKETS</p>
+            <p className="text-8xl font-black text-center text-orange-300">{bot.positions || 0}</p>
+            <p className="text-2xl text-center text-gray-300 mt-4">ACTIVE ELITE ROCKETS</p>
           </div>
         </div>
       )}
