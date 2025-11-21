@@ -5,12 +5,12 @@ import { RefreshCw, Activity, Trophy, Package, TrendingUp } from 'lucide-react';
 
 export default function Home() {
   const [bot, setBot] = useState<any>({});
-  const [perf, setPerf] = useState<any>({ stats: {}, equityCurve: [], trades: [] });
+  const [perf, setPerf] = useState<any>({ stats: {}, equityCurve: [] });
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
+  const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app;
 
   const fetch = async () => {
     try {
@@ -32,7 +32,7 @@ export default function Home() {
     fetch();
   };
 
-  // Equity Curve
+  // Equity curve drawing
   useEffect(() => {
     if (!canvasRef.current || perf.equityCurve.length < 2) return;
     const canvas = canvasRef.current;
@@ -46,7 +46,6 @@ export default function Home() {
     ctx.strokeStyle = '#c084fc';
     ctx.lineWidth = 4;
     ctx.beginPath();
-
     points.forEach((p: any, i: number) => {
       const x = (i / (points.length - 1)) * canvas.width;
       const y = canvas.height - ((p.equity - min) / range) * canvas.height * 0.9 + 20;
@@ -58,6 +57,7 @@ export default function Home() {
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Activity className="w-32 h-32 text-purple-500 animate-spin" /></div>;
 
   const s = perf.stats;
+  const equity = bot.equity || "$100,000";
   const unreal = bot.unrealized || "+$0";
 
   return (
@@ -81,21 +81,20 @@ export default function Home() {
           LOW-FLOAT SNIPER
         </h2>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <div className="bg-white/10 rounded-2xl p-8 text-center border-2 border-purple-500">
-            <p className="text-5xl font-black">{bot.equity || "$100,000"}</p>
+            <p className="text-5xl font-black">{equity}</p>
             <p className="text-lg text-gray-300">Equity</p>
           </div>
           <div className="bg-white/10 rounded-2xl p-8 text-center border-2 border-green-500">
             <TrendingUp className="w-16 h-16 mx-auto text-green-400 mb-2" />
-            <p className={`text-5xl font-black ${unreal[0] === '+' ? 'text-green-400' : 'text-red-400'}`}>
+            <p className={`text-5xl font-black ${unreal.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
               {unreal}
             </p>
             <p className="text-lg text-gray-300">Unrealized</p>
           </div>
           <div 
-            onClick={() => alert(`Win Rate: ${s.winRate || "0.0}% | Trades: ${s.trades || 0}`)}
+            onClick={() => alert(`Win Rate: ${s.winRate || "0.0"}% | Total Trades: ${s.trades || 0}`)}
             className="bg-white/10 rounded-2xl p-8 text-center border-2 border-yellow-500 hover:scale-110 cursor-pointer transition"
           >
             <Trophy className="w-20 h-20 mx-auto text-yellow-400 mb-3" />
@@ -112,7 +111,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Equity Curve */}
         <div className="bg-black/60 rounded-3xl p-8 border-4 border-cyan-500">
           <h3 className="text-4xl font-black text-center text-cyan-400 mb-6">LIVE EQUITY CURVE</h3>
           <div className="h-80 bg-black/40 rounded-2xl overflow-hidden">
@@ -126,7 +124,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Rockets */}
         {bot.rockets?.length > 0 && (
           <div className="bg-black/60 rounded-3xl p-8 border-4 border-yellow-500">
             <h3 className="text-4xl font-black text-center text-yellow-400 mb-6">CURRENT ROCKETS</h3>
@@ -147,12 +144,11 @@ export default function Home() {
           </div>
         )}
 
-        {/* Force Scan */}
         <div className="text-center pt-8">
           <button
             onClick={scan}
             disabled={scanning}
-            className="px-32 py-14 text-5xl font-black rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition-all shadow-2xl border-8 border-purple-400 flex items-center gap-10 mx-auto"
+            className="px-32 py-14 text-5xl font-black rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition-all shadow-2xl border-8 border-purple-400 flex items-center gap-10 mx-auto flex justify-center"
           >
             <RefreshCw className={`w-20 h-20 ${scanning ? 'animate-spin' : ''}`} />
             {scanning ? "SNIPING" : "FORCE SCAN"}
