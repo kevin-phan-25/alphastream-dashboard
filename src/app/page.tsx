@@ -5,7 +5,7 @@ import { RefreshCw, Activity, Trophy, Package, TrendingUp, X } from 'lucide-reac
 
 export default function Home() {
   const [bot, setBot] = useState<any>({});
-  const [perf, setPerf] = useState<any>({ stats: {}, equityCurve: [], trades: [] });
+  const [perf, setPerf] = useState<any>({ stats: {}, equityCurve: [] });
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [showWin, setShowWin] = useState(false);
@@ -19,7 +19,7 @@ export default function Home() {
       const [b, p] = await Promise.all([axios.get(URL), axios.get(URL + "/performance")]);
       setBot(b.data);
       setPerf(p.data);
-    } catch { } finally { setLoading(false); }
+    } catch {} finally { setLoading(false); }
   };
 
   useEffect(() => { fetch(); const i = setInterval(fetch, 10000); return () => clearInterval(i); }, []);
@@ -71,11 +71,12 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="pt-28 px-6 max-w-5xl mx-auto space-y-10">
+      <main className="pt-28 px-6 max-w-5xl mx-auto space-y-12">
         <h2 className="text-6xl font-black text-center bg-gradient-to-r from-yellow-400 to-red-600 bg-clip-text text-transparent">
           ELITE SNIPER
         </h2>
 
+        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <div className="bg-white/10 rounded-2xl p-6 text-center border-2 border-purple-500">
             <p className="text-4xl font-black">{bot.equity || "$100,000"}</p>
@@ -98,6 +99,40 @@ export default function Home() {
           </div>
         </div>
 
+        {/* FORCE SCAN MOVED UP */}
+        <div className="text-center py-10">
+          <button
+            onClick={scan}
+            disabled={scanning}
+            className="px-40 py-16 text-6xl font-black rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition-all shadow-2xl border-8 border-purple-400 flex items-center gap-12 mx-auto"
+          >
+            <RefreshCw className={`w-24 h-24 ${scanning ? 'animate-spin' : ''}`} />
+            {scanning ? "SNIPING..." : "FORCE SCAN"}
+          </button>
+        </div>
+
+        {/* Rockets */}
+        {bot.rockets?.length > 0 && (
+          <div className="bg-black/60 rounded-3xl p-10 border-4 border-yellow-500">
+            <h3 className="text-5xl font-black text-center text-yellow-400 mb-8">ELITE ROCKETS</h3>
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-6">
+              {bot.rockets.map((r: string, i: number) => {
+                const symbol = r.split('+')[0].trim();
+                const pct = r.split('+')[1]?.split(' ')[0];
+                const pattern = r.match(/\[(.*?)\]/)?.[1] || "ELITE";
+                return (
+                  <div key={i} className="bg-gradient-to-br from-purple-700 to-pink-800 rounded-xl p-6 text-center">
+                    <p className="text-4xl font-black">{symbol}</p>
+                    <p className="text-3xl text-green-400">+{pct}</p>
+                    <p className="text-sm font-bold text-cyan-300">{pattern}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* LIVE EQUITY CURVE MOVED DOWN */}
         <div className="bg-black/60 rounded-3xl p-8 border-4 border-cyan-500">
           <h3 className="text-4xl font-black text-center text-cyan-400 mb-6">LIVE EQUITY CURVE</h3>
           <div className="h-80 bg-black/40 rounded-2xl overflow-hidden">
@@ -107,37 +142,6 @@ export default function Home() {
               <p className="h-full flex items-center justify-center text-gray-500 text-2xl">Waiting for trades...</p>
             )}
           </div>
-        </div>
-
-        {bot.rockets?.length > 0 && (
-          <div className="bg-black/60 rounded-3xl p-8 border-4 border-yellow-500">
-            <h3 className="text-4xl font-black text-center text-yellow-400 mb-6">ELITE ROCKETS</h3>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-5">
-              {bot.rockets.map((r: string, i: number) => {
-                const symbol = r.split('+')[0].trim();
-                const pct = r.split('+')[1]?.split(' ')[0];
-                const pattern = r.match(/\[(.*?)\]/)?.[1] || "ELITE";
-                return (
-                  <div key={i} className="bg-gradient-to-br from-purple-700 to-pink-800 rounded-xl p-5 text-center">
-                    <p className="text-3xl font-black">{symbol}</p>
-                    <p className="text-2xl text-green-400">+{pct}</p>
-                    <p className="text-sm font-bold text-cyan-300">{pattern}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        <div className="text-center pt-8">
-          <button
-            onClick={scan}
-            disabled={scanning}
-            className="px-32 py-14 text-5xl font-black rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition-all shadow-2xl border-8 border-purple-400 flex items-center gap-10 mx-auto"
-          >
-            <RefreshCw className={`w-20 h-20 ${scanning ? 'animate-spin' : ''}`} />
-            {scanning ? "SNIPING" : "FORCE SCAN"}
-          </button>
         </div>
       </main>
 
