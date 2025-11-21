@@ -92,7 +92,7 @@ export default function Home() {
 
             {/* Title */}
             <div className="text-center">
-              <h2 className="text-7xl md:text-9xl font-black bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 bg-clip-text text-transparent">
+              <h2 className="text-5xl md:text-7xl font-black bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 bg-clip-text text-transparent">
                 AlphaStream - ELITE MODE
               </h2>
             </div>
