@@ -101,7 +101,7 @@ export default function Home() {
               <h1 className="text-4xl font-black bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
                 AlphaStream v98
               </h1>
-              <p className="text-xl font-bold text-cyan-300">WARRIOR EDITION</p>
+              <p className="text-xl font-bold text-cyan-300">ELITE EDITION</p>
             </div>
           </div>
           <span className="px-8 py-3 rounded-full text-2xl font-black bg-gradient-to-r from-emerald-500 to-green-600">
@@ -114,7 +114,7 @@ export default function Home() {
         {/* Title */}
         <div className="text-center">
           <h2 className="text-6xl font-black bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 bg-clip-text text-transparent">
-            WARRIOR SNIPER
+            ELITE SNIPER
           </h2>
           <p className="text-2xl text-cyan-300 mt-2">7 Chart Patterns • Real Alpaca • 78–84% Win Rate</p>
         </div>
@@ -148,7 +148,7 @@ export default function Home() {
           <div className="bg-black/60 backdrop-blur-2xl rounded-2xl p-8 border-4 border-yellow-500">
             <h3 className="text-4xl font-black text-center text-yellow-400 mb-8 flex items-center justify-center gap-6">
               <Flame className="w-10 h-10 animate-pulse" />
-              WARRIOR ROCKETS
+              ELITE ROCKETS
               <Flame className="w-10 h-10 animate-pulse" />
             </h3>
             <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-8 gap-5">
