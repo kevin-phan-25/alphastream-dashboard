@@ -27,11 +27,13 @@ export default function Home() {
       setBot({
         ...botRes.data,
         equity: `$${parseFloat(equityRaw).toLocaleString()}`,
-        unrealized: parseFloat(unrealRaw) >= 0 ? `+$${Math.abs(parseFloat(unrealRaw)).toLocaleString()}` : `–$${Math.abs(parseFloat(unrealRaw)).toLocaleString()}`
+        unrealized: parseFloat(unrealRaw) >= 0 
+          ? `+$${Math.abs(parseFloat(unrealRaw)).toLocaleString()}` 
+          : `–$${Math.abs(parseFloat(unrealRaw)).toLocaleString()}`
       });
       setPerf(perfRes.data);
     } catch (e) {
-      console.log(e);
+      console.log("Fetch error:", e);
     } finally {
       setLoading(false);
     }
@@ -43,17 +45,27 @@ export default function Home() {
     return () => clearInterval(i);
   }, []);
 
-  if (loading) return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <Activity className="w-32 h-32 text-purple-500 animate-spin" />
-    </div>
-  );
+  const triggerScan = async () => {
+    setScanning(true);
+    await axios.post(`${BOT_URL}/scan`).catch(() => {});
+    setScanning(false);
+    setTimeout(fetchAll, 1500);
+  };
 
-  const { stats = {}, equityCurve = [] } = perf;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Activity className="w-32 h-32 text-purple-500 animate-spin" />
+      </div>
+    );
+  }
+
+  const { stats = {}, equityCurve = [], trades = [] } = perf;
   const positionsCount = bot.positions || 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-pink-950 text-white pb-20">
+      {/* Header */}
       <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-black/95 border-b-2 border-purple-600">
         <div className="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
           <div>
@@ -89,7 +101,7 @@ export default function Home() {
           <div onClick={() => setShowTrades(true)} className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 text-center border-2 border-yellow-500 hover:scale-110 cursor-pointer transition">
             <Trophy className="w-20 h-20 mx-auto text-yellow-400 mb-3" />
             <p className="text-6xl font-black text-yellow-400">{stats.winRate || "0.0"}%</p>
-            <p className="text-xl text-gray-300">Win Rate ({stats.trades || 0} trades)</p>
+            <p className="text-xl text-gray-300">Win Rate ({stats.trades || 0})</p>
           </div>
           <div onClick={() => setShowPositions(true)} className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 text-center border-2 border-orange-500 hover:scale-110 cursor-pointer transition">
             <Package className="w-20 h-20 mx-auto text-orange-400 mb-3" />
@@ -104,25 +116,25 @@ export default function Home() {
             <LineChart className="w-12 h-12" /> LIVE EQUITY CURVE
           </h3>
           <div className="h-96">
-            <ResponsiveContainer width="100%" height="100%">
-              <RechartsLine
-                type="monotone"
-                data={equityCurve}
-                stroke="#a855f7"
-                strokeWidth={4}
-                dot={false}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis dataKey="time" stroke="#888" tickFormatter={(t) => new Date(t).toLocaleTimeString()} />
-                <YAxis stroke="#888" tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: "#111" border: "none" }
-                  labelFormatter={(t) => new Date(t).toLocaleString()}
-                  formatter={(value: number) => `$${value.toLocaleString()}`}
-                />
-                <Line type="monotone" dataKey="equity" stroke="#a855f7" strokeWidth={4} dot={false} />
-              </RechartsLine>
-            </ResponsiveContainer>
+            {equityCurve.length > 1 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsLine type="monotone" data={equityCurve} strokeWidth={4} dot={false}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis dataKey="time" stroke="#888" tickFormatter={(t) => new Date(t).toLocaleTimeString()} />
+                  <YAxis stroke="#888" tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: "#111", border: "none", borderRadius: "12px" }}
+                    labelFormatter={(t) => new Date(t).toLocaleString()}
+                    formatter={(value: number) => `$${value.toLocaleString()}`}
+                  />
+                  <Line type="monotone" dataKey="equity" stroke="#a855f7" strokeWidth={4} dot={false} />
+                </RechartsLine>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-500 text-3xl">
+                Equity curve will appear after first trade...
+              </div>
+            )}
           </div>
         </div>
 
@@ -150,13 +162,9 @@ export default function Home() {
         {/* Force Scan */}
         <div className="text-center pt-10">
           <button
-            onClick={async () => {
-              setScanning(true);
-              await axios.post(`${BOT_URL}/scan`).catch(() => {});
-              setScanning(false);
-              setTimeout(fetchAll, 1500);
-            }}
-            className="px-40 py-16 text-6xl font-black rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition-all shadow-2xl border-8 border-purple-400 flex items-center justify-center gap-12 mx-auto"
+            onClick={triggerScan}
+            disabled={scanning}
+            className="px-40 py-16 text-6xl font-black rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-60 transition-all shadow-2xl border-8 border-purple-400 flex items-center justify-center gap-12 mx-auto"
           >
             <RefreshCw className={`w-24 h-24 ${scanning ? 'animate-spin' : ''}`} />
             {scanning ? "SNIPING..." : "FORCE SCAN"}
@@ -169,11 +177,11 @@ export default function Home() {
         <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-8" onClick={() => setShowTrades(false)}>
           <div className="bg-gradient-to-br from-purple-900 to-black rounded-3xl p-12 max-w-5xl w-full max-h-screen overflow-y-auto border-4 border-yellow-500" onClick={e => e.stopPropagation()}>
             <h2 className="text-6xl font-black text-center text-yellow-400 mb-10">FULL TRADE HISTORY</h2>
-            {perf.trades.length === 0 ? (
-              <p className="text-center text-4xl text-gray-400">Waiting for first Warrior hit...</p>
+            {trades.length === 0 ? (
+              <p className="text-center text-4xl text-gray-400">No trades yet — waiting for first hit</p>
             ) : (
               <div className="space-y-4">
-                {perf.trades.reverse().map((t: any, i: number) => (
+                {trades.slice().reverse().map((t: any, i: number) => (
                   <div key={i} className={`p-6 rounded-2xl border-4 ${t.result === 'WIN' ? 'bg-green-900/70 border-green-500' : 'bg-red-900/70 border-red-500'}`}>
                     <div className="flex justify-between items-center text-3xl">
                       <div className="flex items-center gap-6">
@@ -200,7 +208,7 @@ export default function Home() {
       {/* Positions Modal */}
       {showPositions && (
         <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-8" onClick={() => setShowPositions(false)}>
-          <div className="bg-gradient-to-br from-orange-900 to-black rounded-3xl p-12 max-w-3xl w-full border-4 border-orange-500" onClick={e => e.stopPropagation()}">
+          <div className="bg-gradient-to-br from-orange-900 to-black rounded-3xl p-12 max-w-3xl w-full border-4 border-orange-500" onClick={e => e.stopPropagation()}>
             <h2 className="text-6xl font-black text-center text-orange-400 mb-10">CURRENT POSITIONS</h2>
             {positionsCount === 0 ? (
               <p className="text-5xl text-center text-gray-400 font-bold">NO ACTIVE POSITIONS</p>
