@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
   RefreshCw,
+  Rocket,          // ← THIS WAS MISSING
   DollarSign,
   TrendingUp,
   Activity,
@@ -28,7 +29,6 @@ export default function Home() {
         ...res.data,
         equity: typeof res.data.equity === "string" ? parseFloat(res.data.equity.replace(/[$,]/g, "")) || 100000 : res.data.equity || 100000,
         unrealized: typeof res.data.unrealized === "string" ? parseFloat(res.data.unrealized.replace(/[$,+]/g, "")) || 0 : res.data.unrealized || 0,
-        dailyPnL: typeof res.data.dailyPnL === "string" ? parseFloat(res.data.dailyPnL.replace(/[$,+]/g, "")) || 0 : res.data.dailyPnL || 0,
         positions: res.data.positions || 0,
         rockets: res.data.rockets || [],
         backtest: res.data.backtest || { trades: 0, winRate: 0, profitFactor: 0, totalPnL: 0, maxDD: 0, bestTrade: 0 }
@@ -56,9 +56,7 @@ export default function Home() {
     setLastScan(new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' }));
     try {
       await axios.post(`${BOT_URL}/scan`, {}, { timeout: 10000 });
-    } catch (err) {
-      console.error("Scan failed:", err);
-    }
+    } catch {}
     setScanning(false);
     setTimeout(fetchData, 2000);
   };
@@ -69,9 +67,7 @@ export default function Home() {
     setLastBacktest(new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' }));
     try {
       await axios.post(`${BOT_URL}/backtest`, {}, { timeout: 10000 });
-    } catch (err) {
-      console.error("Backtest failed:", err);
-    }
+    } catch {}
     setBacktesting(false);
     setTimeout(fetchData, 1500);
   };
@@ -91,24 +87,23 @@ export default function Home() {
         <div>
           <h1 className="text-6xl font-black text-white mb-4">BOT OFFLINE</h1>
           {error && <p className="text-xl text-orange-300 mb-4">{error}</p>}
-          <p className="text-xl text-gray-300">Check Cloud Run logs or Vercel env var</p>
+          <p className="text-xl text-gray-300">Check Cloud Run logs</p>
         </div>
       </div>
     );
   }
 
-  const equity = data.equity ? `$${Number(data.equity).toLocaleString()}` : "$100,000";
-  const unrealized = data.unrealized != null
-    ? (data.unrealized >= 0
-        ? `+$${Number(data.unrealized).toLocaleString()}`
-        : `-$${Math.abs(Number(data.unrealized)).toLocaleString()}`)
-    : "$0";
-  const positionsCount = data.positions || 0;
-  const rockets: string[] = data.rockets || [];
-  const backtest = data.backtest || {};
+  const equity = `$${Number(data.equity).toLocaleString()}`;
+  const unrealized = data.unrealized >= 0
+    ? `+$${Number(data.unrealized).toLocaleString()}`
+    : `-$${Math.abs(Number(data.unrealized)).toLocaleString()}`;
+  const positionsCount = data.positions;
+  const rockets: string[] = data.rockets;
+  const backtest = data.backtest;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-pink-900 text-white pb-32">
+      {/* Header */}
       <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-black/95 border-b border-purple-600/60">
         <div className="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
           <div>
@@ -128,7 +123,6 @@ export default function Home() {
           <h2 className="text-8xl font-black bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 bg-clip-text text-transparent animate-pulse">
             LOW-FLOAT ROCKET HUNTER
           </h2>
-          <p className="text-3xl text-cyan-300 mt-4">Real equity • Live backtesting • Free scanner</p>
         </div>
 
         {/* Stats */}
@@ -138,6 +132,7 @@ export default function Home() {
             <p className="text-5xl font-black text-cyan-300">{equity}</p>
             <p className="text-xl text-gray-300">Equity</p>
           </div>
+
           <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-10 text-center border-2 border-green-500/60 hover:scale-105 transition">
             <TrendingUp className="w-20 h-20 mx-auto text-green-400 mb-4" />
             <p className={`text-5xl font-black ${data.unrealized >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -145,11 +140,13 @@ export default function Home() {
             </p>
             <p className="text-xl text-gray-300">Unrealized P&L</p>
           </div>
+
           <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-10 text-center border-2 border-purple-500/60 hover:scale-105 transition">
             <Activity className="w-20 h-20 mx-auto text-purple-400 mb-4" />
             <p className="text-5xl font-black text-purple-300">{positionsCount}</p>
             <p className="text-xl text-gray-300">Active Rockets</p>
           </div>
+
           <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-10 text-center border-2 border-orange-500/60 hover:scale-105 transition">
             <Rocket className="w-20 h-20 mx-auto text-orange-400 mb-4 animate-bounce" />
             <p className="text-5xl font-black text-orange-300">{rockets.length}</p>
@@ -157,27 +154,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Backtest */}
-        {backtest.trades > 0 && (
-          <div className="bg-black/70 backdrop-blur-2xl rounded-3xl p-12 border-4 border-cyan-500 shadow-2xl">
-            <h3 className="text-5xl font-black text-center text-cyan-400 mb-10 flex items-center justify-center gap-6">
-              <BarChart3 className="w-16 h-16" />
-              BACKTEST RESULTS
-            </h3>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-8 text-center">
-              <div><p className="text-gray-400">Trades</p><p className="text-5xl font-bold text-white">{backtest.trades}</p></div>
-              <div><p className="text-gray-400">Win Rate</p><p className="text-5xl font-bold text-green-400">{backtest.winRate}%</p></div>
-              <div><p className="text-gray-400">P/F</p><p className="text-5xl font-bold text-cyan-400">{backtest.profitFactor}</p></div>
-              <div><p className="text-gray-400">Net P&L</p><p className={`text-5xl font-bold ${backtest.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {backtest.totalPnL >= 0 ? '+' : ''}${Math.abs(backtest.totalPnL).toLocaleString()}
-              </p></div>
-              <div><p className="text-gray-400">Max DD</p><p className="text-5xl font-bold text-orange-400">{backtest.maxDD}%</p></div>
-              <div><p className="text-gray-400">Best</p><p className="text-5xl font-bold text-yellow-400">+${backtest.bestTrade.toLocaleString()}</p></div>
-            </div>
-          </div>
-        )}
-
-        {/* Rockets */}
+        {/* Rockets Grid */}
         {rockets.length > 0 && (
           <div className="bg-black/50 backdrop-blur-2xl rounded-3xl p-12 border-4 border-yellow-500 shadow-2xl">
             <h3 className="text-6xl font-black text-center text-yellow-400 mb-10 flex items-center justify-center gap-8">
