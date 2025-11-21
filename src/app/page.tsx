@@ -78,7 +78,6 @@ export default function Home() {
               <h1 className="text-5xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
                 AlphaStream v83.5
               </h1>
-              <p className="text-lg text-purple-300 mt-1">TradingView Penny Rocket Scanner</p>
             </div>
             <div className="text-right">
               <span className={`px-6 py-3 rounded-full text-xl font-bold ${data.mode === "LIVE" ? "bg-green-600" : "bg-amber-600"}`}>
@@ -94,22 +93,21 @@ export default function Home() {
             {/* Title */}
             <div className="text-center">
               <h2 className="text-7xl md:text-9xl font-black bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 bg-clip-text text-transparent">
-                PENNY ROCKETS
+                AlphaStream - ELITE MODE
               </h2>
-              <p className="text-2xl text-purple-300 mt-4">2–10$ • +3% • 500k+ vol</p>
             </div>
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
               <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 text-center border border-purple-500/30 hover:scale-105 transition">
                 <DollarSign className="w-14 h-14 mx-auto text-cyan-400 mb-4" />
-                <p className="text-5xl font-black text-cyan-300">{equity}</p>
+                <p className="text-3xl font-black text-cyan-300">{equity}</p>
                 <p className="text-gray-400 text-lg">Equity</p>
               </div>
 
               <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 text-center border border-purple-500/30 hover:scale-105 transition">
                 <TrendingUp className="w-14 h-14 mx-auto text-green-400 mb-4" />
-                <p className={`text-5xl font-black ${dailyPnL.startsWith('-') ? 'text-red-400' : 'text-green-400'}`}>
+                <p className={`text-3xl font-black ${dailyPnL.startsWith('-') ? 'text-red-400' : 'text-green-400'}`}>
                   {dailyPnL}
                 </p>
                 <p className="text-gray-400 text-lg">Daily P&L</p>
@@ -120,13 +118,13 @@ export default function Home() {
                 className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 text-center border border-purple-500/30 cursor-pointer hover:scale-110 transition"
               >
                 <Swords className="w-14 h-14 mx-auto text-orange-400 mb-4" />
-                <p className="text-6xl font-black text-orange-300">{positions.length}/5</p>
+                <p className="text-3xl font-black text-orange-300">{positions.length}/5</p>
                 <p className="text-gray-400 text-lg">Positions</p>
               </div>
 
               <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 text-center border border-purple-500/30 hover:scale-105 transition">
                 <Zap className="w-14 h-14 mx-auto text-yellow-400 mb-4" />
-                <p className="text-6xl font-black text-yellow-300">{winRate}</p>
+                <p className="text-3xl font-black text-yellow-300">{winRate}</p>
                 <p className="text-gray-400 text-lg">Win Rate</p>
               </div>
             </div>
