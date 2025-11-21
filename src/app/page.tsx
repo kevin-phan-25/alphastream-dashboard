@@ -32,17 +32,24 @@ export default function Home() {
       });
       setTrades(tradesRes.data);
     } catch (e) {
-      console.log(e);
+      console.log("Fetch error:", e);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetch();
-    const i = setInterval(fetch, 9000);
+    fetchAll();                                 // ← Fixed: was fetch()
+    const i = setInterval(fetchAll, 9000);      // ← Fixed: was fetch
     return () => clearInterval(i);
   }, []);
+
+  const triggerScan = async () => {
+    setScanning(true);
+    await axios.post(`${BOT_URL}/scan`).catch(() => {});
+    setScanning(false);
+    setTimeout(fetchAll, 2000);
+  };
 
   if (loading) return (
     <div className="min-h-screen bg-black flex items-center justify-center">
@@ -70,7 +77,7 @@ export default function Home() {
               {bot.mode === "LIVE" ? "LIVE MODE" : "PAPER MODE"}
             </span>
             <p className="text-sm text-gray-400 mt-1">
-              {bot.mode === "LIVE" ? "Real Alpaca money" : "Simulated (safe)"}
+              {bot.mode === "LIVE" ? "Real money on Alpaca" : "Simulated (no risk)"}
             </p>
           </div>
         </div>
@@ -81,9 +88,9 @@ export default function Home() {
           LOW-FLOAT SNIPER
         </h2>
 
-        {/* Main Stats */}
+        {/* Main Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-          <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 text-center border-2 border-purple-500 hover:scale-105 transition cursor-default">
+          <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 text-center border-2 border-purple-500 hover:scale-105 transition">
             <p className="text-5xl font-black text-purple-300">{bot.equity || "$100,000"}</p>
             <p className="text-xl text-gray-300">Equity</p>
           </div>
@@ -99,7 +106,7 @@ export default function Home() {
           {/* Clickable Win Rate */}
           <div 
             onClick={() => setShowTrades(true)}
-            className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 text-center border-2 border-yellow-500 hover:scale-110 transition cursor-pointer transition"
+            className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 text-center border-2 border-yellow-500 hover:scale-110 transition cursor-pointer"
           >
             <Trophy className="w-20 h-20 mx-auto text-yellow-400 mb-3" />
             <p className="text-6xl font-black text-yellow-400">{stats.winRate || "0.0"}%</p>
@@ -117,7 +124,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Rockets */}
+        {/* Rockets Section */}
         {bot.rockets?.length > 0 && (
           <div className="bg-black/60 backdrop-blur-2xl rounded-3xl p-10 border-4 border-yellow-500">
             <h3 className="text-5xl font-black text-center text-yellow-400 mb-8">
@@ -140,25 +147,26 @@ export default function Home() {
           </div>
         )}
 
-        {/* Force Scan */}
+        {/* Force Scan Button */}
         <div className="text-center pt-8">
           <button
-            onClick={() => axios.post(`${BOT_URL}/scan`).catch(() => {}) && fetch()}
-            className="px-32 py-14 text-5xl font-black rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition-all shadow-2xl border-8 border-purple-400 flex items-center justify-center gap-10 mx-auto"
+            onClick={triggerScan}
+            disabled={scanning}
+            className="px-32 py-14 text-5xl font-black rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-60 transition-all shadow-2xl border-8 border-purple-400 flex items-center justify-center gap-10 mx-auto"
           >
-            <RefreshCw className="w-20 h-20 animate-spin" />
-            FORCE SCAN
+            <RefreshCw className={`w-20 h-20 ${scanning ? 'animate-spin' : ''}`} />
+            {scanning ? "SCANNING..." : "FORCE SCAN"}
           </button>
         </div>
       </main>
 
-      {/* Trade Log Modal */}
+      {/* Trade History Modal */}
       {showTrades && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-50 flex items-center justify-center p-8" onClick={() => setShowTrades(false)}>
           <div className="bg-gradient-to-br from-purple-900 to-black rounded-3xl p-10 max-w-4xl w-full max-h-screen overflow-y-auto border-4 border-purple-500" onClick={e => e.stopPropagation()}>
             <h2 className="text-5xl font-black text-center text-yellow-400 mb-8">TRADE HISTORY</h2>
             {trades.trades.length === 0 ? (
-              <p className="text-center text-3xl text-gray-400">No trades yet</p>
+              <p className="text-center text-3xl text-gray-400">No trades yet — waiting for first Warrior hit</p>
             ) : (
               <div className="space-y-4">
                 {trades.trades.slice().reverse().map((t: any, i: number) => (
@@ -184,25 +192,26 @@ export default function Home() {
         </div>
       )}
 
-      {/* Positions Modal */}
+      {/* Current Positions Modal */}
       {showPositions && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-50 flex items-center justify-center p-8" onClick={() => setShowPositions(false)}>
           <div className="bg-gradient-to-br from-purple-900 to-black rounded-3xl p-10 max-w-3xl w-full border-4 border-orange-500" onClick={e => e.stopPropagation()}>
             <h2 className="text-5xl font-black text-center text-orange-400 mb-8">CURRENT POSITIONS</h2>
             {positionsCount === 0 ? (
-              <p className="text-4xl text-center text-gray-400">NO ACTIVE POSITIONS</p>
+              <p className="text-4xl text-center text-gray-400 font-bold">NO ACTIVE POSITIONS</p>
             ) : (
-              <div className="text-2xl space-y-4">
-                {/* In real v98, positions are in bot.positions array — this will show them */}
+              <div className="space-y-4 text-2xl">
                 {bot.positions?.map((p: any) => (
-                  <div key={p.symbol} className="bg-white/10 rounded-xl p-6 border border-orange-500">
+                  <div key={p.symbol} className="bg-white/10 rounded-xl p-6 border-2 border-orange-500">
                     <div className="flex justify-between">
                       <span className="font-bold">{p.symbol}</span>
-                      <span>{p.qty} shares @ ${p.entry}</span>
+                      <span>{p.qty} shares @ ${parseFloat(p.entry).toFixed(2)}</span>
                     </div>
-                    <div className="text-green-400">Current: ${p.current} → {((p.current - p.entry)/p.entry*100).toFixed(1)}%</div>
+                    <div className={`mt-2 ${p.current > p.entry ? 'text-green-400' : 'text-red-400'}`}>
+                      Current: ${parseFloat(p.current).toFixed(2)} → {((p.current - p.entry)/p.entry*100).toFixed(1)}%
+                    </div>
                   </div>
-                )) || <p className="text-center text-gray-400">Loading positions...</p>}
+                ))}
               </div>
             )}
             <button onClick={() => setShowPositions(false)} className="mt-8 w-full py-4 bg-orange-600 hover:bg-orange-700 rounded-xl text-2xl font-bold">
