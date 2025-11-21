@@ -47,11 +47,7 @@ export default function Home() {
     if (!BOT_URL || scanning) return;
     setScanning(true);
     setLastScan(new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' }));
-    try {
-      await axios.post(`${BOT_URL}/scan`);
-    } catch (e) {
-      console.error("Scan failed:", e);
-    }
+    try { await axios.post(`${BOT_URL}/scan`); } catch {}
     setScanning(false);
     setTimeout(fetchData, 2000);
   };
@@ -60,16 +56,11 @@ export default function Home() {
     if (!BOT_URL || backtesting) return;
     setBacktesting(true);
     setLastBacktest(new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' }));
-    try {
-      await axios.post(`${BOT_URL}/backtest`);
-    } catch (e) {
-      console.error("Backtest failed:", e);
-    }
+    try { await axios.post(`${BOT_URL}/backtest`); } catch {}
     setBacktesting(false);
     setTimeout(fetchData, 1500);
   };
 
-  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -78,7 +69,6 @@ export default function Home() {
     );
   }
 
-  // Bot offline / no URL
   if (!BOT_URL || data.status === "OFFLINE") {
     return (
       <div className="min-h-screen bg-red-900 flex items-center justify-center text-white text-6xl font-black">
@@ -87,7 +77,6 @@ export default function Home() {
     );
   }
 
-  // Safe parsing
   const equity = data.equity ? `$${Number(data.equity).toLocaleString()}` : "$100,000";
   const unrealized = data.unrealized >= 0
     ? `+$${Number(data.unrealized).toLocaleString()}`
@@ -98,7 +87,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-pink-900 text-white pb-32">
-      {/* Header */}
       <header className="fixed top-0 w-full z-50 backdrop-blur-xl bg-black/95 border-b border-purple-600/60">
         <div className="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
           <div>
@@ -114,7 +102,6 @@ export default function Home() {
       </header>
 
       <main className="pt-40 px-6 max-w-7xl mx-auto space-y-12">
-        {/* Title */}
         <div className="text-center">
           <h2 className="text-8xl font-black bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 bg-clip-text text-transparent animate-pulse">
             LOW-FLOAT ROCKET HUNTER
@@ -122,7 +109,7 @@ export default function Home() {
           <p className="text-3xl text-cyan-300 mt-4">Real equity • Live backtesting • Free scanner</p>
         </div>
 
-        {/* Stats Grid */}
+        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-10 text-center border-2 border-cyan-500/60 hover:scale-105 transition">
             <DollarSign className="w-20 h-20 mx-auto text-cyan-400 mb-4" />
@@ -151,7 +138,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Backtest Results */}
+        {/* Backtest */}
         {backtest.trades > 0 && (
           <div className="bg-black/70 backdrop-blur-2xl rounded-3xl p-12 border-4 border-cyan-500 shadow-2xl">
             <h3 className="text-5xl font-black text-center text-cyan-400 mb-10 flex items-center justify-center gap-6">
@@ -183,7 +170,7 @@ export default function Home() {
               {rockets.map((r: string, i: number) => {
                 const [sym, rest] = r.split('+');
                 const [pct] = rest.split(' ');
-                const floatPart = r.includes('(') ') ? r.split('(')[1].replace(')', '') : '';
+                const floatPart = r.includes('(') ? r.split('(')[1].replace(')', '') : '';
                 return (
                   <div key={i} className="bg-gradient-to-br from-purple-700 to-pink-800 rounded-2xl p-6 text-center hover:scale-110 transition">
                     <p className="text-4xl font-black">{sym}</p>
@@ -196,7 +183,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Action Buttons */}
+        {/* Buttons */}
         <div className="grid md:grid-cols-2 gap-12 max-w-5xl mx-auto pt-8">
           <button
             onClick={triggerScan}
@@ -217,7 +204,6 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Footer */}
         <div className="text-center space-y-4 pt-8">
           <p className="text-3xl text-cyan-300">
             Last scan: <span className="font-bold text-yellow-400">{lastScan || "—"}</span> ET
