@@ -1,13 +1,15 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { RefreshCw, Activity, Trophy, Package, TrendingUp } from 'lucide-react';
+import { RefreshCw, Activity, Trophy, Package, TrendingUp, X } from 'lucide-react';
 
 export default function Home() {
   const [bot, setBot] = useState<any>({});
   const [perf, setPerf] = useState<any>({ stats: {}, equityCurve: [] });
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const [showWinRate, setShowWinRate] = useState(false);
+  const [showPositions, setShowPositions] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null);
 
   const URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
@@ -17,7 +19,7 @@ export default function Home() {
       const [b, p] = await Promise.all([axios.get(URL), axios.get(URL + "/performance")]);
       setBot(b.data);
       setPerf(p.data);
-    } catch { } finally { setLoading(false); }
+    } catch {} finally { setLoading(false); }
   };
 
   useEffect(() => { fetch(); const i = setInterval(fetch, 10000); return () => clearInterval(i); }, []);
@@ -29,6 +31,7 @@ export default function Home() {
     fetch();
   };
 
+  // Equity Curve
   useEffect(() => {
     if (!canvas.current || perf.equityCurve.length < 2) return;
     const ctx = canvas.current.getContext('2d')!;
@@ -38,18 +41,18 @@ export default function Home() {
     const range = max - min || 1;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = '#a78bfa';
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#c084fc';
+    ctx.lineWidth = 5;
     ctx.beginPath();
     pts.forEach((p: any, i: number) => {
       const x = (i / (pts.length - 1)) * canvas.width;
-      const y = canvas.height - ((p.equity - min) / range) * canvas.height * 0.9 + 20;
+      const y = canvas.height - ((p.equity - min) / range) * canvas.height * 0.88 + 30;
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
     ctx.stroke();
   }, [perf.equityCurve]);
 
-  if (loading) return <div className="min-h-screen bg-black flex center"><Activity className="w-32 h-32 text-purple-500 animate-spin" /></div>;
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Activity className="w-32 h-32 text-purple-500 animate-spin" /></div>;
 
   const s = perf.stats;
   const unreal = bot.unrealized || "+$0";
@@ -79,17 +82,15 @@ export default function Home() {
           </div>
           <div className="bg-white/10 rounded-2xl p-6 text-center border-2 border-green-500">
             <TrendingUp className="w-14 h-14 mx-auto text-green-400 mb-1" />
-            <p className={`text-4xl font-black ${unreal[0] === '+' ? 'text-green-400' : 'text-red-400'}`}>{unreal}</p>
+            <p className={`text-4xl font-black ${unreal.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>{unreal}</p>
             <p className="text-gray-300">Unrealized</p>
           </div>
-          <div onClick={() => alert(`Win Rate: ${s.winRate || "0.0"}% • Trades: ${s.trades || 0}`)}
-               className="bg-white/10 rounded-2xl p-6 text-center border-2 border-yellow-500 hover:scale-110 cursor-pointer transition">
+          <div onClick={() => setShowWinRate(true)} className="bg-white/10 rounded-2xl p-6 text-center border-2 border-yellow-500 hover:scale-110 cursor-pointer transition">
             <Trophy className="w-16 h-16 mx-auto text-yellow-400 mb-1" />
             <p className="text-5xl font-black text-yellow-400">{s.winRate || "0.0"}%</p>
             <p className="text-gray-300">Win Rate</p>
           </div>
-          <div onClick={() => alert(`Positions: ${bot.positions || 0}`)}
-               className="bg-white/10 rounded-2xl p-2xl p-6 text-center border-2 border-orange-500 hover:scale-110 cursor-pointer transition">
+          <div onClick={() => setShowPositions(true)} className="bg-white/10 rounded-2xl p-6 text-center border-2 border-orange-500 hover:scale-110 cursor-pointer transition">
             <Package className="w-16 h-16 mx-auto text-orange-400 mb-1" />
             <p className="text-5xl font-black text-orange-300">{bot.positions || 0}</p>
             <p className="text-gray-300">Positions</p>
@@ -97,29 +98,29 @@ export default function Home() {
         </div>
 
         <div className="bg-black/60 rounded-3xl p-8 border-4 border-cyan-500">
-          <h3 className="text-3xl font-black text-center text-cyan-400 mb-4">EQUITY CURVE</h3>
-          <div className="h-72 bg-black/40 rounded-2xl overflow-hidden">
+          <h3 className="text-4xl font-black text-center text-cyan-400 mb-6">LIVE EQUITY CURVE</h3>
+          <div className="h-80 bg-black/40 rounded-2xl overflow-hidden">
             {perf.equityCurve.length > 1 ? (
-              <canvas ref={canvas} width={900} height={288} className="w-full" />
+              <canvas ref={canvas} width={1000} height={320} className="w-full" />
             ) : (
-              <p className="h-full flex center text-gray-500 text-xl">Waiting for trades...</p>
+              <p className="h-full flex items-center justify-center text-gray-2xl text-gray-500">Waiting for trades...</p>
             )}
           </div>
         </div>
 
         {bot.rockets?.length > 0 && (
           <div className="bg-black/60 rounded-3xl p-8 border-4 border-yellow-500">
-            <h3 className="text-3xl font-black text-center text-yellow-400 mb-4">ELITE ROCKETS</h3>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+            <h3 className="text-4xl font-black text-center text-yellow-400 mb-6">ELITE ROCKETS</h3>
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-5">
               {bot.rockets.map((r: string, i: number) => {
                 const symbol = r.split('+')[0].trim();
                 const pct = r.split('+')[1]?.split(' ')[0];
-                const pattern = r.match(/\[(.*?)\]/)?.[1] || "";
+                const pattern = r.match(/\[(.*?)\]/)?.[1] || "ELITE";
                 return (
-                  <div key={i} className="bg-gradient-to-br from-purple-700 to-pink-800 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-black">{symbol}</p>
-                    <p className="text-xl text-green-400">+{pct}</p>
-                    {pattern && <p className="text-xs text-cyan-300">{pattern}</p>}
+                  <div key={i} className="bg-gradient-to-br from-purple-700 to-pink-800 rounded-xl p-5 text-center">
+                    <p className="text-3xl font-black">{symbol}</p>
+                    <p className="text-2xl text-green-400">+{pct}</p>
+                    <p className="text-sm font-bold text-cyan-300">{pattern}</p>
                   </div>
                 );
               })}
@@ -127,26 +128,51 @@ export default function Home() {
           </div>
         )}
 
-        <div className="text-center pt-6">
+        <div className="text-center pt-8">
           <button
             onClick={scan}
             disabled={scanning}
-            className="px-28 py-12 text-5xl font-black rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition shadow-2xl border-8 border-purple-400 flex items-center gap-8 hidden md:flex mx-auto"
+            className="px-32 py-14 text-5xl font-black rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition-all shadow-2xl border-8 border-purple-400 flex items-center gap-10 mx-auto"
           >
             <RefreshCw className={`w-20 h-20 ${scanning ? 'animate-spin' : ''}`} />
             {scanning ? "SNIPING" : "FORCE SCAN"}
           </button>
-          {/* Mobile button */}
-          <button
-            onClick={scan}
-            disabled={scanning}
-            className="md:hidden px-20 py-10 text-4xl font-black rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 border-8 border-purple-400 flex items-center gap-6 mx-auto"
-          >
-            <RefreshCw className={`w-16 h-16 ${scanning ? 'animate-spin' : ''}`} />
-            SCAN
-          </button>
         </div>
       </main>
+
+      {/* CLEAN WIN RATE MODAL */}
+      {showWinRate && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setShowWinRate(false)}>
+          <div className="bg-gradient-to-br from-purple-900 to-pink-900 rounded-3xl p-12 max-w-md border-4 border-yellow-500" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-4xl font-black text-yellow-400">WIN RATE</h3>
+              <X className="w-10 h-10 cursor-pointer text-gray-400 hover:text-white" onClick={() => setShowWinRate(false)} />
+            </div>
+            <div className="text-center space-y-4">
+              <p className="text-7xl font-black text-yellow-400">{s.winRate || "0.0"}%</p>
+              <p className="text-2xl text-gray-300">Total Trades: {s.trades || 0}</p>
+              <p className="text-xl text-green-400">Avg Win: {s.avgWin || "+0%"}</p>
+              <p className="text-xl text-red-400">Avg Loss: {s.avgLoss || "0%"}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CLEAN POSITIONS MODAL */}
+      {showPositions && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setShowPositions(false)}>
+          <div className="bg-gradient-to-br from-orange-900 to-red-900 rounded-3xl p-12 max-w-md border-4 border-orange-500" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-4xl font-black text-orange-400">POSITIONS</h3>
+              <X className="w-10 h-10 cursor-pointer text-gray-400 hover:text-white" onClick={() => setShowPositions(false)} />
+            </div>
+            <p className="text-7xl font-black text-center text-orange-300">
+              {bot.positions || 0}
+            </p>
+            <p className="text-2xl text-center text-gray-300 mt-4">ACTIVE ROCKETS</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
