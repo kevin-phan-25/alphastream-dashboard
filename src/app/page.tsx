@@ -10,7 +10,7 @@ export default function Home() {
   const [scanning, setScanning] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app;
+  const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
 
   const fetch = async () => {
     try {
