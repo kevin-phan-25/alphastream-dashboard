@@ -222,7 +222,7 @@ export default function Dashboard() {
                 {s.winRate || "0.0"}%
               </p>
               <p className="text-xl text-purple-300">Total Trades: {s.trades || 0}</p>
-              <p className="text-2xl text-emerald-400">Avg Win: {s.avgWin || "+0"}%</p>
+              <p className="text-2xl text-emerald-400">Avg Win: {s.avgWin || "+0"}</p>
             </div>
           </div>
         </div>
