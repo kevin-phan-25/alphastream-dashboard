@@ -99,7 +99,7 @@ export default function Home() {
         {/* STATS GRID */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
           <div className="bg-white/10 rounded-2xl p-5 sm:p-6 text-center border-2 border-purple-500">
-            <p className="text-3xl sm:text-4xl font-black">{bot.equity || "$100,000"}</p>
+            <p className="text-3xl sm:text-3xl font-black">{bot.equity || "$100,000"}</p>
             <p className="text-sm sm:text-base text-gray-300">Equity</p>
           </div>
           <div className="bg-white/10 rounded-2xl p-5 sm:p-6 text-center border-2 border-green-500">
@@ -128,12 +128,12 @@ export default function Home() {
             disabled={scanning}
             className={`
               w-full relative overflow-hidden rounded-3xl
-              px-8 py-10 sm:py-12 md:py-14
-              text-4xl sm:text-5xl md:text-6xl font-black tracking-wider
+              px-6 py-8 sm:py-10 md:py-12
+              text-3xl sm:text-4xl md:text-5xl font-black tracking-wider
               bg-gradient-to-r from-purple-600 to-pink-600
               hover:from-purple-500 hover:to-pink-500
               active:scale-95 transition-all duration-300
-              shadow-2xl border-4 sm:border-6 md:border-8 border-purple-400
+              shadow-2xl border-3 sm:border-5 md:border-7 border-purple-400
               flex items-center justify-center gap-6 sm:gap-8 md:gap-12
               ${scanning ? 'animate-pulse' : 'hover:scale-105'}
             `}
