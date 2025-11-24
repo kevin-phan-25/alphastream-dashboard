@@ -133,7 +133,7 @@ export default function Dashboard() {
             className="bg-gradient-to-br from-yellow-900/20 to-black rounded-2xl p-5 border border-yellow-500/30 backdrop-blur-sm cursor-pointer hover:scale-105 transition"
           >
             <Trophy className="w-10 h-10 mx-auto text-yellow-400 mb-2" />
-            <p className="text-4xl font-black text-yellow-400">{s.winRate || "0.0"}%</p>
+            <p className="text-4xl font-black text-yellow-400">{s.winRate || "0.0"}</p>
             <p className="text-sm text-yellow-400">Win Rate</p>
           </div>
 
