@@ -42,7 +42,7 @@ export default function Dashboard() {
     fetchData();
   };
 
-  // Equity Curve — Neon Glow
+  // Equity Curve — Neon Glow (unchanged)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || perf.recent?.length < 2) return;
@@ -53,11 +53,8 @@ export default function Dashboard() {
     const range = max - min || 1;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Glow effect
     ctx.shadowBlur = 20;
     ctx.shadowColor = '#c084fc';
-
     ctx.strokeStyle = '#c084fc';
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
@@ -105,7 +102,6 @@ export default function Dashboard() {
       </header>
 
       <main className="pt-24 pb-12 px-4 max-w-5xl mx-auto space-y-8">
-
         {/* HERO TITLE */}
         <div className="text-center">
           <h2 className="text-5xl md:text-6xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent animate-pulse">
@@ -128,16 +124,18 @@ export default function Dashboard() {
             <p className="text-sm text-emerald-400">Unrealized P&L</p>
           </div>
 
-          <div 
+          <div
             onClick={() => setShowWin(true)}
             className="bg-gradient-to-br from-yellow-900/20 to-black rounded-2xl p-5 border border-yellow-500/30 backdrop-blur-sm cursor-pointer hover:scale-105 transition"
           >
             <Trophy className="w-10 h-10 mx-auto text-yellow-400 mb-2" />
-            <p className="text-4xl font-black text-yellow-400">{s.winRate || "0.0"}</p>
+            <p className="text-4xl font-black text-yellow-400">
+              {s.winRate?.replace('%', '') || "0.0"}%
+            </p>
             <p className="text-sm text-yellow-400">Win Rate</p>
           </div>
 
-          <div 
+          <div
             onClick={() => setShowPos(true)}
             className="bg-gradient-to-br from-orange-900/20 to-black rounded-2xl p-5 border border-orange-500/30 backdrop-blur-sm cursor-pointer hover:scale-105 transition"
           >
@@ -168,7 +166,7 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* ACTIVE ROCKETS */}
+        {/* ACTIVE ROCKETS — NOW PARSES CLEAN NEW FORMAT */}
         {bot.rockets?.length > 0 && (
           <div className="bg-black/60 rounded-3xl p-8 border-2 border-purple-500/50 backdrop-blur-sm">
             <h3 className="text-3xl font-black text-center mb-6 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
@@ -177,8 +175,11 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
               {bot.rockets.map((r: string, i: number) => {
                 const symbol = r.split(' ')[0];
-                const pct = r.match(/\+([\d.]+)%/)?.[1] || "?";
-                const pattern = r.match(/\[(.*?)\]/)?.[1] || "ALPHA";
+                const pctMatch = r.match(/\+([\d.]+)%/);
+                const pct = pctMatch ? pctMatch[1] : "?";
+                const patternMatch = r.match(/\[(.*?)\]/);
+                const pattern = patternMatch ? patternMatch[1] : "ALPHA";
+
                 return (
                   <div key={i} className="bg-gradient-to-br from-purple-900/40 to-pink-900/20 rounded-2xl p-5 text-center border border-purple-500/30 hover:scale-110 transition">
                     <p className="text-2xl font-black text-purple-300">{symbol}</p>
@@ -206,7 +207,6 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-
       </main>
 
       {/* WIN RATE MODAL */}
@@ -219,10 +219,10 @@ export default function Dashboard() {
             </div>
             <div className="text-center space-y-4">
               <p className="text-7xl font-black bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
-                {s.winRate || "0.0"}
+                {s.winRate || "0.0%"}
               </p>
               <p className="text-xl text-purple-300">Total Trades: {s.trades || 0}</p>
-              <p className="text-2xl text-emerald-400">Avg Win: {s.avgWin || "+0"}</p>
+              <p className="text-2xl text-emerald-400">Avg Win: {s.avgWin || "+0%"}</p>
             </div>
           </div>
         </div>
