@@ -22,7 +22,7 @@ export default function Dashboard() {
       setBot(b.data || {});
       setPerf(p.data || { stats: {}, recent: [] });
     } catch (e) {
-      console.error("Backend fetch failed:", e);
+      console.error("Fetch failed:", e);
     } finally {
       setLoading(false);
     }
@@ -41,7 +41,6 @@ export default function Dashboard() {
     fetchData();
   };
 
-  // Equity Curve — now fully safe
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !perf.recent || perf.recent.length < 2) return;
@@ -115,7 +114,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="pt-20 pb-10 px-4 max-w-6xl mx-auto space-y-ewódz 6">
+      <main className="pt-20 pb-10 px-4 max-w-6xl mx-auto space-y-6">
         <div className="text-center">
           <h2 className="text-5xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent animate-pulse">
             ALPHA SNIPER
@@ -147,7 +146,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* RISK CENTER */}
         <div className="bg-gradient-to-br from-red-900/25 via-purple-900/20 to-black rounded-2xl p-5 border border-red-600/60">
           <div onClick={() => setShowRisk(!showRisk)} className="flex items-center justify-between cursor-pointer group">
             <div className="flex items-center gap-3">
