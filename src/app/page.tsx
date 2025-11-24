@@ -16,13 +16,13 @@ export default function Dashboard() {
   const fetchData = async () => {
     try {
       const [b, p] = await Promise.all([
-        axios.get(URL),
-        axios.get(URL + "/performance")
+        axios.get(URL, { timeout: 10000 }),
+        axios.get(URL + "/performance", { timeout: 10000 })
       ]);
-      setBot(b.data);
-      setPerf(p.data);
+      setBot(b.data || {});
+      setPerf(p.data || { stats: {}, recent: [] });
     } catch (e) {
-      console.error("Fetch error:", e);
+      console.error("Backend fetch failed:", e);
     } finally {
       setLoading(false);
     }
@@ -30,8 +30,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 11000);
-    return () => clearInterval(interval);
+    const i = setInterval(fetchData, 11000);
+    return () => clearInterval(i);
   }, []);
 
   const forceScan = async () => {
@@ -41,13 +41,13 @@ export default function Dashboard() {
     fetchData();
   };
 
-  // Equity Curve
+  // Equity Curve — now fully safe
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !perf.recent || perf.recent.length < 2) return;
 
     const ctx = canvas.getContext('2d')!;
-    const equities = perf.recent.map((t: any) => parseFloat(t.equity) || 100000);
+    const equities = perf.recent.map((t: any) => parseFloat(t.equity || 100000));
     const min = Math.min(...equities);
     const max = Math.max(...equities);
     const range = max - min || 1;
@@ -82,16 +82,14 @@ export default function Dashboard() {
   const weeklyDD = parseFloat(bot.weeklyDD) || 0;
   const totalDD = parseFloat(bot.totalDD) || 0;
 
-  // Countdown
   const [countdown, setCountdown] = useState(11);
   useEffect(() => {
-    const t = setInterval(() => setCountdown(c => c <= 0 ? 11 : c - 1), 1000);
+    const t = setInterval(() => setCountdown(c => (c <= 0 ? 11 : c - 1)), 1000);
     return () => clearInterval(t);
   }, []);
 
   return (
     <div className="min-h-screen bg-black text-white overflow-x-hidden">
-      {/* HEADER */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-xl border-b border-purple-500/30">
         <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -117,16 +115,14 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="pt-20 pb-10 px-4 max-w-6xl mx-auto space-y-6">
-        {/* HERO */}
+      <main className="pt-20 pb-10 px-4 max-w-6xl mx-auto space-y-ewódz 6">
         <div className="text-center">
           <h2 className="text-5xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent animate-pulse">
             ALPHA SNIPER
           </h2>
-          <p className="text-purple-300 text-sm mt-1">7 Proprietary Patterns • Real-time Risk Engine</p>
+          <p className="text-purple-300 text-sm mt-1">7 Proprietary Patterns • Institutional Risk Engine</p>
         </div>
 
-        {/* MAIN STATS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-gradient-to-br from-purple-900/20 to-black rounded-2xl p-4 border border-purple-500/40">
             <p className="text-2xl font-black text-purple-300">{bot.equity || "$100,000"}</p>
@@ -146,7 +142,7 @@ export default function Dashboard() {
 
           <div className="bg-gradient-to-br from-orange-900/20 to-black rounded-2xl p-4 border border-orange-500/40">
             <Package className="w-8 h-8 mx-auto text-orange-400 mb-1" />
-            <p className="text-3xl font-black text-orange-300">{bot.positions || 0}</p>
+            <p className="text-3xl font-black text-orange-300">{bot.positions ?? 0}</p>
             <p className="text-xs text-orange-400">Positions</p>
           </div>
         </div>
@@ -207,7 +203,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* FORCE SCAN */}
         <div className="flex justify-center">
           <button
             onClick={forceScan}
@@ -219,7 +214,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* ROCKETS */}
         {bot.rockets?.length > 0 && (
           <div className="bg-black/60 rounded-2xl p-6 border border-purple-500/50">
             <h3 className="text-2xl font-black text-center mb-5 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
@@ -245,7 +239,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* EQUITY CURVE */}
         <div className="bg-black/60 rounded-2xl p-6 border border-purple-500/50">
           <h3 className="text-2xl font-black text-center mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
             LIVE EQUITY CURVE
