@@ -219,7 +219,7 @@ export default function Dashboard() {
             </div>
             <div className="text-center space-y-4">
               <p className="text-7xl font-black bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
-                {s.winRate || "0.0"}%
+                {s.winRate || "0.0"}
               </p>
               <p className="text-xl text-purple-300">Total Trades: {s.trades || 0}</p>
               <p className="text-2xl text-emerald-400">Avg Win: {s.avgWin || "+0"}</p>
