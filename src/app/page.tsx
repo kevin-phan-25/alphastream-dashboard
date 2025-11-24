@@ -1,31 +1,24 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { RefreshCw, Activity, Trophy, Package, TrendingUp } from 'lucide-react';
+import { RefreshCw, Activity, TrendingUp } from 'lucide-react';
 
-export default function Dashboard() {
+export default function Home() {
   const [data, setData] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
 
   const URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
 
   const fetch = async () => {
     try {
-      const [main, perf] = await Promise.all([
-        axios.get(URL),
-        axios.get(URL + "/performance")
-      ]);
+      const [main, perf] = await Promise.all([axios.get(URL), axios.get(URL + "/performance")]);
       setData({ ...main.data, perf: perf.data });
     } catch { } finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetch();
-    const i = setInterval(fetch, 10000);
-    return () => clearInterval(i);
-  }, []);
+  useEffect(() => { fetch(); const i = setInterval(fetch, 10000); return () => clearInterval(i); }, []);
 
   const scan = async () => {
     setScanning(true);
@@ -34,37 +27,32 @@ export default function Dashboard() {
     fetch();
   };
 
-  // Fixed TypeScript error: added type forEach parameter type
+  // Real Equity Curve
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !data.perf?.recent?.length) return;
-    const ctx = canvas.getContext('2d')!;
-    const values = data.perf.recent.map((p: any) => parseFloat(p.equity || 100000));
-    const min = Math.min(...values);
-    const max = Math.max(...values);
+    const c = canvas.current;
+    if (!c || !data.perf?.recent?.length) return;
+    const ctx = c.getContext('2d')!;
+    const pts = data.perf.recent;
+    const min = Math.min(...pts.map((p: any) => p.equity));
+    const max = Math.max(...pts.map((p: any) => p.equity));
     const range = max - min || 1;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, c.width, c.height);
     ctx.strokeStyle = '#c084fc';
     ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
     ctx.beginPath();
-
-    values.forEach((val: number, i: number) => {
-      const x = (i / (values.length - 1)) * canvas.width;
-      const y = canvas.height - ((val - min) / range) * canvas.height * 0.88 + 30;
+    pts.forEach((p: any, i: number) => {
+      const x = (i / (pts.length - 1)) * c.width;
+      const y = c.height - ((p.equity - min) / range) * c.height * 0.88 + 30;
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
     ctx.stroke();
   }, [data.perf?.recent]);
 
-  if (loading) return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <Activity className="w-32 h-32 text-purple-500 animate-spin" />
-    </div>
-  );
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Activity className="w-32 h-32 text-purple-500 animate-spin" /></div>;
 
-  const unreal = data.unrealized >= 0 ? `+$${Math.abs(data.unrealized).toFixed(0)}` : `–$${Math.abs(data.unrealized).toFixed(0)}`;
+  const unreal = Number(data.unrealized || 0);
+  const unrealStr = unreal >= 0 ? `+$${unreal.toLocaleString()}` : `-$${Math.abs(unreal).toLocaleString()}`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-pink-950 text-white">
@@ -74,7 +62,7 @@ export default function Dashboard() {
             AlphaStream v100 ELITE
           </h1>
           <span className="px-8 py-3 rounded-full text-2xl font-black bg-gradient-to-r from-green-500 to-emerald-600">
-            {data.mode || "LIVE"}
+            {data.mode} MODE
           </span>
         </div>
       </header>
@@ -91,16 +79,14 @@ export default function Dashboard() {
           </div>
           <div className="bg-white/10 rounded-2xl p-6 text-center border-2 border-green-500">
             <TrendingUp className="w-14 h-14 mx-auto text-green-400 mb-1" />
-            <p className={`text-4xl font-black ${data.unrealized >= 0 ? 'text-green-400' : 'text-red-400'}`}>{unreal}</p>
+            <p className={`text-4xl font-black ${unreal >= 0 ? 'text-green-400' : 'text-red-400'}`}>{unrealStr}</p>
             <p className="text-gray-300">Unrealized</p>
           </div>
           <div className="bg-white/10 rounded-2xl p-6 text-center border-2 border-yellow-500">
-            <Trophy className="w-16 h-16 mx-auto text-yellow-400 mb-1" />
             <p className="text-5xl font-black text-yellow-400">{data.perf?.stats?.winRate || "0.0"}%</p>
             <p className="text-gray-300">Win Rate</p>
           </div>
           <div className="bg-white/10 rounded-2xl p-6 text-center border-2 border-orange-500">
-            <Package className="w-16 h-16 mx-auto text-orange-400 mb-1" />
             <p className="text-5xl font-black text-orange-300">{data.positions || 0}</p>
             <p className="text-gray-300">Positions</p>
           </div>
@@ -108,9 +94,7 @@ export default function Dashboard() {
 
         <div className="bg-black/60 rounded-3xl p-8 border-4 border-cyan-500">
           <h3 className="text-4xl font-black text-center text-cyan-400 mb-6">LIVE EQUITY CURVE</h3>
-          <div className="h-80 bg-black/40 rounded-2xl overflow-hidden">
-            <canvas ref={canvasRef} width={1000} height={320} className="w-full" />
-          </div>
+          <canvas ref={canvas} width={1000} height={320} className="w-full rounded-xl" />
         </div>
 
         {data.rockets?.length > 0 && (
