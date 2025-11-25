@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { RefreshCw, Activity, TrendingUp, Zap } from 'lucide-react';
+import { RefreshCw, Activity, TrendingUp } from 'lucide-react';
 
 export default function Home() {
   const [data, setData] = useState<any>({
@@ -89,7 +89,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-pink-950 text-white">
 
-      {/* Header */}
+      {/* Fixed Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-xl border-b-4 border-purple-600">
         <div className="max-w-5xl mx-auto px-5 py-4 flex justify-between items-center">
           <h1 className="text-2xl md:text-3xl font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
@@ -101,11 +101,12 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="pt-20 px-4 max-w-5xl mx-auto space-y-8 pb-20">
+      {/* MAIN CONTENT — pushed down safely */}
+      <main className="pt-28 px-4 max-w-5xl mx-auto space-y-8 pb-20">
 
-        {/* Title */}
-        <div className="text-center">
-          <h2 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-yellow-400 to-red-600 bg-clip-text text-transparent">
+        {/* ELITE SNIPER — now 100% visible on all phones */}
+        <div className="text-center -mt-6">
+          <h2 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-yellow-400 to-red-600 bg-clip-text text-transparent leading-tight">
             ELITE SNIPER
           </h2>
         </div>
