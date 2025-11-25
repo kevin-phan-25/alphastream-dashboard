@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { RefreshCw, Activity, TrendingUp } from 'lucide-react';
+import { RefreshCw, Activity, TrendingUp, Terminal } from 'lucide-react';
 
 export default function Home() {
   const [data, setData] = useState<any>({
@@ -11,11 +11,13 @@ export default function Home() {
     mode: "PAPER",
     rockets: ["Scanning Elite Setups..."],
     winRate: 0,
-    recent: []
+    recent: [],
+    logs: []
   });
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const logsEndRef = useRef<HTMLDivElement>(null);
 
   const URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
 
@@ -25,11 +27,12 @@ export default function Home() {
         axios.get(URL).catch(() => ({ data: {} })),
         axios.get(URL + "/performance").catch(() => ({ data: {} }))
       ]);
-      setData({
+      setData(prev => ({
         ...mainRes.data,
-        winRate: perfRes.data.winRate || 0,
-        recent: perfRes.data.recent || []
-      });
+        winRate: perfRes.data.winRate || prev.winRate || 0,
+        recent: perfRes.data.recent || prev.recent || [],
+        logs: mainRes.data.logs?.slice(-30) || prev.logs || []  // ← NEW: logs from backend
+      }));
     } catch {} finally {
       setLoading(false);
     }
@@ -37,9 +40,13 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
-    const i = setInterval(fetchData, 12000);
+    const i = setInterval(fetchData, 8000);  // Faster refresh for logs
     return () => clearInterval(i);
   }, []);
+
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [data.logs]);
 
   const forceScan = async () => {
     setScanning(true);
@@ -48,6 +55,7 @@ export default function Home() {
     setScanning(false);
   };
 
+  // Equity Curve
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !data.recent?.length) return;
@@ -89,7 +97,6 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-pink-950 text-white">
 
-      {/* Fixed Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-xl border-b-4 border-purple-600">
         <div className="max-w-5xl mx-auto px-5 py-4 flex justify-between items-center">
           <h1 className="text-2xl md:text-3xl font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
@@ -101,10 +108,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* MAIN CONTENT — pushed down safely */}
       <main className="pt-28 px-4 max-w-5xl mx-auto space-y-8 pb-20">
 
-        {/* ELITE SNIPER — now 100% visible on all phones */}
         <div className="text-center -mt-6">
           <h2 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-yellow-400 to-red-600 bg-clip-text text-transparent leading-tight">
             ELITE SNIPER
@@ -114,12 +119,9 @@ export default function Home() {
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
           <div className="bg-white/10 rounded-2xl p-5 border-2 border-purple-500 text-center">
-            <p className="text-2xl md:text-3xl font-black text-purple-400">
-              ${equity.toLocaleString()}
-            </p>
+            <p className="text-2xl md:text-3xl font-black text-purple-400">${equity.toLocaleString()}</p>
             <p className="text-xs md:text-base text-gray-400 mt-1">Equity</p>
           </div>
-
           <div className={`bg-white/10 rounded-2xl p-5 border-2 ${unreal >= 0 ? 'border-green-500' : 'border-red-500'} text-center`}>
             <TrendingUp className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-1 text-green-400" />
             <p className={`text-2xl md:text-3xl font-black ${unreal >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -127,12 +129,10 @@ export default function Home() {
             </p>
             <p className="text-xs md:text-base text-gray-400 mt-1">Unrealized</p>
           </div>
-
           <div className="bg-white/10 rounded-2xl p-5 border-2 border-yellow-500 text-center">
             <p className="text-3xl md:text-4xl font-black text-yellow-400">{winRate}%</p>
             <p className="text-xs md:text-base text-gray-400 mt-1">Win Rate</p>
           </div>
-
           <div className="bg-white/10 rounded-2xl p-5 border-2 border-orange-500 text-center">
             <p className="text-3xl md:text-4xl font-black text-orange-400">{data.positions || 0}</p>
             <p className="text-xs md:text-base text-gray-400 mt-1">Positions</p>
@@ -141,18 +141,34 @@ export default function Home() {
 
         {/* Equity Curve */}
         <div className="bg-black/60 rounded-2xl p-6 border-2 border-cyan-500">
-          <h3 className="text-xl md:text-2xl font-black text-center text-cyan-400 mb-4">
-            LIVE EQUITY CURVE
-          </h3>
+          <h3 className="text-xl md:text-2xl font-black text-center text-cyan-400 mb-4">LIVE EQUITY CURVE</h3>
           <canvas ref={canvasRef} width={900} height={240} className="w-full rounded-xl bg-black/40" />
+        </div>
+
+        {/* REAL-TIME LOGS & CANDIDATES */}
+        <div className="bg-black/70 rounded-2xl p-6 border-2 border-green-500">
+          <div className="flex items-center gap-3 mb-4">
+            <Terminal className="w-7 h-7 text-green-400" />
+            <h3 className="text-xl md:text-2xl font-black text-green-400">LIVE BOT LOGS</h3>
+          </div>
+          <div className="bg-black/80 rounded-xl p-4 h-64 overflow-y-auto font-mono text-xs md:text-sm text-gray-300">
+            {data.logs?.length > 0 ? (
+              data.logs.map((log: string, i: number) => (
+                <div key={i} className="py-1 border-b border-gray-800">
+                  {log}
+                </div>
+              ))
+            ) : (
+              <div className="text-gray-500">Scanning for elite setups...</div>
+            )}
+            <div ref={logsEndRef} />
+          </div>
         </div>
 
         {/* Rockets */}
         {data.rockets && data.rockets[0] !== "Scanning Elite Setups..." && (
           <div className="bg-black/60 rounded-2xl p-6 border-2 border-yellow-500">
-            <h3 className="text-xl md:text-2xl font-black text-center text-yellow-400 mb-5">
-              ELITE ROCKETS
-            </h3>
+            <h3 className="text-xl md:text-2xl font-black text-center text-yellow-400 mb-5">ELITE ROCKETS FIRED</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {data.rockets.map((rocket: string, i: number) => {
                 const [symbol, gain, pattern = ""] = rocket.split(' ');
