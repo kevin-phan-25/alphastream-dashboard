@@ -3,8 +3,19 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { RefreshCw, Activity, TrendingUp, Terminal } from 'lucide-react';
 
+interface BotData {
+  equity: number;
+  unrealized: number;
+  positions: number;
+  mode: string;
+  rockets: string[];
+  winRate?: number;
+  recent?: { equity: number }[];
+  logs?: string[];
+}
+
 export default function Home() {
-  const [data, setData] = useState<any>({
+  const [data, setData] = useState<BotData>({
     equity: 100000,
     unrealized: 0,
     positions: 0,
@@ -27,21 +38,24 @@ export default function Home() {
         axios.get(URL).catch(() => ({ data: {} })),
         axios.get(URL + "/performance").catch(() => ({ data: {} }))
       ]);
-      setData(prev => ({
+
+      setData((prev: BotData) => ({
         ...mainRes.data,
-        winRate: perfRes.data.winRate || prev.winRate || 0,
-        recent: perfRes.data.recent || prev.recent || [],
-        logs: mainRes.data.logs?.slice(-30) || prev.logs || []  // ← NEW: logs from backend
+        winRate: perfRes.data.winRate ?? prev.winRate ?? 0,
+        recent: perfRes.data.recent ?? prev.recent ?? [],
+        logs: mainRes.data.logs?.slice(-30) ?? prev.logs ?? []
       }));
-    } catch {} finally {
+    } catch (err) {
+      console.error("Fetch failed:", err);
+    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchData();
-    const i = setInterval(fetchData, 8000);  // Faster refresh for logs
-    return () => clearInterval(i);
+    const interval = setInterval(fetchData, 8000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -60,8 +74,7 @@ export default function Home() {
     const canvas = canvasRef.current;
     if (!canvas || !data.recent?.length) return;
     const ctx = canvas.getContext('2d')!;
-    const points = data.recent;
-    const values = points.map((p: any) => p.equity);
+    const values = data.recent.map(p => p.equity);
     const min = Math.min(...values);
     const max = Math.max(...values);
     const range = max - min || 1;
@@ -74,8 +87,8 @@ export default function Home() {
     ctx.lineCap = 'round';
 
     ctx.beginPath();
-    points.forEach((point: any, i: number) => {
-      const x = (i / (points.length - 1)) * canvas.width;
+    data.recent.forEach((point, i) => {
+      const x = (i / (data.recent.length - 1)) * canvas.width;
       const y = canvas.height - ((point.equity - min) / range) * (canvas.height - 60) + 30;
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
@@ -96,7 +109,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-pink-950 text-white">
-
       <header className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-xl border-b-4 border-purple-600">
         <div className="max-w-5xl mx-auto px-5 py-4 flex justify-between items-center">
           <h1 className="text-2xl md:text-3xl font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
@@ -109,14 +121,12 @@ export default function Home() {
       </header>
 
       <main className="pt-28 px-4 max-w-5xl mx-auto space-y-8 pb-20">
-
         <div className="text-center -mt-6">
           <h2 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-yellow-400 to-red-600 bg-clip-text text-transparent leading-tight">
             ELITE SNIPER
           </h2>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
           <div className="bg-white/10 rounded-2xl p-5 border-2 border-purple-500 text-center">
             <p className="text-2xl md:text-3xl font-black text-purple-400">${equity.toLocaleString()}</p>
@@ -139,27 +149,26 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Equity Curve */}
         <div className="bg-black/60 rounded-2xl p-6 border-2 border-cyan-500">
           <h3 className="text-xl md:text-2xl font-black text-center text-cyan-400 mb-4">LIVE EQUITY CURVE</h3>
           <canvas ref={canvasRef} width={900} height={240} className="w-full rounded-xl bg-black/40" />
         </div>
 
-        {/* REAL-TIME LOGS & CANDIDATES */}
+        {/* LIVE LOGS */}
         <div className="bg-black/70 rounded-2xl p-6 border-2 border-green-500">
           <div className="flex items-center gap-3 mb-4">
             <Terminal className="w-7 h-7 text-green-400" />
             <h3 className="text-xl md:text-2xl font-black text-green-400">LIVE BOT LOGS</h3>
           </div>
           <div className="bg-black/80 rounded-xl p-4 h-64 overflow-y-auto font-mono text-xs md:text-sm text-gray-300">
-            {data.logs?.length > 0 ? (
-              data.logs.map((log: string, i: number) => (
-                <div key={i} className="py-1 border-b border-gray-800">
+            {data.logs && data.logs.length > 0 ? (
+              data.logs.map((log, i) => (
+                <div key={i} className="py-1 border-b border-gray-800 last:border-0">
                   {log}
                 </div>
               ))
             ) : (
-              <div className="text-gray-500">Scanning for elite setups...</div>
+              <div className="text-gray-500">Waiting for elite setups...</div>
             )}
             <div ref={logsEndRef} />
           </div>
@@ -170,7 +179,7 @@ export default function Home() {
           <div className="bg-black/60 rounded-2xl p-6 border-2 border-yellow-500">
             <h3 className="text-xl md:text-2xl font-black text-center text-yellow-400 mb-5">ELITE ROCKETS FIRED</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {data.rockets.map((rocket: string, i: number) => {
+              {data.rockets.map((rocket, i) => {
                 const [symbol, gain, pattern = ""] = rocket.split(' ');
                 const cleanPattern = pattern?.replace(/[[\]]/g, '') || "";
                 return (
@@ -185,7 +194,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Force Scan */}
         <div className="text-center pt-6">
           <button
             onClick={forceScan}
@@ -196,7 +204,6 @@ export default function Home() {
             {scanning ? "SNIPING..." : "FORCE SCAN"}
           </button>
         </div>
-
       </main>
     </div>
   );
