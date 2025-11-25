@@ -69,10 +69,11 @@ export default function Home() {
     setScanning(false);
   };
 
-  // Equity Curve
+  // Equity Curve — 100% safe from undefined
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !data.recent?.length) return;
+    if (!canvas || !data.recent || data.recent.length === 0) return;
+
     const ctx = canvas.getContext('2d')!;
     const values = data.recent.map(p => p.equity);
     const min = Math.min(...values);
@@ -88,7 +89,7 @@ export default function Home() {
 
     ctx.beginPath();
     data.recent.forEach((point, i) => {
-      const x = (i / (data.recent.length - 1)) * canvas.width;
+      const x = (i / (data.recent!.length - 1)) * canvas.width;
       const y = canvas.height - ((point.equity - min) / range) * (canvas.height - 60) + 30;
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
@@ -180,13 +181,15 @@ export default function Home() {
             <h3 className="text-xl md:text-2xl font-black text-center text-yellow-400 mb-5">ELITE ROCKETS FIRED</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {data.rockets.map((rocket, i) => {
-                const [symbol, gain, pattern = ""] = rocket.split(' ');
-                const cleanPattern = pattern?.replace(/[[\]]/g, '') || "";
+                const parts = rocket.split(' ');
+                const symbol = parts[0];
+                const gain = parts[1];
+                const pattern = parts.slice(2).join(' ').replace(/[[\]]/g, '');
                 return (
                   <div key={i} className="bg-gradient-to-br from-purple-800 to-pink-800 rounded-xl p-4 text-center border border-yellow-500">
                     <p className="text-lg md:text-2xl font-black">{symbol}</p>
                     <p className="text-base md:text-xl text-green-400">{gain}</p>
-                    {cleanPattern && <p className="text-xs text-cyan-300 mt-1">{cleanPattern}</p>}
+                    {pattern && <p className="text-xs text-cyan-300 mt-1">{pattern}</p>}
                   </div>
                 );
               })}
