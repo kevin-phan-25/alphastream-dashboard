@@ -33,17 +33,18 @@ export default function Home() {
   const URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
 
   const fetchData = async () => {
+    setLoading(true);
     try {
       const [mainRes, perfRes] = await Promise.all([
-        axios.get(URL).catch(() => ({ data: {} })),
+        axios.get(URL).catch(() => ({ data: {} as Partial<BotData> })),
         axios.get(URL + "/performance").catch(() => ({ data: {} }))
       ]);
 
       setData((prev: BotData) => ({
+        ...prev,
         ...mainRes.data,
-        winRate: perfRes.data.winRate ?? prev.winRate ?? 0,
-        recent: perfRes.data.recent ?? prev.recent ?? [],
-        logs: mainRes.data.logs?.slice(-30) ?? prev.logs ?? []
+        winRate: (perfRes.data as any).winRate ?? prev.winRate ?? 0,
+        recent: (perfRes.data as any).recent ?? prev.recent ?? []
       }));
     } catch (err) {
       console.error("Fetch failed:", err);
@@ -69,7 +70,7 @@ export default function Home() {
     setScanning(false);
   };
 
-  // Equity Curve — 100% safe from undefined
+  // Equity Curve — Safe from undefined
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !data.recent || data.recent.length === 0) return;
@@ -89,7 +90,7 @@ export default function Home() {
 
     ctx.beginPath();
     data.recent.forEach((point, i) => {
-      const x = (i / (data.recent!.length - 1)) * canvas.width;
+      const x = (i / (data.recent.length - 1)) * canvas.width;
       const y = canvas.height - ((point.equity - min) / range) * (canvas.height - 60) + 30;
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
@@ -107,6 +108,7 @@ export default function Home() {
   const equity = Number(data.equity || 100000);
   const unreal = Number(data.unrealized || 0);
   const winRate = Number(data.winRate || 0).toFixed(1);
+  const hasLogs = data.logs && data.logs.length > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-pink-950 text-white">
@@ -155,21 +157,21 @@ export default function Home() {
           <canvas ref={canvasRef} width={900} height={240} className="w-full rounded-xl bg-black/40" />
         </div>
 
-        {/* LIVE LOGS */}
+        {/* LIVE LOGS — Now with fallback */}
         <div className="bg-black/70 rounded-2xl p-6 border-2 border-green-500">
           <div className="flex items-center gap-3 mb-4">
             <Terminal className="w-7 h-7 text-green-400" />
             <h3 className="text-xl md:text-2xl font-black text-green-400">LIVE BOT LOGS</h3>
           </div>
           <div className="bg-black/80 rounded-xl p-4 h-64 overflow-y-auto font-mono text-xs md:text-sm text-gray-300">
-            {data.logs && data.logs.length > 0 ? (
+            {hasLogs ? (
               data.logs.map((log, i) => (
                 <div key={i} className="py-1 border-b border-gray-800 last:border-0">
                   {log}
                 </div>
               ))
             ) : (
-              <div className="text-gray-500">Waiting for elite setups...</div>
+              <div className="text-gray-500 italic">Logs coming soon — backend update needed. Backend data loading OK.</div>
             )}
             <div ref={logsEndRef} />
           </div>
