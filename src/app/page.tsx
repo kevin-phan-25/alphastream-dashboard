@@ -43,7 +43,6 @@ export default function Home() {
       const main = mainRes.data;
       const perf = perfRes.data;
 
-      // FIXED: Proper parsing – no more syntax errors
       const equityStr = (main.equity || main.accountEquity || "100000").toString();
       const equity = Math.round(parseFloat(equityStr.replace(/[^0-9.-]/g, "")) || 100000);
 
@@ -67,7 +66,6 @@ export default function Home() {
       });
     } catch (err) {
       console.error("Fetch failed:", err);
-      // Don't reset data on error
     } finally {
       setLoading(false);
     }
@@ -92,7 +90,7 @@ export default function Home() {
     setTimeout(() => setScanning(false), 10000);
   };
 
-  // Equity Curve
+  // FIXED: The only bug — this line had a colon instead of )
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || data.recent.length < 2) return;
@@ -114,7 +112,7 @@ export default function Home() {
     data.recent.forEach((p, i) => {
       const x = (i / (data.recent.length - 1)) * canvas.width;
       const y = canvas.height - ((p.equity - min) / range) * (canvas.height - 50) + 25;
-      i === 0 ? ctx.moveTo(x, : ctx.lineTo(x, y);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
     ctx.stroke();
   }, [data.recent]);
