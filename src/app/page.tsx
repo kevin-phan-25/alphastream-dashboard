@@ -20,7 +20,7 @@ export default function Home() {
     unrealized: 0,
     positions: 0,
     mode: "PAPER",
-    rockets: ["Scanning Elite Setups..."],
+    rockets: ["Scanning..."],
     winRate: 0,
     recent: [],
     logs: []
@@ -30,24 +30,24 @@ export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
+  // YOUR BACKEND URL — CHANGE ONLY THIS IF NEEDED
   const URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const [mainRes, perfRes] = await Promise.all([
-        axios.get(URL).catch(() => ({ data: {} as Partial<BotData> })),
+        axios.get(URL).catch(() => ({ data: {} })),
         axios.get(URL + "/performance").catch(() => ({ data: {} }))
       ]);
-
-      setData((prev: BotData) => ({
+      setData(prev => ({
         ...prev,
         ...mainRes.data,
-        winRate: (perfRes.data as any).winRate ?? prev.winRate ?? 0,
+        winRate: (perfRes.data as any).winRate ?? prev.winRate,
         recent: (perfRes.data as any).recent ?? prev.recent ?? []
       }));
     } catch (err) {
-      console.error("Fetch failed:", err);
+      console.error("Fetch error:", err);
     } finally {
       setLoading(false);
     }
@@ -55,8 +55,8 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 8000);
-    return () => clearInterval(interval);
+    const int = setInterval(fetchData, 9000);
+    return () => clearInterval(int);
   }, []);
 
   useEffect(() => {
@@ -70,11 +70,10 @@ export default function Home() {
     setScanning(false);
   };
 
-  // Equity Curve — Safe from undefined
+  // Equity Curve — Safe & Small
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !data.recent || data.recent.length === 0) return;
-
     const ctx = canvas.getContext('2d')!;
     const values = data.recent.map(p => p.equity);
     const min = Math.min(...values);
@@ -82,16 +81,15 @@ export default function Home() {
     const range = max - min || 1;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.shadowColor = '#c084fc';
-    ctx.shadowBlur = 15;
     ctx.strokeStyle = '#c084fc';
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#c084fc';
+    ctx.shadowBlur = 10;
     ctx.beginPath();
-    data.recent.forEach((point, i) => {
-      const x = (i / (data.recent.length - 1)) * canvas.width;
-      const y = canvas.height - ((point.equity - min) / range) * (canvas.height - 60) + 30;
+
+    data.recent.forEach((p, i) => {
+      const x = (i / (data.recent!.length - 1)) * canvas.width;
+      const y = canvas.height - ((p.equity - min) / range) * (canvas.height - 40) + 20;
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     });
     ctx.stroke();
@@ -100,7 +98,7 @@ export default function Home() {
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <Activity className="w-20 h-20 text-purple-500 animate-spin" />
+        <Activity className="w-12 h-12 text-purple-500 animate-spin" />
       </div>
     );
   }
@@ -112,86 +110,80 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-pink-950 text-white">
-      <header className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-xl border-b-4 border-purple-600">
-        <div className="max-w-5xl mx-auto px-5 py-4 flex justify-between items-center">
-          <h1 className="text-2xl md:text-3xl font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
-            AlphaStream v100 ELITE
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur border-b-2 border-purple-600">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+          <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+            AlphaStream v100
           </h1>
-          <span className="px-6 py-2 rounded-full text-lg md:text-xl font-black bg-gradient-to-r from-emerald-500 to-cyan-600">
-            {data.mode || "PAPER"}
+          <span className="px-4 py-1.5 rounded-full text-sm font-bold bg-gradient-to-r from-emerald-500 to-cyan-600">
+            {data.mode}
           </span>
         </div>
       </header>
 
-      <main className="pt-28 px-4 max-w-5xl mx-auto space-y-8 pb-20">
-        <div className="text-center -mt-6">
-          <h2 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-yellow-400 to-red-600 bg-clip-text text-transparent leading-tight">
-            ELITE SNIPER
-          </h2>
-        </div>
+      <main className="pt-20 px-4 max-w-4xl mx-auto space-y-5 pb-16">
+        <h2 className="text-2xl font-black text-center bg-gradient-to-r from-yellow-400 to-red-600 bg-clip-text text-transparent">
+          ELITE SNIPER
+        </h2>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-          <div className="bg-white/10 rounded-2xl p-5 border-2 border-purple-500 text-center">
-            <p className="text-2xl md:text-3xl font-black text-purple-400">${equity.toLocaleString()}</p>
-            <p className="text-xs md:text-base text-gray-400 mt-1">Equity</p>
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-white/10 rounded-xl p-4 border border-purple-500 text-center">
+            <p className="text-lg font-bold text-purple-400">${equity.toLocaleString()}</p>
+            <p className="text-xs text-gray-400">Equity</p>
           </div>
-          <div className={`bg-white/10 rounded-2xl p-5 border-2 ${unreal >= 0 ? 'border-green-500' : 'border-red-500'} text-center`}>
-            <TrendingUp className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-1 text-green-400" />
-            <p className={`text-2xl md:text-3xl font-black ${unreal >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <div className={`bg-white/10 rounded-xl p-4 border ${unreal >= 0 ? 'border-green-500' : 'border-red-500'} text-center`}>
+            <p className={`text-lg font-bold ${unreal >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {unreal >= 0 ? '+' : '-'}${Math.abs(unreal).toLocaleString()}
             </p>
-            <p className="text-xs md:text-base text-gray-400 mt-1">Unrealized</p>
+            <p className="text-xs text-gray-400">Unrealized</p>
           </div>
-          <div className="bg-white/10 rounded-2xl p-5 border-2 border-yellow-500 text-center">
-            <p className="text-3xl md:text-4xl font-black text-yellow-400">{winRate}%</p>
-            <p className="text-xs md:text-base text-gray-400 mt-1">Win Rate</p>
+          <div className="bg-white/10 rounded-xl p-4 border border-yellow-500 text-center">
+            <p className="text-xl font-bold text-yellow-400">{winRate}%</p>
+            <p className="text-xs text-gray-400">Win Rate</p>
           </div>
-          <div className="bg-white/10 rounded-2xl p-5 border-2 border-orange-500 text-center">
-            <p className="text-3xl md:text-4xl font-black text-orange-400">{data.positions || 0}</p>
-            <p className="text-xs md:text-base text-gray-400 mt-1">Positions</p>
+          <div className="bg-white/10 rounded-xl p-4 border border-orange-500 text-center">
+            <p className="text-xl font-bold text-orange-400">{data.positions}</p>
+            <p className="text-xs text-gray-400">Positions</p>
           </div>
         </div>
 
-        <div className="bg-black/60 rounded-2xl p-6 border-2 border-cyan-500">
-          <h3 className="text-xl md:text-2xl font-black text-center text-cyan-400 mb-4">LIVE EQUITY CURVE</h3>
-          <canvas ref={canvasRef} width={900} height={240} className="w-full rounded-xl bg-black/40" />
+        {/* Equity Curve */}
+        <div className="bg-black/60 rounded-xl p-4 border border-cyan-500">
+          <h3 className="text-sm font-bold text-cyan-400 text-center mb-2">EQUITY CURVE</h3>
+          <canvas ref={canvasRef} width={800} height={160} className="w-full rounded-lg bg-black/40" />
         </div>
 
-        {/* LIVE LOGS — Now with fallback */}
-        <div className="bg-black/70 rounded-2xl p-6 border-2 border-green-500">
-          <div className="flex items-center gap-3 mb-4">
-            <Terminal className="w-7 h-7 text-green-400" />
-            <h3 className="text-xl md:text-2xl font-black text-green-400">LIVE BOT LOGS</h3>
+        {/* Logs */}
+        <div className="bg-black/70 rounded-xl p-4 border border-green-500">
+          <div className="flex items-center gap-2 mb-2">
+            <Terminal className="w-5 h-5 text-green-400" />
+            <h3 className="text-sm font-bold text-green-400">LIVE LOGS</h3>
           </div>
-          <div className="bg-black/80 rounded-xl p-4 h-64 overflow-y-auto font-mono text-xs md:text-sm text-gray-300">
-            {hasLogs ? (
-              data.logs.map((log, i) => (
-                <div key={i} className="py-1 border-b border-gray-800 last:border-0">
-                  {log}
-                </div>
-              ))
-            ) : (
-              <div className="text-gray-500 italic">Logs coming soon — backend update needed. Backend data loading OK.</div>
+          <div className="bg-black/80 rounded-lg p-3 h-48 overflow-y-auto font-mono text-xs text-gray-300">
+            {hasLogs ? data.logs!.map((l, i) => (
+              <div key={i} className="py-0.5 border-b border-gray-800 last:border-0">{l}</div>
+            )) : (
+              <div className="text-gray-500 italic">Waiting for logs...</div>
             )}
             <div ref={logsEndRef} />
           </div>
         </div>
 
         {/* Rockets */}
-        {data.rockets && data.rockets[0] !== "Scanning Elite Setups..." && (
-          <div className="bg-black/60 rounded-2xl p-6 border-2 border-yellow-500">
-            <h3 className="text-xl md:text-2xl font-black text-center text-yellow-400 mb-5">ELITE ROCKETS FIRED</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {data.rockets.map((rocket, i) => {
-                const parts = rocket.split(' ');
-                const symbol = parts[0];
-                const gain = parts[1];
-                const pattern = parts.slice(2).join(' ').replace(/[[\]]/g, '');
+        {data.rockets && data.rockets.length > 0 && data.rockets[0] !== "Scanning..." && (
+          <div className="bg-black/60 rounded-xl p-4 border border-yellow-500">
+            <h3 className="text-sm font-bold text-center text-yellow-400 mb-3">ROCKETS FIRED</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {data.rockets.slice(0, 6).map((r, i) => {
+                const [sym, gain, ...rest] = r.split(' ');
+                const pattern = rest.join(' ').replace(/[[\]]/g, '');
                 return (
-                  <div key={i} className="bg-gradient-to-br from-purple-800 to-pink-800 rounded-xl p-4 text-center border border-yellow-500">
-                    <p className="text-lg md:text-2xl font-black">{symbol}</p>
-                    <p className="text-base md:text-xl text-green-400">{gain}</p>
-                    {pattern && <p className="text-xs text-cyan-300 mt-1">{pattern}</p>}
+                  <div key={i} className="bg-gradient-to-br from-purple-800 to-pink-800 rounded-lg p-3 text-center border border-yellow-500">
+                    <p className="text-base font-bold">{sym}</p>
+                    <p className="text-sm text-green-400">{gain}</p>
+                    {pattern && <p className="text-xs text-cyan-300">{pattern}</p>}
                   </div>
                 );
               })}
@@ -199,13 +191,14 @@ export default function Home() {
           </div>
         )}
 
-        <div className="text-center pt-6">
+        {/* Force Scan Button */}
+        <div className="text-center pt-4">
           <button
             onClick={forceScan}
             disabled={scanning}
-            className="px-20 py-10 md:px-28 md:py-12 text-2xl md:text-4xl font-black rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition-all shadow-2xl border-4 md:border-6 border-purple-400 flex items-center gap-6 mx-auto disabled:opacity-60"
+            className="px-16 py-6 text-xl font-bold rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition-all shadow-xl border-4 border-purple-400 flex items-center gap-4 mx-auto disabled:opacity-60"
           >
-            <RefreshCw className={`w-12 h-12 md:w-16 md:h-16 ${scanning ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-8 h-8 ${scanning ? 'animate-spin' : ''}`} />
             {scanning ? "SNIPING..." : "FORCE SCAN"}
           </button>
         </div>
