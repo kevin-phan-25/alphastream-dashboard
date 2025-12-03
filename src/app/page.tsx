@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { RefreshCw, Activity, TrendingUp, Terminal } from 'lucide-react';
+import { RefreshCw, Activity, TrendingUp, Terminal, AlertCircle } from 'lucide-react';
 
 interface BotData {
   equity: number;
@@ -19,35 +19,51 @@ export default function Home() {
     equity: 100000,
     unrealized: 0,
     positions: 0,
-    mode: "PAPER",
-    rockets: ["Scanning..."],
+    mode: "UNKNOWN",
+    rockets: ["Initializing..."],
     winRate: 0,
     recent: [],
     logs: []
   });
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  // YOUR BACKEND URL — CHANGE ONLY THIS IF NEEDED
+  // YOUR CLOUD RUN BACKEND — CHANGE ONLY IF YOU REDEPLOY
   const URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
 
   const fetchData = async () => {
-    setLoading(true);
     try {
+      setError(null);
       const [mainRes, perfRes] = await Promise.all([
-        axios.get(URL).catch(() => ({ data: {} })),
-        axios.get(URL + "/performance").catch(() => ({ data: {} }))
+        axios.get(URL, { timeout: 10000 }).catch(() => ({ data: {} })),
+        axios.get(URL + "/performance", { timeout: 10000 }).catch(() => ({ data: {} }))
       ]);
-      setData(prev => ({
-        ...prev,
-        ...mainRes.data,
-        winRate: (perfRes.data as any).winRate ?? prev.winRate,
-        recent: (perfRes.data as any).recent ?? prev.recent ?? []
-      }));
-    } catch (err) {
-      console.error("Fetch error:", err);
+
+      const main = mainRes.data || {};
+      const perf = perfRes.data || {};
+
+      // Force numbers — never stuck at default
+      const equity = Number(main.equity) || Number(main.accountEquity) || 100000;
+      const unrealized = Number(main.unrealized) || 0;
+      const positions = Number(main.positions) || 0;
+      const mode = main.mode || "PAPER";
+
+      setData({
+        equity,
+        unrealized,
+        positions,
+        mode,
+        rockets: Array.isArray(main.rockets) ? main.rockets : ["Scanning..."],
+        winRate: perf.winRate ?? perf.stats?.winRate ?? 0,
+        recent: Array.isArray(perf.recent) ? perf.recent : [],
+        logs: Array.isArray(main.logs) ? main.logs.slice(-40) : []
+      });
+    } catch (err: any) {
+      console.error("Dashboard fetch failed:", err);
+      setError(`Connection failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -55,8 +71,8 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
-    const int = setInterval(fetchData, 9000);
-    return () => clearInterval(int);
+    const interval = setInterval(fetchData, 8000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -65,15 +81,22 @@ export default function Home() {
 
   const forceScan = async () => {
     setScanning(true);
-    await axios.post(`${URL}/scan`).catch(() => {});
-    await fetchData();
-    setScanning(false);
+    setError(null);
+    try {
+      await axios.post(`${URL}/scan`, {}, { timeout: 15000 });
+      await fetchData();
+    } catch (err: any) {
+      setError(`Scan failed: ${err.message}`);
+    } finally {
+      setScanning(false);
+    }
   };
 
-  // Equity Curve — Safe & Small
+  // Equity Curve — Always Safe
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !data.recent || data.recent.length === 0) return;
+    if (!canvas || !data.recent || data.recent.length < 2) return;
+
     const ctx = canvas.getContext('2d')!;
     const values = data.recent.map(p => p.equity);
     const min = Math.min(...values);
@@ -85,6 +108,7 @@ export default function Home() {
     ctx.lineWidth = 2.5;
     ctx.shadowColor = '#c084fc';
     ctx.shadowBlur = 10;
+    ctx.lineCap = 'round';
     ctx.beginPath();
 
     data.recent.forEach((p, i) => {
@@ -98,13 +122,16 @@ export default function Home() {
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <Activity className="w-12 h-12 text-purple-500 animate-spin" />
+        <div className="text-center">
+          <Activity className="w-16 h-16 text-purple-500 animate-spin mx-auto mb-4" />
+          <p className="text-purple-400 text-lg">Connecting to AlphaStream...</p>
+        </div>
       </div>
     );
   }
 
-  const equity = Number(data.equity || 100000);
-  const unreal = Number(data.unrealized || 0);
+  const equity = data.equity;
+  const unreal = data.unrealized;
   const winRate = Number(data.winRate || 0).toFixed(1);
   const hasLogs = data.logs && data.logs.length > 0;
 
@@ -114,9 +141,11 @@ export default function Home() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur border-b-2 border-purple-600">
         <div className="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
           <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
-            AlphaStream v100
+            AlphaStream v100 ELITE
           </h1>
-          <span className="px-4 py-1.5 rounded-full text-sm font-bold bg-gradient-to-r from-emerald-500 to-cyan-600">
+          <span className={`px-4 py-1.5 rounded-full text-sm font-bold ${
+            data.mode === "LIVE" ? "bg-red-600" : "bg-gradient-to-r from-emerald-500 to-cyan-600"
+          }`}>
             {data.mode}
           </span>
         </div>
@@ -124,16 +153,25 @@ export default function Home() {
 
       <main className="pt-20 px-4 max-w-4xl mx-auto space-y-5 pb-16">
         <h2 className="text-2xl font-black text-center bg-gradient-to-r from-yellow-400 to-red-600 bg-clip-text text-transparent">
-          ELITE SNIPER
+          ELITE SNIPER ACTIVE
         </h2>
 
-        {/* Stats */}
+        {/* Error Alert */}
+        {error && (
+          <div className="bg-red-900/80 border border-red-500 rounded-xl p-4 flex items-center gap-3">
+            <AlertCircle className="w-6 h-6 text-red-400" />
+            <p className="text-sm text-red-300">{error}</p>
+          </div>
+        )}
+
+        {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-white/10 rounded-xl p-4 border border-purple-500 text-center">
             <p className="text-lg font-bold text-purple-400">${equity.toLocaleString()}</p>
             <p className="text-xs text-gray-400">Equity</p>
           </div>
           <div className={`bg-white/10 rounded-xl p-4 border ${unreal >= 0 ? 'border-green-500' : 'border-red-500'} text-center`}>
+            <TrendingUp className="w-5 h-5 mx-auto mb-1 text-green-400" />
             <p className={`text-lg font-bold ${unreal >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {unreal >= 0 ? '+' : '-'}${Math.abs(unreal).toLocaleString()}
             </p>
@@ -151,37 +189,43 @@ export default function Home() {
 
         {/* Equity Curve */}
         <div className="bg-black/60 rounded-xl p-4 border border-cyan-500">
-          <h3 className="text-sm font-bold text-cyan-400 text-center mb-2">EQUITY CURVE</h3>
+          <h3 className="text-sm font-bold text-cyan-400 text-center mb-2">LIVE EQUITY CURVE</h3>
           <canvas ref={canvasRef} width={800} height={160} className="w-full rounded-lg bg-black/40" />
         </div>
 
-        {/* Logs */}
+        {/* Live Logs */}
         <div className="bg-black/70 rounded-xl p-4 border border-green-500">
           <div className="flex items-center gap-2 mb-2">
             <Terminal className="w-5 h-5 text-green-400" />
-            <h3 className="text-sm font-bold text-green-400">LIVE LOGS</h3>
+            <h3 className="text-sm font-bold text-green-400">LIVE BOT LOGS</h3>
           </div>
           <div className="bg-black/80 rounded-lg p-3 h-48 overflow-y-auto font-mono text-xs text-gray-300">
-            {hasLogs ? data.logs!.map((l, i) => (
-              <div key={i} className="py-0.5 border-b border-gray-800 last:border-0">{l}</div>
-            )) : (
-              <div className="text-gray-500 italic">Waiting for logs...</div>
+            {hasLogs ? (
+              data.logs!.map((log, i) => (
+                <div key={i} className="py-0.5 border-b border-gray-800 last:border-0 whitespace-pre-wrap">
+                  {log}
+                </div>
+              ))
+            ) : (
+              <div className="text-gray-500 italic">No logs yet — bot starting up...</div>
             )}
             <div ref={logsEndRef} />
           </div>
         </div>
 
-        {/* Rockets */}
+        {/* Rockets Fired */}
         {data.rockets && data.rockets.length > 0 && data.rockets[0] !== "Scanning..." && (
           <div className="bg-black/60 rounded-xl p-4 border border-yellow-500">
             <h3 className="text-sm font-bold text-center text-yellow-400 mb-3">ROCKETS FIRED</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {data.rockets.slice(0, 6).map((r, i) => {
-                const [sym, gain, ...rest] = r.split(' ');
-                const pattern = rest.join(' ').replace(/[[\]]/g, '');
+                const parts = r.split(' ');
+                const symbol = parts[0];
+                const gain = parts[1];
+                const pattern = parts.slice(2).join(' ').replace(/[[\]]/g, '');
                 return (
                   <div key={i} className="bg-gradient-to-br from-purple-800 to-pink-800 rounded-lg p-3 text-center border border-yellow-500">
-                    <p className="text-base font-bold">{sym}</p>
+                    <p className="text-base font-bold">{symbol}</p>
                     <p className="text-sm text-green-400">{gain}</p>
                     {pattern && <p className="text-xs text-cyan-300">{pattern}</p>}
                   </div>
@@ -191,7 +235,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Force Scan Button */}
+        {/* Force Scan */}
         <div className="text-center pt-4">
           <button
             onClick={forceScan}
