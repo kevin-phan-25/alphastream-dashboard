@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { RefreshCw, Activity, Zap, Brain } from 'lucide-react';
+import { RefreshCw, Activity, Zap, Brain, TrendingUp, AlertTriangle, Shield } from 'lucide-react';
 
 export default function Home() {
   const [data, setData] = useState<any>({
@@ -11,10 +11,10 @@ export default function Home() {
     mode: "LOADING",
     rockets: [],
     winRate: "0.0",
-    trades: 0,
-    logs: [],
+    totalTrades: 0,
     aiTrades: 0,
-    brainUpdated: "Never"
+    brainUpdated: "Never",
+    logs: []
   });
 
   const [loading, setLoading] = useState(true);
@@ -30,7 +30,6 @@ export default function Home() {
 
       const equity = parseInt(m.equity.replace(/[^0-9]/g, "")) || 100000;
       const unrealized = parseInt(m.unrealized?.replace(/[^0-9-]/g, "") || "0");
-      const winRate = m.winRate?.replace("%", "") || "0.0";
 
       setData({
         equity,
@@ -38,11 +37,11 @@ export default function Home() {
         positions: m.positions || 0,
         mode: m.mode || "PAPER",
         rockets: m.rockets || [],
-        winRate,
+        winRate: m.winRate?.replace("%", "") || "0.0",
         totalTrades: m.trades || 0,
-        logs: m.logs || [],
         aiTrades: m.aiTrades || 0,
-        brainUpdated: m.brainUpdated || "Never"
+        brainUpdated: m.brainUpdated || "Never",
+        logs: m.logs || []
       });
     } catch (e) {
       console.error(e);
@@ -75,49 +74,65 @@ export default function Home() {
     );
   }
 
+  const isLive = data.mode === "LIVE";
+  const dailyPnL = data.unrealized;
+  const dailyLimit = 2000; // 2% of $100k
+  const nearLimit = Math.abs(dailyPnL) > dailyLimit * 0.8;
+
   return (
     <div className="min-h-screen bg-black text-white font-sans">
       {/* HEADER */}
       <header className="fixed top-0 inset-x-0 z-50 bg-black/95 backdrop-blur border-b border-purple-600">
         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
           <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
-              AlphaStream v200
+            <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+              AlphaStream v200 — AI
             </h1>
-            <p className="text-xs text-gray-400">AI-Powered Momentum Bot</p>
+            <p className="text-xs text-gray-400">Self-Learning Momentum Engine</p>
           </div>
           <div className="flex items-center gap-6">
-            <span className={`px-3 py-1 rounded text-xs font-bold ${data.mode === "LIVE" ? "bg-red-600" : "bg-emerald-600"}`}>
-              {data.mode}
-            </span>
             <div className="text-right">
               <div className="text-xs text-gray-400 flex items-center gap-1">
                 <Brain className="w-4 h-4" /> AI Win Rate
               </div>
-              <div className="text-xl font-black text-yellow-400">{data.winRate}%</div>
+              <div className="text-2xl font-black text-yellow-400">{data.winRate}%</div>
             </div>
+            <span className={`px-4 py-1 rounded text-sm font-bold ${isLive ? "bg-red-600 animate-pulse" : "bg-emerald-600"}`}>
+              {data.mode}
+            </span>
           </div>
         </div>
       </header>
 
       <main className="pt-16 px-4 max-w-5xl mx-auto space-y-5 pb-32">
-        {/* EQUITY */}
-        <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 rounded-xl p-5 border border-purple-600 text-center">
-          <p className="text-3xl font-black">${data.equity.toLocaleString()}</p>
-          <p className={`text-lg font-bold mt-1 ${data.unrealized >= 0 ? "text-green-400" : "text-red-400"}`}>
-            {data.unrealized >= 0 ? "+" : ""}{data.unrealized.toLocaleString()}
-          </p>
+        {/* EQUITY + DAILY P&L */}
+        <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 rounded-xl p-5 border border-purple-600">
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <p className="text-sm text-gray-400">Account Equity</p>
+              <p className="text-3xl font-black">${data.equity.toLocaleString()}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-gray-400 flex items-center justify-end gap-1">
+                {nearLimit && <AlertTriangle className="w-4 h-4 text-yellow-400" />}
+                Daily P&L
+              </p>
+              <p className={`text-3xl font-black ${dailyPnL >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {dailyPnL >= 0 ? "+" : ""}${dailyPnL.toLocaleString()}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* STATS */}
+        {/* STATS GRID */}
         <div className="grid grid-cols-4 gap-3">
           <div className="bg-gray-900/70 rounded-lg p-4 border border-purple-600 text-center">
             <p className="text-lg font-bold">{data.totalTrades}</p>
-            <p className="text-xs text-gray-400">Trades</p>
+            <p className="text-xs text-gray-400">Total Trades</p>
           </div>
           <div className="bg-gray-900/70 rounded-lg p-4 border border-cyan-600 text-center">
             <p className="text-lg font-bold">{data.positions}</p>
-            <p className="text-xs text-gray-400">Live</p>
+            <p className="text-xs text-gray-400">Live Pos</p>
           </div>
           <div className="bg-gray-900/70 rounded-lg p-4 border border-yellow-600 text-center">
             <p className="text-lg font-bold">{data.aiTrades}</p>
@@ -127,6 +142,14 @@ export default function Home() {
             <p className="text-lg font-bold">{data.rockets.length}</p>
             <p className="text-xs text-gray-400">Rockets</p>
           </div>
+        </div>
+
+        {/* AI BRAIN STATUS */}
+        <div className="bg-gray-900/80 rounded-lg p-4 border border-purple-600 text-center">
+          <p className="text-xs text-gray-400 flex items-center justify-center gap-1">
+            <Brain className="w-4 h-4" /> AI Brain Last Trained
+          </p>
+          <p className="text-sm font-mono text-purple-400">{data.brainUpdated}</p>
         </div>
 
         {/* LAST ROCKETS */}
@@ -151,19 +174,13 @@ export default function Home() {
 
         {/* LOGS */}
         <div className="bg-gray-900/90 rounded-lg p-4 border border-green-700">
-          <h3 className="text-sm font-bold text-green-400 mb-2">Live Logs</h3>
+          <h3 className="text-sm font-bold text-green-400 mb-2">Live Execution</h3>
           <div className="bg-black/70 rounded p-3 h-64 overflow-y-auto font-mono text-xs text-gray-300">
             {data.logs.length > 0 ? data.logs.map((l: string, i: number) => (
               <div key={i} className="py-1 border-b border-gray-800 last:border-0">{l}</div>
-            )) : <div className="text-gray-600">Waiting for action...</div>}
+            )) : <div className="text-gray-600">Waiting for first rocket...</div>}
             <div ref={logsEndRef} />
           </div>
-        </div>
-
-        {/* BRAIN STATUS */}
-        <div className="bg-gray-900/80 rounded-lg p-4 border border-purple-600 text-center">
-          <p className="text-xs text-gray-400">AI Brain Last Updated</p>
-          <p className="text-sm font-mono text-purple-400">{data.brainUpdated}</p>
         </div>
 
         {/* FORCE SCAN */}
@@ -173,7 +190,7 @@ export default function Home() {
             disabled={scanning}
             className="px-16 py-6 text-xl font-bold rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition-all border-4 border-purple-500 disabled:opacity-60"
           >
-            <RefreshCw className={`inline w-6 h-6 mr-2 ${scanning ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`inline w-7 h-7 mr-3 ${scanning ? 'animate-spin' : ''}`} />
             {scanning ? "SNIPING..." : "FORCE SCAN"}
           </button>
         </div>
