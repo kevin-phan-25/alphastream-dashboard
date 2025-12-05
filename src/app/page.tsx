@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { RefreshCw, Activity, Zap, Trophy, TrendingUp, Skull } from 'lucide-react';
+import { RefreshCw, Activity, Zap } from 'lucide-react';
 
 export default function Home() {
   const [data, setData] = useState<any>({
@@ -29,7 +29,6 @@ export default function Home() {
       const equity = parseInt(m.equity.replace(/[^0-9]/g, "")) || 100000;
       const unrealized = parseInt(m.unrealized?.replace(/[^0-9-]/g, "") || "0");
       const winRate = m.winRate?.replace("%", "") || "0.0";
-      const totalTrades = m.trades || 0;
 
       setData({
         equity,
@@ -38,11 +37,11 @@ export default function Home() {
         mode: m.mode || "PAPER",
         rockets: m.rockets || [],
         winRate,
-        totalTrades,
+        totalTrades: m.trades || 0,
         logs: m.logs || []
       });
     } catch (e) {
-      console.error("Fetch failed", e);
+      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -50,8 +49,8 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 7000);
-    return () => clearInterval(interval);
+    const i = setInterval(fetchData, 7000);
+    return () => clearInterval(i);
   }, []);
 
   useEffect(() => {
@@ -61,98 +60,79 @@ export default function Home() {
   const forceScan = async () => {
     setScanning(true);
     try { await axios.post(`${URL}/scan`); } catch {}
-    setTimeout(() => setScanning(false), 9000);
+    setTimeout(() => setScanning(false), 8000);
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <Activity className="w-20 h-20 text-purple-500 animate-spin" />
+        <Activity className="w-12 h-12 text-purple-400 animate-spin" />
       </div>
     );
   }
 
-  const isLive = data.mode === "LIVE";
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-purple-950 to-black text-white overflow-x-hidden">
+    <div className="min-h-screen bg-black text-white">
       {/* HEADER */}
-      <div className="fixed top-0 inset-x-0 z-50 bg-black/95 backdrop-blur-md border-b-4 border-purple-600 shadow-2xl">
-        <div className="max-w-6xl mx-auto px-6 py-5 flex justify-between items-center">
-          <div>
-            <h1 className="text-4xl font-black bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-              AlphaStream v105.3
-            </h1>
-            <p className="text-sm text-gray-400 mt-1">Premarket Momentum Sniper • 100% Dynamic</p>
-          </div>
-
+      <header className="fixed top-0 inset-x-0 z-50 bg-black/90 backdrop-blur border-b-2 border-purple-600">
+        <div className="max-w-5xl mx-auto px-5 py-4 flex justify-between items-center">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+            AlphaStream v105.3
+          </h1>
           <div className="flex items-center gap-8">
+            <span className={`px-4 py-1.5 rounded-full text-sm font-bold ${data.mode === "LIVE" ? "bg-red-600" : "bg-emerald-600"}`}>
+              {data.mode}
+            </span>
             <div className="text-right">
-              <p className="text-sm text-gray-400">TRADING MODE</p>
-              <p className={`text-3xl font-black ${isLive ? "text-red-500 animate-pulse" : "text-emerald-400"}`}>
-                {data.mode}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-400 flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-yellow-400" /> WIN RATE
-              </p>
-              <p className="text-5xl font-black text-yellow-400">{data.winRate}%</p>
+              <div className="text-xs text-gray-400">Win Rate</div>
+              <div className="text-2xl font-black text-yellow-400">{data.winRate}%</div>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      <main className="pt-32 px-6 max-w-6xl mx-auto space-y-8 pb-32">
-        {/* EQUITY HERO CARD */}
-        <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 backdrop-blur-xl rounded-3xl p-10 border-4 border-purple-600 shadow-2xl text-center">
-          <p className="text-xl text-gray-300 mb-2">Account Equity</p>
-          <p className="text-7xl font-black bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-            ${data.equity.toLocaleString()}
-          </p>
-          <p className={`text-4xl font-bold mt-4 ${data.unrealized >= 0 ? "text-green-400" : "text-red-400"}`}>
-            {data.unrealized >= 0 ? "+" : ""}{data.unrealized.toLocaleString()}
-            <span className="text-ml-2 text-2xl"> unrealized</span>
+      <main className="pt-20 px-5 max-w-5xl mx-auto space-y-6 pb-32">
+        {/* EQUITY CARD */}
+        <div className="bg-gradient-to-r from-purple-900/40 to-pink-900/40 rounded-2xl p-6 border border-purple-600 text-center">
+          <p className="text-4xl font-black">${data.equity.toLocaleString()}</p>
+          <p className={`text-2xl font-bold mt-2 ${data.unrealized >= 0 ? "text-green-400" : "text-red-400"}`}>
+            {data.unrealized >= 0 ? "+" : ""}{data.unrealized.toLocaleString()} unrealized
           </p>
         </div>
 
-        {/* STATS GRID */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <div className="bg-gray-900/80 backdrop-blur rounded-2xl p-8 border-2 border-purple-600 text-center">
-            <TrendingUp className="w-12 h-12 text-purple-400 mx-auto mb-3" />
-            <p className="text-4xl font-black">{data.totalTrades}</p>
-            <p className="text-gray-400">Total Trades</p>
+        {/* STATS */}
+        <div className="grid grid-cols-4 gap-4">
+          <div className="bg-gray-900/70 rounded-xl p-5 border border-purple-600 text-center">
+            <p className="text-2xl font-bold">{data.totalTrades}</p>
+            <p className="text-xs text-gray-400">Trades</p>
           </div>
-          <div className="bg-gray-900/80 backdrop-blur rounded-2xl p-8 border-2 border-cyan-600 text-center">
-            <Zap className="w-12 h-12 text-cyan-400 mx-auto mb-3" />
-            <p className="text-4xl font-black">{data.positions}</p>
-            <p className="text-gray-400">Live Positions</p>
+          <div className="bg-gray-900/70 rounded-xl p-5 border border-cyan-600 text-center">
+            <p className="text-2xl font-bold">{data.positions}</p>
+            <p className="text-xs text-gray-400">Positions</p>
           </div>
-          <div className="bg-gray-900/80 backdrop-blur rounded-2xl p-8 border-2 border-yellow-600 text-center">
-            <Trophy className="w-12 h-12 text-yellow-400 mx-auto mb-3" />
-            <p className="text-4xl font-black">{data.winRate}%</p>
-            <p className="text-gray-400">Win Rate</p>
+          <div className="bg-gray-900/70 rounded-xl p-5 border border-yellow-600 text-center">
+            <p className="text-2xl font-bold">{data.winRate}%</p>
+            <p className="text-xs text-gray-400">Win Rate</p>
           </div>
-          <div className="bg-gray-900/80 backdrop-blur rounded-2xl p-8 border-2 border-pink-600 text-center">
-            <Skull className="w-12 h-12 text-pink-400 mx-auto mb-3" />
-            <p className="text-4xl font-black">{data.rockets.length}</p>
-            <p className="text-gray-400">Rockets Today</p>
+          <div className="bg-gray-900/70 rounded-xl p-5 border border-pink-600 text-center">
+            <p className="text-2xl font-bold">{data.rockets.length}</p>
+            <p className="text-xs text-gray-400">Rockets Today</p>
           </div>
         </div>
 
         {/* LAST ROCKETS */}
         {data.rockets.length > 0 && (
-          <div className="bg-gray-900/90 backdrop-blur-xl rounded-3xl p-8 border-4 border-yellow-500 shadow-2xl">
-            <h2 className="text-3xl font-black text-center text-yellow-400 mb-8 flex items-center justify-center gap-4">
-              <Zap className="w-10 h-10" /> LAST ROCKETS FIRED <Zap className="w-10 h-10" />
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-              {data.rockets.slice(0, 12).map((r: string, i: number) => {
+          <div className="bg-gray-900/80 rounded-2xl p-6 border border-yellow-600">
+            <h3 className="text-lg font-bold text-yellow-400 mb-4 text-center flex items-center justify-center gap-2">
+              <Zap className="w-6 h-6" /> LAST ROCKETS
+            </h3>
+            <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
+              {data.rockets.slice(0, 16).map((r: string, i: number) => {
                 const [sym, gain] = r.split(' ');
                 return (
-                  <div key={i} className="bg-gradient-to-br from-purple-900 via-pink-900 to-red-900 rounded-2xl p-6 text-center border-2 border-yellow-500 shadow-lg transform hover:scale-110 transition-all">
-                    <div className="text-2xl font-black text-white">{sym}</div>
-                    <div className="text-3xl font-bold text-green-400 mt-2">{gain}</div>
+                  <div key={i} className="bg-gradient-to-br from-purple-900 to-pink-900 rounded-lg p-3 text-center">
+                    <div className="text-sm font-bold">{sym}</div>
+                    <div className="text-green-400 text-xs">{gain}</div>
                   </div>
                 );
               })}
@@ -160,40 +140,27 @@ export default function Home() {
           </div>
         )}
 
-        {/* LIVE LOGS */}
-        <div className="bg-gray-900/95 backdrop-blur-xl rounded-3xl p-8 border-4 border-green-600 shadow-2xl">
-          <h2 className="text-2xl font-black text-green-400 mb-6 text-center">LIVE EXECUTION LOG</h2>
-          <div className="bg-black/80 rounded-2xl p-6 h-96 overflow-y-auto font-mono text-sm border border-green-800">
-            {data.logs.length > 0 ? (
-              data.logs.map((log: string, i: number) => (
-                <div key={i} className="py-2 border-b border-gray-800 last:border-0 text-gray-300">
-                  {log}
-                </div>
-              ))
-            ) : (
-              <div className="text-center text-gray-500 py-10">Waiting for first rocket...</div>
-            )}
+        {/* LOGS */}
+        <div className="bg-gray-900/90 rounded-2xl p-5 border border-green-700">
+          <h3 className="text-md font-bold text-green-400 mb-3">Live Logs</h3>
+          <div className="bg-black/70 rounded-lg p-4 h-80 overflow-y-auto font-mono text-xs text-gray-300">
+            {data.logs.length > 0 ? data.logs.map((l: string, i: number) => (
+              <div key={i} className="py-1 border-b border-gray-800 last:border-0">{l}</div>
+            )) : <div className="text-gray-600">Waiting...</div>}
             <div ref={logsEndRef} />
           </div>
         </div>
 
-        {/* FORCE SCAN BUTTON */}
-        <div className="text-center pt-10">
+        {/* FORCE SCAN */}
+        <div className="text-center pt-6">
           <button
             onClick={forceScan}
             disabled={scanning}
-            className="relative px-40 py-16 text-6xl font-black rounded-3xl bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 hover:scale-110 transition-all shadow-3xl border-8 border-purple-400 disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden group"
+            className="px-20 py-8 text-2xl font-bold rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition-all border-4 border-purple-500 disabled:opacity-60"
           >
-            <span className="relative z-10 flex items-center justify-center gap-8">
-              <RefreshCw className={`w-20 h-20 ${scanning ? 'animate-spin' : ''}`} />
-              {scanning ? "SNIPING..." : "FORCE SCAN"}
-            </span>
-            <div className="absolute inset-0 bg-white/20 animate-ping rounded-3xl group-hover:animate-none" />
+            <RefreshCw className={`inline w-8 h-8 mr-3 ${scanning ? 'animate-spin' : ''}`} />
+            {scanning ? "SNIPING..." : "FORCE SCAN"}
           </button>
-        </div>
-
-        <div className="text-center text-gray-600 text-sm mt-20">
-          © 2025 AlphaStream • You just ended Warrior Trading
         </div>
       </main>
     </div>
