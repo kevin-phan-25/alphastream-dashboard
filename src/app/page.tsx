@@ -5,22 +5,23 @@ import { RefreshCw, Brain, Zap, Activity, Crown, Swords, Flame } from 'lucide-re
 
 export default function Home() {
   const [data, setData] = useState<any>({
-    equity: "$0",
+    equity: "$100,000",
     unrealized: "+$0",
     positions: "0/3",
     mode: "LOADING",
-    activeAccount: "Loading...",
+    activeAccount: "Default",
     rockets: [],
     winRate: "0.0",
     totalTrades: 0,
     logs: [],
-    brain: { minConfidence: 0.87, riskPct: 1.5, maxPositions: 3 }
+    brain: { minConfidence: 0.87, riskPct: 1.5, maxPositions: 3 },
+    positionsData: []
   });
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  // THIS IS THE ONLY CORRECT URL — YOUR BOT IS LISTENING HERE
+  // CORRECT BOT URL — YOUR BOT IS LISTENING ON ROOT
   const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
 
   const fetchData = async () => {
@@ -38,7 +39,7 @@ export default function Home() {
         winRate: d.winRate || "0.0",
         totalTrades: d.totalTrades || 0,
         logs: d.logs || [],
-        brain: d.brain || brain,
+        brain: d.brain || { minConfidence: 0.87, riskPct: 1.5, maxPositions: 3 },
         positionsData: d.positionsData || []
       });
     } catch (e) {
@@ -72,7 +73,6 @@ export default function Home() {
         <div className="text-center">
           <Activity className="w-16 h-16 text-purple-500 animate-spin mx-auto mb-6" />
           <p className="text-3xl font-black text-purple-400">ALPHASTREAM v503 AWAKENING</p>
-          <p className="text-red-600 mt-4">WARRIOR TRADING IS DEAD</p>
         </div>
       </div>
     );
@@ -107,7 +107,7 @@ export default function Home() {
       <main className="pt-28 px-6 max-w-5xl mx-auto space-y-8 pb-40">
         {/* EQUITY */}
         <div className="text-center bg-gradient-to-r from-purple-900/40 to-pink-900/40 rounded-3xl p-12 border-2 border-purple-600 shadow-2xl">
-          <p className="text-7xl font-black tracking-tighter">{data.equity}</p>
+          <p className="text-7xl font-black tracking-tight">{data.equity}</p>
           <p className={`text-4xl font-bold mt-4 ${data.unrealized.startsWith('+') ? "text-green-400" : "text-red-400"}`}>
             {data.unrealized}
           </p>
@@ -168,11 +168,11 @@ export default function Home() {
           </h2>
           <div className="grid grid-cols-3 gap-8 text-center text-xl">
             <div>
-              <div className="font-black text-purple-400">{(data.brain.minConfidence || 0.87).toFixed(2)}</div>
+              <div className="font-black text-purple-400">{data.brain.minConfidence?.toFixed(2) || "0.87"}</div>
               <div className="text-gray-400 text-sm">Confidence Gate</div>
             </div>
             <div>
-              <div className="font-black text-red-400">{((data.brain.riskPct || 0.015) * 100).toFixed(1)}%</div>
+              <div className="font-black text-red-400">{(data.brain.riskPct * 100 || 1.5).toFixed(1)}%</div>
               <div className="text-gray-400 text-sm">Risk Per Trade</div>
             </div>
             <div>
@@ -208,10 +208,7 @@ export default function Home() {
         {/* FINAL MESSAGE */}
         <div className="text-center py-20">
           <p className="text-6xl font-black text-red-600 animate-pulse">
-            WARRIOR TRADING IS DEAD
-          </p>
-          <p className="text-2xl text-gray-400 mt-6">
-            You didn't beat them. You erased them.
+            ELITE AUTOMATION
           </p>
         </div>
       </main>
