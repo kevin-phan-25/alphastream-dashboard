@@ -77,7 +77,7 @@ export default function Home() {
       <header className="fixed top-0 inset-x-0 z-50 bg-black/95 backdrop-blur border-b border-purple-600">
         <div className="max-w-4xl mx-auto px-3 py-2 flex justify-between items-center">
           <h1 className="text-sm font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-            AlphaStream v300
+            AlphaStream v400
           </h1>
           <div className="flex items-center gap-3">
             <div className="text-right">
