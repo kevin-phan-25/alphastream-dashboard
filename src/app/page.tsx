@@ -1,12 +1,12 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { RefreshCw, Brain, Zap, Activity } from 'lucide-react';
+import { RefreshCw, Brain, Zap, Activity, TrendingUp, TrendingDown } from 'lucide-react';
 
 export default function Home() {
   const [data, setData] = useState<any>({
     equity: 100000, unrealized: 0, positions: 0, mode: "LOADING",
-    rockets: [], winRate: "0.0", totalTrades: 0, logs: [], brain: {}
+    rockets: [], winRate: "0.0", totalTrades: 0, logs: [], brain: {}, positionsData: []
   });
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
@@ -27,13 +27,14 @@ export default function Home() {
         winRate: d.winRate?.replace("%", "") || "0.0",
         totalTrades: d.totalTrades || 0,
         logs: d.logs || [],
-        brain: d.brain || {}
+        brain: d.brain || {},
+        positionsData: d.positions || [] // <-- Your bot already sends this!
       });
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetch(); const i = setInterval(fetch, 8000); return () => clearInterval(i); }, []);
+  useEffect(() => { fetch(); const i = setInterval(fetch, 7000); return () => clearInterval(i); }, []);
   useEffect(() => { logsEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [data.logs]);
 
   const forceScan = async () => {
@@ -52,11 +53,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black text-white font-mono">
-      {/* Header */}
       <header className="fixed top-0 inset-x-0 z-50 bg-black/95 backdrop-blur border-b border-purple-600">
         <div className="max-w-2xl mx-auto px-4 py-2 flex justify-between items-center text-sm">
           <h1 className="font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-            AlphaStream v400
+            AlphaStream v400 — THE IMMORTAL
           </h1>
           <div className="flex items-center gap-3">
             <span className={`px-2 py-0.5 rounded text-xs font-bold ${live ? "bg-red-600" : "bg-emerald-600"}`}>
@@ -70,14 +70,58 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="pt-16 px-4 max-w-2xl mx-auto space-y-4 pb-24">
+      <main className="pt-16 px-4 max-w-2xl mx-auto space-y-4 pb-32">
         {/* Equity */}
         <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 rounded-xl p-5 text-center border border-purple-600">
           <p className="text-3xl font-black">${data.equity.toLocaleString()}</p>
-          <p className={`text-lg font-bold ${data.unrealized >= 0 ? "text-green-400" : "text-red-400"}`}>
+          <p className={`text-xl font-bold ${data.unrealized >= 0 ? "text-green-400" : "text-red-400"}`}>
             {data.unrealized >= 0 ? "+" : ""}${Math.abs(data.unrealized).toLocaleString()}
           </p>
         </div>
+
+        {/* Live Positions */}
+        {data.positionsData.length > 0 && (
+          <div className="bg-gray-900/90 rounded-xl p-4 border border-cyan-600">
+            <h3 className="text-sm font-bold text-cyan-400 mb-3 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" /> LIVE POSITIONS ({data.positionsData.length})
+            </h3>
+            <div className="space-y-2">
+              {data.positionsData.map((p: any, i: number) => {
+                const pnlPct = ((p.current - p.entry) / p.entry) * 100;
+                const isProfit = pnlPct >= 0;
+                const minutesHeld = Math.floor((Date.now() - p.entryTime) / 60000);
+
+                return (
+                  <div key={i} className="bg-black/50 rounded-lg p-3 border border-gray-700">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-bold text-lg">{p.symbol}</div>
+                        <div className="text-xs text-gray-400">×{p.qty} @ ${p.entry.toFixed(2)}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-lg font-black ${isProfit ? "text-green-400" : "text-red-400"}`}>
+                          {isProfit ? "+" : ""}{pnlPct.toFixed(2)}%
+                        </div>
+                        <div className="text-xs text-gray-400">Now ${p.current.toFixed(2)}</div>
+                      </div>
+                    </div>
+                    <div className="flex justify-between text-xs mt-2 text-gray-500">
+                      <span>TP ${p.tp.toFixed(2)}</span>
+                      <span>SL ${p.sl.toFixed(2)}</span>
+                      <span>{minutesHeld}m held</span>
+                    </div>
+                    <div className="mt-2 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className={`h-full transition-all ${isProfit ? "bg-green-500" : "bg-red-500"}`}
+                        style={{ width: `${Math.min(100, Math.abs(pnlPct) * 5)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-4 gap-3 text-center">
