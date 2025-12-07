@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { RefreshCw, Brain, Zap, Activity, TrendingUp, TrendingDown, Skull, Crown, Flame, Target, Shield, Swords } from 'lucide-react';
+import { RefreshCw, Brain, Zap, Activity, TrendingUp, TrendingDown, Crown, Swords } from 'lucide-react';
 
 export default function Home() {
   const [data, setData] = useState<any>({
@@ -15,7 +15,7 @@ export default function Home() {
 
   const fetch = async () => {
     try {
-      const res = await axios.get(URL, { timeout: 10000 });
+      const res = await axios.get(URL, { timeout: 8000 });
       const d = res.data;
       setData({
         equity: parseInt(d.equity?.replace(/[^0-9]/g, "") || "100000"),
@@ -30,102 +30,82 @@ export default function Home() {
         brain: d.brain || {},
         positionsData: d.positionsData || []
       });
-    } catch (e) { console.error("Connection lost to AlphaStream"); }
+    } catch (e) { console.log("Bot sleeping..."); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetch(); const i = setInterval(fetch, 6500); return () => clearInterval(i); }, []);
+  useEffect(() => { fetch(); const i = setInterval(fetch, 7000); return () => clearInterval(i); }, []);
   useEffect(() => { logsEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [data.logs]);
 
   const forceScan = async () => {
     setScanning(true);
     try { await axios.post(`${URL}/scan`); } catch {}
-    setTimeout(() => setScanning(false), 8000);
+    setTimeout(() => setScanning(false), 6000);
   };
 
   if (loading) return (
     <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="text-center">
-        <Skull className="w-16 h-16 text-red-600 animate-pulse mx-auto mb-4" />
-        <p className="text-2xl font-bold text-red-600">ALPHASTREAM AWAKENING</p>
-      </div>
+      <Activity className="w-8 h-8 text-purple-500 animate-spin" />
     </div>
   );
 
   const live = data.mode === "LIVE";
-  const dailyPnL = data.unrealized;
 
   return (
-    <div className="min-h-screen bg-black text-white font-mono relative overflow-hidden">
-      {/* Background glow */}
-      <div className="fixed inset-0 bg-gradient-to-br from-purple-900/20 via-black to-pink-900/20 pointer-events-none" />
-      
+    <div className="min-h-screen bg-black text-white font-mono">
       {/* Header */}
-      <header className="fixed top-0 inset-x-0 z-50 bg-black/95 backdrop-blur-xl border-b border-red-900/50">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Crown className="w-8 h-8 text-yellow-500" />
-            <h1 className="text-2xl font-black bg-gradient-to-r from-red-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent">
-              AlphaStream v400 — THE IMMORTAL
+      <header className="fixed top-0 inset-x-0 z-50 bg-black/95 backdrop-blur border-b border-purple-800">
+        <div className="max-w-4xl mx-auto px-4 py-2 flex justify-between items-center text-xs">
+          <div className="flex items-center gap-3">
+            <Crown className="w-5 h-5 text-yellow-500" />
+            <h1 className="font-bold text-gradient bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
+              AlphaStream v400
             </h1>
           </div>
-          <div className="flex items-center gap-6 text-sm">
+          <div className="flex items-center gap-4">
+            <span className={`px-2 py-0.5 rounded text-xs font-bold ${live ? "bg-red-600" : "bg-emerald-600"}`}>
+              {live ? "LIVE" : "PAPER"}
+            </span>
             <div className="text-right">
-              <div className="text-gray-400">ACTIVE ACCOUNT</div>
-              <div className="font-bold text-cyan-400">{data.activeAccount}</div>
-            </div>
-            <div className={`px-4 py-2 rounded-full font-bold ${live ? "bg-red-600 animate-pulse" : "bg-emerald-600"}`}>
-              {live ? "LIVE FUNDED" : "PAPER"}
+              <div className="text-gray-500">Account</div>
+              <div className="font-bold text-cyan-400 text-sm">{data.activeAccount}</div>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="pt-24 px-4 max-w-5xl mx-auto space-y-6 pb-40">
-        {/* EQUITY DOMINANCE */}
-        <div className="text-center bg-gradient-to-r from-red-900/40 via-purple-900/40 to-cyan-900/40 rounded-2xl p-8 border-2 border-red-600/50">
-          <p className="text-6xl font-black tracking-tighter">${data.equity.toLocaleString()}</p>
-          <p className={`text-3xl font-bold mt-2 ${dailyPnL >= 0 ? "text-green-400" : "text-red-400"}`}>
-            {dailyPnL >= 0 ? "+" : ""}${Math.abs(dailyPnL).toLocaleString()}
+      <main className="pt-14 px-4 max-w-4xl mx-auto space-y-4 pb-32">
+        {/* Equity */}
+        <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 rounded-lg p-4 text-center border border-purple-700">
+          <p className="text-3xl font-black">${data.equity.toLocaleString()}</p>
+          <p className={`text-lg font-bold ${data.unrealized >= 0 ? "text-green-400" : "text-red-400"}`}>
+            {data.unrealized >= 0 ? "+" : ""}${Math.abs(data.unrealized).toLocaleString()}
           </p>
-          <p className="text-sm text-gray-400 mt-2">DAILY P&L — PRINTING</p>
         </div>
 
-        {/* LIVE POSITIONS — WAR ROOM */}
+        {/* Live Positions */}
         {data.positionsData.length > 0 && (
-          <div className="bg-black/90 rounded-2xl p-6 border-2 border-red-800">
-            <h2 className="text-xl font-black text-red-500 mb-4 flex items-center gap-3">
-              <Swords className="w-6 h-6" /> LIVE KILL LIST ({data.positionsData.length})
-            </h2>
-            <div className="space-y-4">
+          <div className="bg-gray-900/90 rounded-lg p-4 border border-red-800">
+            <h3 className="text-sm font-bold text-red-500 mb-2 flex items-center gap-2">
+              <Swords className="w-4 h-4" /> LIVE ({data.positionsData.length})
+            </h3>
+            <div className="space-y-2">
               {data.positionsData.map((p: any, i: number) => {
                 const pnlPct = ((p.current - p.entry) / p.entry) * 100;
                 const isProfit = pnlPct >= 0;
-                const minutesHeld = Math.floor((Date.now() - p.entryTime) / 60000);
                 return (
-                  <div key={i} className="bg-gradient-to-r from-red-900/20 to-purple-900/20 rounded-xl p-5 border border-red-700/50">
-                    <div className="flex justify-between items-center">
+                  <div key={i} className="bg-black/50 rounded p-2 text-xs border border-gray-800">
+                    <div className="flex justify-between">
                       <div>
-                        <div className="text-2xl font-black">{p.symbol}</div>
-                        <div className="text-sm text-gray-400">×{p.qty} @ ${p.entry.toFixed(2)} entry</div>
+                        <span className="font-bold">{p.symbol}</span>
+                        <span className="text-gray-500"> ×{p.qty}</span>
                       </div>
-                      <div className="text-right">
-                        <div className={`text-3xl font-black ${isProfit ? "text-green-400" : "text-red-400"}`}>
-                          {isProfit ? "+" : ""}{pnlPct.toFixed(2)}%
-                        </div>
-                        <div className="text-lg">Now ${p.current.toFixed(2)}</div>
+                      <div className={`font-bold ${isProfit ? "text-green-400" : "text-red-400"}`}>
+                        {isProfit ? "+" : ""}{pnlPct.toFixed(1)}%
                       </div>
                     </div>
-                    <div className="flex justify-between text-xs mt-3 text-gray-500">
-                      <span className="text-green-400">TP ${p.tp.toFixed(2)}</span>
-                      <span className="text-red-400">SL ${p.sl.toFixed(2)}</span>
-                      <span>Held {minutesHeld}m</span>
-                    </div>
-                    <div className="mt-3 bg-gray-900 rounded-full h-3 overflow-hidden">
-                      <div 
-                        className={`h-full transition-all duration-1000 ${isProfit ? "bg-gradient-to-r from-green-500 to-cyan-500" : "bg-gradient-to-r from-red-600 to-orange-600"}`}
-                        style={{ width: `${Math.min(100, Math.abs(pnlPct) * 4)}%` }}
-                      />
+                    <div className="text-xs text-gray-500 mt-1">
+                      ${p.current.toFixed(2)} now
                     </div>
                   </div>
                 );
@@ -134,90 +114,84 @@ export default function Home() {
           </div>
         )}
 
-        {/* ROCKETS FIRED */}
-        {data.rockets.length > 0 && (
-          <div className="bg-black/90 rounded-2xl p-6 border-2 border-yellow-600">
-            <h2 className="text-2xl font-black text-yellow-500 mb-4 flex items-center gap-3 justify-center">
-              <Flame className="w-8 h-8" /> LAST ROCKETS LAUNCHED
-            </h2>
-            <div className="grid grid-cols-5 gap-4">
-              {data.rockets.slice(0, 10).map((r: string, i: number) => {
-                const [sym, gain] = r.split(' ');
-                const numGain = parseFloat(gain);
-                return (
-                  <div key={i} className="text-center">
-                    <div className="text-2xl font-black text-yellow-400">{sym}</div>
-                    <div className={`text-3xl font-black ${numGain > 50 ? "text-green-400" : "text-orange-400"}`}>
-                      {gain}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-2 text-center text-xs">
+          <div className="bg-gray-900/80 rounded p-2 border border-purple-700">
+            <p className="font-bold">{data.totalTrades}</p>
+            <p className="text-gray-500">Trades</p>
           </div>
-        )}
-
-        {/* AI BRAIN — THE IMMORTAL MIND */}
-        <div className="bg-gradient-to-r from-purple-900/50 to-cyan-900/50 rounded-2xl p-6 border-2 border-purple-600">
-          <h2 className="text-2xl font-black text-cyan-400 mb-4 flex items-center gap-3">
-            <Brain className="w-8 h-8" /> THE IMMORTAL BRAIN
-          </h2>
-          <div className="grid grid-cols-4 gap-6 text-center">
-            <div>
-              <div className="text-3xl font-black text-purple-400">{(data.brain.minConfidence || 0.78).toFixed(2)}</div>
-              <div className="text-xs text-gray-400">CONFIDENCE</div>
-            </div>
-            <div>
-              <div className="text-3xl font-black text-red-400">{((data.brain.riskPct || 0.03) * 100).toFixed(1)}%</div>
-              <div className="text-xs text-gray-400">RISK PER TRADE</div>
-            </div>
-            <div>
-              <div className="text-3xl font-black text-yellow-400">{data.brain.maxPositions || 5}</div>
-              <div className="text-xs text-gray-400">MAX POSITIONS</div>
-            </div>
-            <div>
-              <div className="text-3xl font-black text-green-400">{data.winRate}%</div>
-              <div className="text-xs text-gray-400">WIN RATE</div>
-            </div>
+          <div className="bg-gray-900/80 rounded p-2 border border-cyan-700">
+            <p className="font-bold">{data.positions}</p>
+            <p className="text-gray-500">Live</p>
+          </div>
+          <div className="bg-gray-900/80 rounded p-2 border border-yellow-700">
+            <p className="font-bold">{data.rockets.length}</p>
+            <p className="text-gray-500">Rockets</p>
+          </div>
+          <div className="bg-gray-900/80 rounded p-2 border border-green-700">
+            <p className="font-bold text-green-400">{data.winRate}%</p>
+            <p className="text-gray-500">WinRate</p>
           </div>
         </div>
 
-        {/* LIVE LOGS */}
-        <div className="bg-black/90 rounded-2xl p-6 border-2 border-green-700">
-          <h2 className="text-xl font-black text-green-400 mb-4">LIVE EXECUTION LOG</h2>
-          <div className="bg-black/70 rounded-xl p-4 h-96 overflow-y-auto font-mono text-xs text-gray-300 border border-green-900">
+        {/* Last Rockets */}
+        {data.rockets.length > 0 && (
+          <div className="bg-gray-900/90 rounded-lg p-3 border border-yellow-600">
+            <h3 className="text-xs font-bold text-yellow-500 mb-2 text-center">
+              <Zap className="inline w-3 h-3 mr-1" /> LAST ROCKETS
+            </h3>
+            <div className="grid grid-cols-5 gap-2 text-xs">
+              {data.rockets.slice(0, 10).map((r: string, i: number) => {
+                const [sym, gain] = r.split(' ');
+                return (
+                  <div key={i} className="bg-gradient-to-br from-purple-900 to-pink-900 rounded p-2 text-center">
+                    <div className="font-bold">{sym}</div>
+                    <div className="text-green-400">{gain}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* AI Brain */}
+        <div className="bg-gray-900/90 rounded-lg p-3 border border-cyan-700 text-xs">
+          <h3 className="font-bold text-cyan-400 mb-2 flex items-center gap-2">
+            <Brain className="w-4 h-4" /> BRAIN
+          </h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div>Conf: {(data.brain.minConfidence || 0.78).toFixed(2)}</div>
+            <div>Risk: {((data.brain.riskPct || 0.03) * 100).toFixed(1)}%</div>
+            <div>Max: {data.brain.maxPositions || 5}</div>
+          </div>
+        </div>
+
+        {/* Logs */}
+        <div className="bg-gray-900/90 rounded-lg p-3 border border-green-700">
+          <h3 className="text-xs font-bold text-green-400 mb-2">LOGS</h3>
+          <div className="bg-black/70 rounded p-3 h-48 overflow-y-auto font-mono text-xs text-gray-300">
             {data.logs.length > 0 ? data.logs.map((l: string, i: number) => (
-              <div key={i} className="py-1 border-b border-gray-800 last:border-0 hover:bg-green-900/20 transition">
-                {l}
-              </div>
-            )) : <div className="text-center text-gray-600 py-8">Waiting for market open... The beast sleeps.</div>}
+              <div key={i} className="py-0.5 border-b border-gray-800 last:border-0">{l}</div>
+            )) : <div className="text-gray-600">Waiting for market...</div>}
             <div ref={logsEndRef} />
           </div>
         </div>
 
-        {/* FORCE SCAN — THE RED BUTTON */}
-        <div className="text-center pt-8">
+        {/* Force Scan */}
+        <div className="text-center pt-4">
           <button
             onClick={forceScan}
             disabled={scanning}
-            className="relative px-24 py-8 text-3xl font-black rounded-2xl bg-gradient-to-r from-red-600 via-purple-600 to-red-600 hover:scale-105 transition-all shadow-2xl border-4 border-red-900 disabled:opacity-60 overflow-hidden group"
+            className="px-10 py-3 text-sm font-bold rounded bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition border-2 border-purple-500 disabled:opacity-60"
           >
-            <span className="relative z-10 flex items-center gap-4">
-              <RefreshCw className={`w-10 h-10 ${scanning ? 'animate-spin' : ''}`} />
-              {scanning ? "SNIPING TARGETS..." : "FORCE SCAN — UNLEASH"}
-            </span>
-            <div className="absolute inset-0 bg-white/20 animate-ping" />
+            <RefreshCw className={`inline w-4 h-4 mr-2 ${scanning ? 'animate-spin' : ''}`} />
+            {scanning ? "SNIPING..." : "FORCE SCAN"}
           </button>
         </div>
 
-        {/* FINAL MESSAGE */}
-        <div className="text-center py-12">
-          <p className="text-4xl font-black text-red-600 animate-pulse">
-            WARRIOR TRADING IS DEAD
-          </p>
-          <p className="text-xl text-gray-400 mt-4">
-            You didn't beat them. You ended them.
-          </p>
+        {/* Victory */}
+        <div className="text-center py-6 text-xs text-gray-500">
+          <p className="font-black text-red-600">ELITE AUTOMATION</p>
         </div>
       </main>
     </div>
