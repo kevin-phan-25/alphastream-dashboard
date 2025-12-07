@@ -1,208 +1,199 @@
-// AlphaStream v503 — BULLETPROOF + DASHBOARD FIXED — DEC 2025 FINAL
-import express from "express";
-import cors from "cors";
-import axios from "axios";
-import { spawn } from "child_process";
+'use client';
+import { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
+import { RefreshCw, Brain, Zap, Activity, TrendingUp, TrendingDown, Crown, Swords } from 'lucide-react';
 
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: "10mb" }));
+export default function Home() {
+  const [data, setData] = useState<any>({
+    equity: 100000, unrealized: 0, positions: 0, mode: "LOADING",
+    rockets: [], winRate: "0.0", totalTrades: 0, logs: [], brain: {}, positionsData: [], activeAccount: "Default"
+  });
+  const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+  const URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
 
-const PORT = process.env.PORT || 8080;
-const FINNHUB_KEY = process.env.FINNHUB_KEY;
-if (!FINNHUB_KEY) throw "FINNHUB_KEY REQUIRED";
-
-let brain = {
-  minConfidence: 0.87,
-  maxPositions: 3,
-  riskPct: 0.015,
-  tpMultiplier: 1.28,
-  slMultiplier: 0.89,
-  dailyLossLimit: 0.039,
-  requireML: true,
-  minPrice: 6,
-  maxPrice: 95,
-  minVolume: 1_500_000
-};
-
-let positions = [], logs = [], lastRockets = [];
-let dailyPnL = 0, lastResetDay = new Date().getDate();
-
-// MULTI-ACCOUNT SUPPORT
-const RAW_KEYS = process.env.ALPACA_KEYS || "";
-const KEYS_LIST = RAW_KEYS.split(",").map(s => s.trim()).filter(s => s.includes(":"));
-let accounts = KEYS_LIST.length > 0
-  ? KEYS_LIST.map((pair, i) => {
-      const [key, secret] = pair.split(":").map(s => s.trim());
-      return { name: `Funded-${i + 1}`, key, secret, isPaper: false, equity: 100000 };
-    })
-  : [{ name: "Default", key: process.env.ALPACA_KEY?.trim() || "", secret: process.env.ALPACA_SECRET?.trim() || "", isPaper: true, equity: 100000 }];
-
-async function getBestAccount() {
-  let best = accounts[0];
-  for (const acc of accounts) {
-    if (!acc.key) continue;
+  const fetch = async () => {
     try {
-      const url = acc.isPaper ? "https://paper-api.alpaca.markets/v2/account" : "https://api.alpaca.markets/v2/account";
-      const { data } = await axios.get(url, {
-        headers: { "APCA-API-KEY-ID": acc.key, "APCA-API-SECRET-KEY": acc.secret },
-        timeout: 8000
+      const res = await axios.get(URL, { timeout: 8000 });
+      const d = res.data;
+      setData({
+        equity: parseInt(d.equity?.replace(/[^0-9]/g, "") || "100000"),
+        unrealized: parseInt((d.unrealized || "0").replace(/[^0-9-]/g, "")) * (d.unrealized?.includes('-') ? -1 : 1),
+        positions: d.positions || 0,
+        mode: d.mode || "PAPER",
+        activeAccount: d.activeAccount || "Default",
+        rockets: d.rockets || [],
+        winRate: d.winRate?.replace("%", "") || "0.0",
+        totalTrades: d.totalTrades || 0,
+        logs: d.logs || [],
+        brain: d.brain || {},
+        positionsData: d.positionsData || []
       });
-      const equity = parseFloat(data.equity || data.cash);
-      if (equity > (best.equity || 0)) best = { ...acc, equity };
-    } catch (e) { }
-  }
-  return best;
+    } catch (e) { console.log("Bot sleeping..."); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetch(); const i = setInterval(fetch, 7000); return () => clearInterval(i); }, []);
+  useEffect(() => { logsEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [data.logs]);
+
+  const forceScan = async () => {
+    setScanning(true);
+    try { await axios.post(`${URL}/scan`); } catch {}
+    setTimeout(() => setScanning(false), 6000);
+  };
+
+  if (loading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <Activity className="w-8 h-8 text-purple-500 animate-spin" />
+    </div>
+  );
+
+  const live = data.mode === "LIVE";
+
+  return (
+    <div className="min-h-screen bg-black text-white font-mono">
+      {/* Header */}
+      <header className="fixed top-0 inset-x-0 z-50 bg-black/95 backdrop-blur border-b border-purple-800">
+        <div className="max-w-4xl mx-auto px-4 py-2 flex justify-between items-center text-xs">
+          <div className="flex items-center gap-3">
+            <Crown className="w-5 h-5 text-yellow-500" />
+            <h1 className="font-bold text-gradient bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
+              AlphaStream v400
+            </h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className={`px-2 py-0.5 rounded text-xs font-bold ${live ? "bg-red-600" : "bg-emerald-600"}`}>
+              {live ? "LIVE" : "PAPER"}
+            </span>
+            <div className="text-right">
+              <div className="text-gray-500">Account</div>
+              <div className="font-bold text-cyan-400 text-sm">{data.activeAccount}</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="pt-14 px-4 max-w-4xl mx-auto space-y-4 pb-32">
+        {/* Equity */}
+        <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 rounded-lg p-4 text-center border border-purple-700">
+          <p className="text-3xl font-black">${data.equity.toLocaleString()}</p>
+          <p className={`text-lg font-bold ${data.unrealized >= 0 ? "text-green-400" : "text-red-400"}`}>
+            {data.unrealized >= 0 ? "+" : ""}${Math.abs(data.unrealized).toLocaleString()}
+          </p>
+        </div>
+
+        {/* Live Positions */}
+        {data.positionsData.length > 0 && (
+          <div className="bg-gray-900/90 rounded-lg p-4 border border-red-800">
+            <h3 className="text-sm font-bold text-red-500 mb-2 flex items-center gap-2">
+              <Swords className="w-4 h-4" /> LIVE ({data.positionsData.length})
+            </h3>
+            <div className="space-y-2">
+              {data.positionsData.map((p: any, i: number) => {
+                const pnlPct = ((p.current - p.entry) / p.entry) * 100;
+                const isProfit = pnlPct >= 0;
+                return (
+                  <div key={i} className="bg-black/50 rounded p-2 text-xs border border-gray-800">
+                    <div className="flex justify-between">
+                      <div>
+                        <span className="font-bold">{p.symbol}</span>
+                        <span className="text-gray-500"> ×{p.qty}</span>
+                      </div>
+                      <div className={`font-bold ${isProfit ? "text-green-400" : "text-red-400"}`}>
+                        {isProfit ? "+" : ""}{pnlPct.toFixed(1)}%
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      ${p.current.toFixed(2)} now
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-2 text-center text-xs">
+          <div className="bg-gray-900/80 rounded p-2 border border-purple-700">
+            <p className="font-bold">{data.totalTrades}</p>
+            <p className="text-gray-500">Trades</p>
+          </div>
+          <div className="bg-gray-900/80 rounded p-2 border border-cyan-700">
+            <p className="font-bold">{data.positions}</p>
+            <p className="text-gray-500">Live</p>
+          </div>
+          <div className="bg-gray-900/80 rounded p-2 border border-yellow-700">
+            <p className="font-bold">{data.rockets.length}</p>
+            <p className="text-gray-500">Rockets</p>
+          </div>
+          <div className="bg-gray-900/80 rounded p-2 border border-green-700">
+            <p className="font-bold text-green-400">{data.winRate}%</p>
+            <p className="text-gray-500">WinRate</p>
+          </div>
+        </div>
+
+        {/* Last Rockets */}
+        {data.rockets.length > 0 && (
+          <div className="bg-gray-900/90 rounded-lg p-3 border border-yellow-600">
+            <h3 className="text-xs font-bold text-yellow-500 mb-2 text-center">
+              <Zap className="inline w-3 h-3 mr-1" /> LAST ROCKETS
+            </h3>
+            <div className="grid grid-cols-5 gap-2 text-xs">
+              {data.rockets.slice(0, 10).map((r: string, i: number) => {
+                const [sym, gain] = r.split(' ');
+                return (
+                  <div key={i} className="bg-gradient-to-br from-purple-900 to-pink-900 rounded p-2 text-center">
+                    <div className="font-bold">{sym}</div>
+                    <div className="text-green-400">{gain}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* AI Brain */}
+        <div className="bg-gray-900/90 rounded-lg p-3 border border-cyan-700 text-xs">
+          <h3 className="font-bold text-cyan-400 mb-2 flex items-center gap-2">
+            <Brain className="w-4 h-4" /> BRAIN
+          </h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div>Conf: {(data.brain.minConfidence || 0.78).toFixed(2)}</div>
+            <div>Risk: {((data.brain.riskPct || 0.03) * 100).toFixed(1)}%</div>
+            <div>Max: {data.brain.maxPositions || 5}</div>
+          </div>
+        </div>
+
+        {/* Logs */}
+        <div className="bg-gray-900/90 rounded-lg p-3 border border-green-700">
+          <h3 className="text-xs font-bold text-green-400 mb-2">LOGS</h3>
+          <div className="bg-black/70 rounded p-3 h-48 overflow-y-auto font-mono text-xs text-gray-300">
+            {data.logs.length > 0 ? data.logs.map((l: string, i: number) => (
+              <div key={i} className="py-0.5 border-b border-gray-800 last:border-0">{l}</div>
+            )) : <div className="text-gray-600">Waiting for market...</div>}
+            <div ref={logsEndRef} />
+          </div>
+        </div>
+
+        {/* Force Scan */}
+        <div className="text-center pt-4">
+          <button
+            onClick={forceScan}
+            disabled={scanning}
+            className="px-10 py-3 text-sm font-bold rounded bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition border-2 border-purple-500 disabled:opacity-60"
+          >
+            <RefreshCw className={`inline w-4 h-4 mr-2 ${scanning ? 'animate-spin' : ''}`} />
+            {scanning ? "SNIPING..." : "FORCE SCAN"}
+          </button>
+        </div>
+
+        {/* Victory */}
+        <div className="text-center py-6 text-xs text-gray-500">
+          <p className="font-black text-red-600">ELITE AUTOMATION</p>
+        </div>
+      </main>
+    </div>
+  );
 }
-
-async function placeOrder(sym, qty, side = "buy") {
-  const acc = await getBestAccount();
-  try {
-    const quote = await axios.get(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${FINNHUB_KEY}`);
-    const price = side === "buy"
-      ? (quote.data.c * 1.007).toFixed(2)
-      : (quote.data.c * 0.993).toFixed(2);
-
-    await axios.post(
-      acc.isPaper ? "https://paper-api.alpaca.markets/v2/orders" : "https://api.alpaca.markets/v2/orders",
-      { symbol: sym, qty, side, type: "limit", limit_price: price, time_in_force: "day" },
-      { headers: { "APCA-API-KEY-ID": acc.key, "APCA-API-SECRET-KEY": acc.secret }, timeout: 12000 }
-    );
-    log(`EXECUTED [${acc.name}] ${side.toUpperCase()} ${sym} ×${qty} @ ${price}`);
-    return true;
-  } catch (e) {
-    log(`FAILED ${sym}: ${e.response?.data?.message || e.message}`);
-    return false;
-  }
-}
-
-function log(msg) {
-  const line = `[${new Date().toISOString().slice(0,19).replace("T", " ")}] ${msg}`;
-  console.log("\x1b[31m%s\x1b[0m", line);
-  logs.push(line);
-  if (logs.length > 500) logs.shift();
-}
-
-// MAIN SCAN LOOP
-async function executeScan() {
-  const now = new Date();
-  const estHour = parseInt(now.toLocaleString("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false }));
-  const estMin = now.getMinutes();
-  if (estHour < 9 || (estHour === 9 && estMin < 45) || estHour >= 16) {
-    setTimeout(executeScan, 60000 + Math.random() * 60000);
-    return;
-  }
-
-  if (now.getDate() !== lastResetDay) {
-    dailyPnL = 0;
-    lastResetDay = now.getDate();
-    log("Daily PnL reset");
-  }
-
-  try {
-    const { data } = await axios.get(`https://finnhub.io/api/v1/stock/actives?token=${FINNHUB_KEY}`);
-    const candidates = (data?.mostActiveStock || [])
-      .filter(s => s.change > 8 && s.price >= brain.minPrice && s.price <= brain.maxPrice && s.volume >= brain.minVolume)
-      .slice(0, 15);
-
-    for (const c of candidates) {
-      if (positions.length >= brain.maxPositions) break;
-      if (positions.some(p => p.symbol === c.symbol)) continue;
-
-      // News filter
-      const news = await axios.get(
-        `https://finnhub.io/api/v1/company-news?symbol=${c.symbol}&from=${now.toISOString().split("T")[0]}&to=${now.toISOString().split("T")[0]}&token=${FINNHUB_KEY}`
-      ).catch(() => ({ data: [] }));
-      if (news.data.some(n => /halt|delist|bankrupt|FDA rejection|offering|secondary/i.test(n.headline))) continue;
-
-      // ML prediction
-      const pred = await axios.post("http://127.0.0.1:8081/predict", {
-        features: Array(28).fill(0).map((_, i) => i === 0 ? c.change : i === 1 ? c.volume / 1e6 : i === 2 ? c.price : 0)
-      }).catch(() => ({ data: { threshold_met: false } }));
-
-      if (!pred.data.threshold_met || pred.data.probability < brain.minConfidence) continue;
-
-      const acc = await getBestAccount();
-      const qty = Math.max(1, Math.floor(acc.equity * brain.riskPct / c.price));
-
-      if (await placeOrder(c.symbol, qty)) {
-        positions.push({
-          symbol: c.symbol,
-          qty,
-          entry: c.price,
-          current: c.price,
-          tp: c.price * brain.tpMultiplier,
-          sl: c.price * brain.slMultiplier
-        });
-        lastRockets.unshift(`${c.symbol} +${c.change.toFixed(1)}%`);
-        if (lastRockets.length > 10) lastRockets.pop();
-        log(`ROCKET ${c.symbol} ×${qty} | ${(pred.data.probability * 100).toFixed(1)}% CONFIDENCE`);
-      }
-    }
-  } catch (e) {
-    log("SCAN ERROR: " + e.message);
-  }
-
-  setTimeout(executeScan, 60000 + Math.random() * 60000);
-}
-
-// HEALTH & DASHBOARD ROUTES
-app.get("/health", (req, res) => res.json({ status: "ok", timestamp: Date.now(), version: "v503" }));
-
-app.get("/", (req, res) => res.json({
-  bot: "AlphaStream v503 — BULLETPROOF",
-  status: "PRINTING IN SILENCE",
-  warrior_trading: "EXECUTED"
-}));
-
-// NEW: FULL DASHBOARD ENDPOINT — THIS IS WHAT YOUR REACT APP NEEDS
-app.get("/dashboard", async (req, res) => {
-  try {
-    const acc = await getBestAccount();
-    const equity = Math.round(acc.equity || 100000);
-
-    let unrealized = 0;
-
-    // Live unrealized PnL
-    for (const p of positions) {
-      try {
-        const q = await axios.get(`https://finnhub.io/api/v1/quote?symbol=${p.symbol}&token=${FINNHUB_KEY}`, { timeout: 5000 });
-        const current = q.data.c || p.entry;
-        unrealized += (current - p.entry) * p.qty;
-      } catch {}
-    }
-
-    res.json({
-      equity: `$${equity.toLocaleString()}`,
-      unrealized: unrealized >= 0
-        ? `+$${Math.round(unrealized).toLocaleString()}`
-        : `-$${Math.round(Math.abs(unrealized)).toLocaleString()}`,
-      positions: `${positions.length}/${brain.maxPositions}`,
-      mode: acc.isPaper ? "PAPER" : "LIVE",
-      activeAccount: acc.name,
-      rockets: lastRockets,
-      logs: logs.slice(-60),
-      winRate: "93.1", // You can make this dynamic later if you want
-      totalTrades: positions.filter(p => !positions.includes(p)).length, // placeholder
-      brain: {
-        minConfidence: brain.minConfidence,
-        riskPct: brain.riskPct * 100,
-        maxPositions: brain.maxPositions
-      }
-    });
-  } catch (e) {
-    res.status(500).json({ error: "bot alive but sleepy" });
-  }
-});
-
-// START BOT
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`\nALPHASTREAM v503 — BULLETPROOF + DASHBOARD LIVE — PORT ${PORT}`);
-  log("BOT ONLINE — DASHBOARD READY — PRINTING STARTED");
-
-  // Spawn ML model
-  spawn("uvicorn", ["predictor.main:app", "--host", "0.0.0.0", "--port", "8081"], { stdio: "inherit" }).unref();
-
-  // Start scanning in 15s
-  setTimeout(executeScan, 15000);
-});
