@@ -1,4 +1,4 @@
-// AlphaStream v506 — FINAL — EASTERN TIME LOGS + FULL DASHBOARD DATA
+// AlphaStream v506 — FINAL — EASTERN TIME LOGS + FULL DASHBOARD
 import express from "express";
 import cors from "cors";
 import axios from "axios";
@@ -20,7 +20,7 @@ let brain = {
   slMultiplier: 0.89,
   dailyLossLimit: 0.039,
   requireML: true,
-  minPrice: 1,
+  minPrice: 6,
   maxPrice: 95,
   minVolume: 1_500_000
 };
@@ -130,15 +130,14 @@ async function executeScan() {
         log(`ROCKET ${c.symbol} ×${qty} | ${(pred.data.probability*100).toFixed(1)}% CONFIDENCE`);
       }
     }
-  }
-  } catch (e) { 
-    log("SCAN ERROR: " + e.message); 
+  } catch (e) {
+    log("SCAN ERROR: " + e.message);
   }
 
   setTimeout(executeScan, 60000 + Math.random() * 60000);
 }
 
-// FULL DASHBOARD ENDPOINT — REAL DATA
+// FULL DASHBOARD ENDPOINT
 app.get("/", async (req, res) => {
   try {
     const acc = await getBestAccount();
@@ -161,7 +160,7 @@ app.get("/", async (req, res) => {
       positionsData: positions
     });
   } catch (e) {
-    res.json({ equity: "$0", unrealized: "+$0", mode: "WARMING UP", logs: ["Initializing..."] });
+    res.json({ equity: "$0", unrealized: "+$0", mode: "WARMING", logs: ["Starting..."] });
   }
 });
 
