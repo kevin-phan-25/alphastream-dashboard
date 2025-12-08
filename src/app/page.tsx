@@ -1,4 +1,4 @@
-// page.tsx — AlphaStream v2000 Dashboard
+// page.tsx — AlphaStream v3000 Dashboard
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
@@ -17,7 +17,7 @@ export default function Home() {
       const res = await axios.get(BOT_URL);
       setData(res.data);
     } catch (e) {
-      console.log("AlphaStream v2000 connecting...");
+      console.log("AlphaStream v3000 connecting...");
     } finally {
       setLoading(false);
     }
@@ -55,7 +55,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-4 py-2 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Brain className="w-6 h-6 text-purple-400 animate-pulse" />
-            <h1 className="text-base font-black text-purple-400">AlphaStream v2000</h1>
+            <h1 className="text-base font-black text-purple-400">AlphaStream v3000</h1>
           </div>
           <div className="flex items-center gap-4">
             <span className={`px-4 py-1.5 rounded-full text-xs font-black ${isLive ? "bg-red-600 animate-pulse" : "bg-emerald-600"}`}>
@@ -121,7 +121,7 @@ export default function Home() {
 
         <div className="text-center py-12">
           <p className="text-3xl font-black text-cyan-400 animate-pulse">
-            ALPHASTREAM v2000 — FINAL — PRINTING
+            ALPHASTREAM v3000 — FINAL — PRINTING
           </p>
         </div>
       </main>
