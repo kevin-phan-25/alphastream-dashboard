@@ -1,118 +1,181 @@
-'use client';
-import { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
-import { RefreshCw, Activity, Crown } from 'lucide-react';
+// AlphaStream v506 — FINAL — EASTERN TIME LOGS + FULL DASHBOARD DATA
+import express from "express";
+import cors from "cors";
+import axios from "axios";
+import { spawn } from "child_process";
 
-export default function Home() {
-  const [data, setData] = useState<any>({});
-  const [loading, setLoading] = useState(true);
-  const [scanning, setScanning] = useState(false);
-  const logsEndRef = useRef<HTMLDivElement>(null);
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: "10mb" }));
 
-  // THIS IS YOUR BOT — ROOT URL RETURNS FULL DATA
-  const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
+const PORT = process.env.PORT || 8080;
+const FINNHUB_KEY = process.env.FINNHUB_KEY;
+if (!FINNHUB_KEY) throw "FINNHUB_KEY REQUIRED";
 
-  const fetch = async () => {
+let brain = {
+  minConfidence: 0.87,
+  maxPositions: 3,
+  ,
+  riskPct: 0.015,
+  tpMultiplier: 1.28,
+  slMultiplier: 0.89,
+  dailyLossLimit: 0.039,
+  requireML: true,
+  minPrice: 1,
+  maxPrice: 95,
+  minVolume: 1_500_000
+};
+
+let positions = [];
+let logs = [];
+let lastRockets = [];
+let trades = [];
+let accountEquity = 100000;
+let dailyPnL = 0;
+let lastResetDay = new Date().getDate();
+
+// MULTI-ACCOUNT
+const RAW_KEYS = process.env.ALPACA_KEYS || "";
+const KEYS_LIST = RAW_KEYS.split(",").map(s => s.trim()).filter(s => s.includes(":"));
+let accounts = KEYS_LIST.length > 0
+  ? KEYS_LIST.map((pair, i) => {
+      const [key, secret] = pair.split(":").map(s => s.trim());
+      return { name: `Funded-${i + 1}`, key, secret, isPaper: false, equity: 100000 };
+    })
+  : [{ name: "Default", key: process.env.ALPACA_KEY?.trim() || "", secret: process.env.ALPACA_SECRET?.trim() || "", isPaper: true, equity: 100000 }];
+
+async function getBestAccount() {
+  let best = accounts[0];
+  for (const acc of accounts) {
+    if (!acc.key) continue;
     try {
-      const res = await axios.get(BOT_URL);
-      setData(res.data);
-    } catch (e) {
-      console.log("Connecting...");
-    } finally {
-      setLoading(false);
+      const url = acc.isPaper ? "https://paper-api.alpaca.markets/v2/account" : "https://api.alpaca.markets/v2/account";
+      const { data } = await axios.get(url, { 
+        headers: { "APCA-API-KEY-ID": acc.key, "APCA-API-SECRET-KEY": acc.secret }, 
+        timeout: 8000 
+      });
+      const equity = parseFloat(data.equity || data.cash || 100000);
+      if (equity > (best.equity || 0)) {
+        best = { ...acc, equity };
+        accountEquity = equity;
+      }
+    } catch (e) {}
+  }
+  return best;
+}
+
+async function placeOrder(sym, qty, side = "buy") {
+  const acc = await getBestAccount();
+  try {
+    const quote = await axios.get(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${FINNHUB_KEY}`);
+    const price = side === "buy" ? (quote.data.c * 1.007).toFixed(2) : (quote.data.c * 0.993).toFixed(2);
+    await axios.post(acc.isPaper ? "https://paper-api.alpaca.markets/v2/orders" : "https://api.alpaca.markets/v2/orders", {
+      symbol: sym, qty, side, type: "limit", limit_price: price, time_in_force: "day"
+    }, { headers: { "APCA-API-KEY-ID": acc.key, "APCA-API-SECRET-KEY": acc.secret } });
+    log(`EXECUTED [${acc.name}] ${side.toUpperCase()} ${sym} ×${qty} @ ${price}`);
+    return true;
+  } catch (e) {
+    log(`FAILED ${sym}: ${e.response?.data?.message || e.message}`);
+    return false;
+  }
+}
+
+// EASTERN TIME LOGS — AUTO EDT/EST
+function log(msg) {
+  const eastern = new Date().toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).replace(/\//g, "-");
+
+  const line = `[${eastern}] ${msg}`;
+  console.log("\x1b[32m%s\x1b[0m", line);
+  logs.push(line);
+  if (logs.length > 500) logs.shift();
+}
+
+async function executeScan() {
+  log("SCAN STARTED");
+  const estHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false }));
+  const estMin = new Date().getMinutes();
+  if (estHour < 9 || (estHour === 9 && estMin < 45) || estHour >= 16) return;
+
+  try {
+    const { data } = await axios.get(`https://finnhub.io/api/v1/stock/actives?token=${FINNHUB_KEY}`);
+    const candidates = (data?.mostActiveStock || [])
+      .filter(s => s.change > 8 && s.price >= brain.minPrice && s.price <= brain.maxPrice && s.volume >= brain.minVolume)
+      .slice(0, 15);
+
+    for (const c of candidates) {
+      if (positions.length >= brain.maxPositions) break;
+      if (positions.some(p => p.symbol === c.symbol)) continue;
+
+      const news = await axios.get(`https://finnhub.io/api/v1/company-news?symbol=${c.symbol}&from=${new Date().toISOString().split("T")[0]}&to=${new Date().toISOString().split("T")[0]}&token=${FINNHUB_KEY}`).catch(() => ({data:[]}));
+      if (news.data.some(n => /halt|delist|bankrupt|FDA rejection|offering/i.test(n.headline))) continue;
+
+      const pred = await axios.post("http://127.0.0.1:8081/predict", {
+        features: Array(28).fill(0).map((_, i) => i === 0 ? c.change : i === 1 ? c.volume/1e6 : i === 2 ? c.price : 0)
+      }).catch(() => ({data: {threshold_met: false}}));
+
+      if (!pred.data.threshold_met || pred.data.probability < brain.minConfidence) continue;
+
+      const qty = Math.max(1, Math.floor(accountEquity * brain.riskPct / c.price));
+      if (await placeOrder(c.symbol, qty)) {
+        positions.push({ symbol: c.symbol, qty, entry: c.price, current: c.price, tp: c.price * brain.tpMultiplier, sl: c.price * brain.slMultiplier });
+        lastRockets.unshift(`${c.symbol} +${c.change.toFixed(1)}%`);
+        log(`ROCKET ${c.symbol} ×${qty} | ${(pred.data.probability*100).toFixed(1)}% CONFIDENCE`);
+      }
     }
-  };
-
-  useEffect(() => {
-    fetch();
-    const i = setInterval(fetch, 7000);
-    return () => clearInterval(i);
-  }, []);
-
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [data.logs]);
-
-  const scan = async () => {
-    setScanning(true);
-    await axios.post(`${BOT_URL}/scan`).catch(() => {});
-    setTimeout(() => setScanning(false), 4000);
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <Activity className="w-12 h-12 text-purple-500 animate-spin" />
-      </div>
-    );
+  }
+  } catch (e) { 
+    log("SCAN ERROR: " + e.message); 
   }
 
-  const isLive = data.mode === "LIVE";
-
-  return (
-    <div className="min-h-screen bg-black text-white font-mono text-sm">
-      <header className="fixed top-0 inset-x-0 bg-black/95 border-b border-purple-800 px-4 py-2 flex justify-between">
-        <div className="flex items-center gap-2">
-          <Crown className="w-5 h-5 text-yellow-500" />
-          <h1 className="font-bold text-purple-400">AlphaStream v505</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className={`px-3 py-1 rounded text-xs font-bold ${isLive ? "bg-red-600" : "bg-emerald-600"}`}>
-            {isLive ? "LIVE" : "PAPER"}
-          </span>
-          <span className="text-cyan-400 text-xs">{data.activeAccount || "Unknown"}</span>
-        </div>
-      </header>
-
-      <main className="pt-14 px-4 max-w-xl mx-auto space-y-4 pb-24">
-        <div className="bg-gradient-to-r from-purple-900/40 to-pink-900/40 rounded-xl p-6 text-center border border-purple-700">
-          <div className="text-4xl font-black">{data.equity || "$0"}</div>
-          <div className={`text-2xl font-bold mt-2 ${data.unrealized?.includes('+') ? "text-green-400" : "text-red-400"}`}>
-            {data.unrealized || "+$0"}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-4 gap-3 text-center">
-          <div className="bg-gray-900/80 rounded-lg p-3 border border-purple-700">
-            <div className="text-xl font-bold text-purple-400">{data.positions || 0}/3</div>
-            <div className="text-xs text-gray-500">Pos</div>
-          </div>
-          <div className="bg-gray-900/80 rounded-lg p-3 border border-cyan-700">
-            <div className="text-xl font-bold text-cyan-400">{data.rockets?.length || 0}</div>
-            <div className="text-xs text-gray-500">Rockets</div>
-          </div>
-          <div className="bg-gray-900/80 rounded-lg p-3 border border-yellow-700">
-            <div className="text-xl font-bold text-yellow-400">{data.winRate || "0.0"}%</div>
-            <div className="text-xs text-gray-500">Win</div>
-          </div>
-          <div className="bg-gray-900/80 rounded-lg p-3 border border-green-700">
-            <div className="text-xl font-bold text-green-400">1:2.8</div>
-            <div className="text-xs text-gray-500">RR</div>
-          </div>
-        </div>
-
-        <div className="bg-black/90 rounded-xl p-4 border border-green-700">
-          <h3 className="text-green-400 font-bold text-sm mb-2">LOGS</h3>
-          <div className="bg-black/70 rounded p-3 h-64 overflow-y-auto text-xs font-mono text-gray-300">
-            {data.logs?.length > 0 ? data.logs.map((l: string, i: number) => (
-              <div key={i} className="py-0.5 border-b border-gray-800 last:border-0">{l}</div>
-            )) : <div className="text-gray-600">Waiting for signal...</div>}
-            <div ref={logsEndRef} />
-          </div>
-        </div>
-
-        <div className="text-center pt-4">
-  <button onClick={scan} disabled={scanning}
-            className="px-12 py-4 text-lg font-bold rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition disabled:opacity-50">
-            <RefreshCw className={`inline w-5 h-5 mr-2 ${scanning ? 'animate-spin' : ''}`} />
-            {scanning ? "SCANNING" : "FORCE SCAN"}
-          </button>
-        </div>
-
-        <div className="text-center py-6 text-cyan-400 text-xs">
-          ELITE PRINTING ACTIVE
-        </div>
-      </main>
-    </div>
-  );
+  setTimeout(executeScan, 60000 + Math.random() * 60000);
 }
+
+// FULL DASHBOARD ENDPOINT — REAL DATA
+app.get("/", async (req, res) => {
+  try {
+    const acc = await getBestAccount();
+    const unreal = positions.reduce((sum, p) => sum + (p.current - p.entry) * p.qty, 0);
+    const winRate = trades.length > 0 
+      ? ((trades.filter(t => t.pnl > 0).length / trades.length) * 100).toFixed(1)
+      : "0.0";
+
+    res.json({
+      equity: `$${Math.round(accountEquity).toLocaleString()}`,
+      unrealized: unreal >= 0 ? `+$${Math.round(unreal).toLocaleString()}` : `-$${Math.round(Math.abs(unreal)).toLocaleString()}`,
+      positions: positions.length,
+      mode: acc.isPaper ? "PAPER" : "LIVE",
+      activeAccount: acc.name,
+      rockets: lastRockets,
+      logs: logs.slice(-70),
+      winRate: `${winRate}%`,
+      totalTrades: trades.length,
+      brain: brain,
+      positionsData: positions
+    });
+  } catch (e) {
+    res.json({ equity: "$0", unrealized: "+$0", mode: "WARMING UP", logs: ["Initializing..."] });
+  }
+});
+
+app.get("/health", (req, res) => res.json({ status: "ok" }));
+app.post("/scan", async (req, res) => { 
+  log("FORCE SCAN FROM DASHBOARD");
+  await executeScan(); 
+  res.json({ ok: true }); 
+});
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`\nALPHASTREAM v506 — FINAL — LIVE ON ${PORT}`);
+  log("EASTERN TIME LOGS ENABLED — DASHBOARD CONNECTED");
+  spawn("uvicorn", ["predictor.main:app", "--host", "0.0.0.0", "--port", "8081"], { stdio: "inherit" }).unref();
+  setTimeout(executeScan, 15000);
+});
