@@ -15,7 +15,6 @@ if (!FINNHUB_KEY) throw "FINNHUB_KEY REQUIRED";
 let brain = {
   minConfidence: 0.87,
   maxPositions: 3,
-  ,
   riskPct: 0.015,
   tpMultiplier: 1.28,
   slMultiplier: 0.89,
