@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { RefreshCw, Activity, Crown, TrendingUp, DollarSign, History, Zap } from 'lucide-react';
+import { RefreshCw, Activity, Crown, TrendingUp, DollarSign, History } from 'lucide-react';
 
 export default function Home() {
   const [data, setData] = useState<any>({});
@@ -15,7 +15,7 @@ export default function Home() {
     try {
       const res = await axios.get(BOT_URL);
       setData(res.data);
-    } catch (e) {}
+    } catch {}
     setLoading(false);
   };
 
@@ -52,7 +52,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-4 py-2 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Crown className="w-5 h-5 text-yellow-500" />
-            <h1 className="text-base font-bold text-purple-400">AlphaStream v650</h1>
+            <h1 className="text-base font-bold text-purple-400">AlphaStream v702</h1>
           </div>
           <div className="flex items-center gap-3">
             <span className={`px-3 py-1 rounded text-xs font-bold ${isLive ? "bg-red-600" : "bg-emerald-600"}`}>
@@ -81,7 +81,7 @@ export default function Home() {
             <div className="text-gray-500 text-xs">Pos</div>
           </div>
           <div className="bg-gray-900/80 rounded-lg p-2.5 border border-cyan-700">
-            <Zap className="w-5 h-5 mx-auto text-cyan-400 mb-1" />
+            <DollarSign className="w-5 h-5 mx-auto text-cyan-400 mb-1" />
             <div className="text-base font-bold text-cyan-400">{data.rockets?.length || 0}</div>
             <div className="text-gray-500 text-xs">Rockets</div>
           </div>
@@ -102,7 +102,7 @@ export default function Home() {
 
         {/* POSITIONS */}
         {data.positionsData?.length > 0 && (
-          <div className="bg-gray-900/90 rounded-xl p-2xl p-4 border border-cyan-600">
+          <div className="bg-gray-900/90 rounded-xl p-3 border border-cyan-600">
             <h3 className="text-xs font-bold text-cyan-400 mb-2">POSITIONS</h3>
             {data.positionsData.map((p: any, i: number) => {
               const pnl = ((p.current - p.entry) / p.entry) * 100;
@@ -124,7 +124,6 @@ export default function Home() {
         )}
 
         {/* TRADE HISTORY */}
-        */}
         {data.tradeHistory?.length > 0 && (
           <div className="bg-gray-900/90 rounded-xl p-3 border border-yellow-700">
             <h3 className="text-xs font-bold text-yellow-400 mb-2">HISTORY</h3>
@@ -140,7 +139,6 @@ export default function Home() {
               ))}
             </div>
           </div>
-        </div>
         )}
 
         {/* LOGS */}
