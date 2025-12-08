@@ -9,7 +9,6 @@ export default function Home() {
   const [scanning, setScanning] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  // THIS IS YOUR BOT — ROOT URL RETURNS FULL DATA
   const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
 
   const fetch = async () => {
@@ -17,7 +16,7 @@ export default function Home() {
       const res = await axios.get(BOT_URL);
       setData(res.data);
     } catch (e) {
-      console.log("Connecting...");
+      console.log("Connecting to AlphaStream...");
     } finally {
       setLoading(false);
     }
@@ -54,7 +53,7 @@ export default function Home() {
       <header className="fixed top-0 inset-x-0 bg-black/95 border-b border-purple-800 px-4 py-2 flex justify-between">
         <div className="flex items-center gap-2">
           <Crown className="w-5 h-5 text-yellow-500" />
-          <h1 className="font-bold text-purple-400">AlphaStream v505</h1>
+          <h1 className="font-bold text-purple-400">AlphaStream v506</h1>
         </div>
         <div className="flex items-center gap-3">
           <span className={`px-3 py-1 rounded text-xs font-bold ${isLive ? "bg-red-600" : "bg-emerald-600"}`}>
@@ -102,7 +101,7 @@ export default function Home() {
         </div>
 
         <div className="text-center pt-4">
-  <button onClick={scan} disabled={scanning}
+          <button onClick={scan} disabled={scanning}
             className="px-12 py-4 text-lg font-bold rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:scale-105 transition disabled:opacity-50">
             <RefreshCw className={`inline w-5 h-5 mr-2 ${scanning ? 'animate-spin' : ''}`} />
             {scanning ? "SCANNING" : "FORCE SCAN"}
