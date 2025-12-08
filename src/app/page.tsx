@@ -77,7 +77,7 @@ export default function Home() {
         <div className="grid grid-cols-5 gap-2 text-center">
           <div className="bg-gray-900/80 rounded-lg p-2.5 border border-purple-700">
             <TrendingUp className="w-5 h-5 mx-auto text-purple-400 mb-1" />
-            <div className="text-base font-bold text-purple-400">{data.positions || 0}/3</div>
+            <div className="text-base font-bold text-purple-400">{data.positions || 0}</div>
             <div className="text-gray-500 text-xs">Pos</div>
           </div>
           <div className="bg-gray-900/80 rounded-lg p-2.5 border border-cyan-700">
