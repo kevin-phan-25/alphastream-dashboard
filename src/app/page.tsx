@@ -1,199 +1,118 @@
-// index.js — AlphaStream v10000 — FINAL · FULL ALPACA SYNC · PAPER SAFE
-import express from "express";
-import cors from "cors";
-import axios from "axios";
+// app/page.tsx — AlphaStream v10000 Dashboard (Vercel Safe)
+'use client';
+import { RefreshCw, Activity, Brain, Zap, TrendingUp, Cpu, Trophy, Flame } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: "10mb" }));
+export default function Home() {
+  const [data, setData] = useState<any>({});
+  const [stats, setStats] = useState<any>({});
+  const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
+  const logsEndRef = useRef<HTMLDivElement>(null);
 
-const PORT = process.env.PORT || 8080;
-const FINNHUB_KEY = process.env.FINNHUB_KEY?.trim();
-const ALPACA_KEY = process.env.ALPACA_KEY?.trim() || "";
-const ALPACA_SECRET = process.env.ALPACA_SECRET?.trim() || "";
-const IS_PAPER = process.env.ALPACA_ENV !== "LIVE"; // ← SAFE: paper unless explicitly LIVE
+  // YOUR CLOUD RUN BOT URL — CHANGE THIS
+  const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
 
-if (!FINNHUB_KEY) throw new Error("FINNHUB_KEY REQUIRED");
-
-class Brain {
-  constructor() { this.weights = { bias: 0 }; this.mean = {}; this.std = {}; this.memory = new Map(); }
-  _z(x, k) {
-    if (!(k in this.mean)) { this.mean[k] = x; this.std[k] = 1; return 0; }
-    const old = this.mean[k]; const d = x - old;
-    this.mean[k] += d / ++this.count;
-    this.std[k] += d * (x - this.mean[k]);
-    return (x - this.mean[k]) / (Math.sqrt(this.std[k] / this.count) || 1);
-  }
-  predict(f) {
-    let s = this.weights.bias || 0;
-    for (const k in f) if (typeof f[k] === "number") s += (this.weights[k] || 0) * this._z(f[k], k);
-    const p = 1 / (1 + Math.exp(-Math.max(-80, Math.min(80, s))));
-    return { prob: p, fire: p >= 0.84 };
-  }
-  learn(sym, pnl) {
-    const f = this.memory.get(sym); if (!f) return;
-    const p = this.predict(f).prob; const err = (pnl > 0 ? 1 : 0) - p;
-    this.weights.bias = (this.weights.bias || 0) + 0.07 * err;
-    for (const k in f) if (typeof f[k] === "number") this.weights[k] = (this.weights[k] || 0) + 0.07 * err * this._z(f[k], k);
-    this.memory.delete(sym);
-  }
-  remember(sym, f) { this.memory.set(sym, f); }
-}
-
-const brain = new Brain();
-let positions = [];
-let logs = [];
-let rockets = [];
-let equity = 100000;
-
-const log = (m) => {
-  const t = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
-  const l = `[${t}] ${m}`;
-  console.log("\x1b[32m%s\x1b[0m", l);
-  logs.push(l);
-  if (logs.length > 500) logs.shift();
-};
-
-let universe = [];
-let lastRefresh = 0;
-
-async function refreshUniverse() {
-  if (Date.now() - lastRefresh < 300000) return;
-  log("BUILDING FRESH 600-TICKER UNIVERSE");
-  try {
-    const { data } = await axios.get(`https://finnhub.io/api/v1/stock/symbol?exchange=US&token=${FINNHUB_KEY}`);
-    universe = data
-      .filter(s => s.type === "Common Stock" && /^[A-Z]{1,5}$/.test(s.symbol))
-      .map(s => s.symbol)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 600);
-    lastRefresh = Date.now();
-    log(`UNIVERSE READY — ${universe.length} TICKERS`);
-  } catch (e) {
-    log("UNIVERSE FAILED — RETRYING");
-  }
-}
-
-async function trade(sym, qty, side = "buy") {
-  const base = IS_PAPER 
-    ? "https://paper-api.alpaca.markets/v2" 
-    : "https://api.alpaca.markets/v2";
-
-  try {
-    const { data: q } = await axios.get(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${FINNHUB_KEY}`);
-    if (!q.c) return false;
-
-    const price = side === "buy" ? q.c * 1.01 : q.c * 0.99;
-
-    await axios.post(`${base}/orders`, {
-      symbol: sym,
-      qty: String(qty),
-      side,
-      type: "limit",
-      limit_price: price.toFixed(2),
-      time_in_force: "day",
-      extended_hours: true
-    }, {
-      headers: {
-        "APCA-API-KEY-ID": ALPACA_KEY,
-        "APCA-API-SECRET-KEY": ALPACA_SECRET
-      },
-      timeout: 15000
-    });
-
-    log(`[ALPACA ${IS_PAPER ? "PAPER" : "LIVE"}] ${side.toUpperCase()} ${sym} ×${qty} @ $${price.toFixed(2)}`);
-    if (side === "buy") brain.remember(sym, { gap: (q.c - q.pc) / q.pc, vol: q.v || 0, price: q.c });
-    return true;
-  } catch (e) {
-    log(`ORDER FAILED ${sym}: ${e.response?.data?.message || e.message}`);
-    return false;
-  }
-}
-
-async function scan() {
-  await refreshUniverse();
-  if (universe.length === 0) return;
-
-  log(`SCANNING ${IS_PAPER ? "PAPER" : "LIVE"} SCAN — HUNTING RUNNERS`);
-
-  const batch = universe.slice(0, 40);
-  const results = await Promise.allSettled(
-    batch.map(sym => axios.get(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${FINNHUB_KEY}`, { timeout: 8000 }))
-  );
-
-  for (let i = 0; i < results.length; i++) {
-    const r = results[i];
-    if (r.status !== "fulfilled" || !r.value?.data?.c) continue;
-    const q = r.value.data;
-    const sym = batch[i];
-
-    const gap = q.pc ? ((q.c - q.pc) / q.pc) * 100 : 0;
-    if (gap < 9 || (q.v || 0) < 300000) continue;
-
-    const pred = brain.predict({ gap: gap/100, vol: q.v || 0, price: q.c });
-    log(`RUNNER ${sym} +${gap.toFixed(1)}% | ${(q.v/1e6).toFixed(1)}M vol | AI ${(pred.prob*100).toFixed(1)}%`);
-
-    if (pred.fire && positions.length < 4) {
-      const qty = Math.max(1, Math.floor(equity * 0.019 / q.c));
-      if (await trade(sym, qty)) {
-        positions.push({ sym, qty, entry: q.c * 1.01, tp: q.c * 1.01 * 1.5, highest: q.c * 1.01 });
-        rockets.unshift(`${sym} +${gap.toFixed(1)}%`);
-        log(`AI EXECUTED — ${sym} BOUGHT`);
-      }
-    }
-  }
-}
-
-async function monitor() {
-  for (let i = positions.length - 1; i >= 0; i--) {
-    const p = positions[i];
+  const fetchData = async () => {
     try {
-      const { data: q } = await axios.get(`https://finnhub.io/api/v1/quote?symbol=${p.sym}&token=${FINNHUB_KEY}`);
-      if (!q.c) continue;
-      const pnl = (q.c - p.entry) / p.entry;
-      if (q.c >= p.tp || q.c <= p.entry * 0.81 || (p.highest > p.entry * 1.4 && q.c <= p.highest * 0.81)) {
-        await trade(p.sym, p.qty, "sell");
-        brain.learn(p.sym, pnl);
-        log(`${pnl > 0 ? "WIN" : "LOSS"} ${p.sym} ${(pnl*100).toFixed(2)}%`);
-        positions.splice(i, 1);
-      } else {
-        p.highest = Math.max(p.highest, q.c);
-      }
-    } catch {}
+      const [mainRes, statsRes] = await Promise.all([
+        axios.get(`${BOT_URL}/`).catch(() => ({ data: {} })),
+        axios.get(`${BOT_URL}/stats`).catch(() => ({ data: {} }))
+      ]);
+      setData(mainRes.data);
+      setStats(statsRes.data);
+    } catch (err) {
+      console.error("Fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [data.logs]);
+
+  const forceScan = async () => {
+    setScanning(true);
+    await axios.post(`${BOT_URL}/scan`).catch(() => {});
+    setTimeout(() => setScanning(false), 3000);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Activity className="w-16 h-16 text-cyan-500 animate-spin" />
+      </div>
+    );
   }
+
+  return (
+    <div className="min-h-screen bg-black text-white font-mono">
+      <header className="fixed top-0 inset-x-0 z-50 bg-black/95 border-b border-purple-700 px-6 py-4">
+        <div className="flex justify-between items-center max-w-6xl mx-auto">
+          <div className="flex items-center gap-4">
+            <Brain className="w-8 h-8 text-purple-400 animate-pulse" />
+            <h1 className="text-2xl font-black bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
+              AlphaStream v10000
+            </h1>
+          </div>
+          <span className="px-6 py-2 rounded-full text-sm font-bold bg-emerald-600">
+            PAPER MODE
+          </span>
+        </div>
+      </header>
+
+      <main className="pt-24 px-6 max-w-6xl mx-auto space-y-8">
+        <div className="text-center bg-gradient-to-br from-purple-900/20 to-cyan-900/20 rounded-3xl p-10 border border-purple-700">
+          <div className="text-6xl font-black text-transparent bg-clip bg-gradient-to-r from-cyan-300 to-purple-400">
+            {data.equity || "$100,000"}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-5 gap-6">
+          <div className="bg-gray-900/80 rounded-2xl p-6 border border-purple-700 text-center">
+            <TrendingUp className="w-10 h-10 mx-auto text-purple-400 mb-2" />
+            <div className="text-4xl font-bold">{data.positions?.length || 0}</div>
+            <div className="text-gray-500 text-sm">POS</div>
+          </div>
+          <div className="bg-gray-900/80 rounded-2xl p-6 border border-pink-700 text-center">
+            <Zap className="w-10 h-10 mx-auto text-pink-400 mb-2" />
+            <div className="text-4xl font-bold">{data.rockets?.length || 0}</div>
+            <div className="text-gray-500 text-sm">ROCKETS</div>
+          </div>
+          {/* Add more stat cards as needed */}
+        </div>
+
+        <div className="bg-black/90 rounded-3xl p-8 border-2 border-green-700">
+          <h2 className="text-2xl font-bold text-green-400 text-center mb-6">NEURO LOGS</h2>
+          <div className="bg-black/80 rounded-2xl p-6 h-96 overflow-y-auto font-mono text-sm">
+            {data.logs?.slice(-40).map((log: string, i: number) => (
+              <div key={i} className="py-2 border-b border-gray-800 last:border-0 text-gray-300">
+                {log}
+              </div>
+            ))}
+            <div ref={logsEndRef} />
+          </div>
+        </div>
+
+        <div className="text-center pt-10">
+          <button
+            onClick={forceScan}
+            disabled={scanning}
+            className="px-40 py-8 text-3xl font-black rounded-3xl bg-gradient-to-r from-purple-600 to-cyan-600 hover:scale-105 transition-all disabled:opacity-50 border-4 border-purple-800"
+          >
+            <RefreshCw className={`inline w-12 h-12 mr-6 ${scanning ? 'animate-spin' : ''}`} />
+            {scanning ? "HUNTING..." : "FORCE HUNT"}
+          </button>
+        </div>
+      </main>
+    </div>
+  );
 }
-
-setInterval(async () => {
-  try {
-    await scan();
-    await monitor();
-  } catch (e) {}
-}, 38000);
-
-app.get("/", (req, res) => {
-  res.json({
-    status: "AlphaStream v10000 — LIVE",
-    equity: "$" + Math.round(equity).toLocaleString(),
-    positions: positions.length,
-    rockets: rockets.slice(0, 12),
-    logs: logs.slice(-70),
-    paper: IS_PAPER,
-    version: "FINAL — ALPACA CONNECTED"
-  });
-});
-
-app.get("/stats", (req, res) => {
-  res.json({
-    winRate: "0",
-    profitFactor: "∞",
-    totalTrades: 0
-  });
-});
-
-app.get("/scan", async (req, res) => { await scan(); await monitor(); res.json({ok: true}); });
-
-app.listen(PORT, "0.0.0.0", () => {
-  console.clear();
-  log(`ALPHASTREAM v10000 — ALPACA CONNECTED — ${IS_PAPER ? "PAPER" : "LIVE"} MODE`);
-  setTimeout(scan, 10000);
-});
