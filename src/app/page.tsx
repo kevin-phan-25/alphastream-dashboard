@@ -1,13 +1,14 @@
-// app/page.tsx — AlphaStream v7000 Dashboard (Compact & Deadly)
+// app/page.tsx — v7000 Dashboard (With Error Handling)
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { RefreshCw, Activity, Brain, Zap, TrendingUp, DollarSign, Cpu } from 'lucide-react';
+import { RefreshCw, Activity, Brain, Zap, TrendingUp, DollarSign, Cpu, AlertCircle } from 'lucide-react';
 
 export default function Home() {
   const [data, setData] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
@@ -16,8 +17,10 @@ export default function Home() {
     try {
       const res = await axios.get(BOT_URL);
       setData(res.data);
-    } catch {
-      console.log("Connecting...");
+      setError(null);
+    } catch (e) {
+      console.error("API Error:", e);
+      setError("Backend offline — check Cloud Run");
     } finally {
       setLoading(false);
     }
@@ -35,8 +38,19 @@ export default function Home() {
 
   const forceScan = async () => {
     setScanning(true);
-    await axios.post(`${BOT_URL}/scan`).catch(() => {});
-    setTimeout(() => setScanning(false), 2500);
+    setError(null);
+    try {
+      const res = await axios.post(`${BOT_URL}/scan`);
+      console.log("Scan Response:", res.data); // Debug in console
+      if (res.status === 200) {
+        setError("Scan triggered — check logs in 5s");
+      }
+    } catch (e) {
+      console.error("Scan Error:", e);
+      setError(`Scan failed: ${e.response?.status || 'Network error'}`);
+    } finally {
+      setTimeout(() => setScanning(false), 3000);
+    }
   };
 
   if (loading) {
@@ -58,12 +72,9 @@ export default function Home() {
             <Brain className="w-5 h-5 text-purple-400 animate-pulse" />
             <h1 className="text-sm font-bold text-purple-300">AlphaStream v7000</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <span className={`px-3 py-1 rounded text-xs font-bold ${data.mode === "LIVE" ? "bg-red-600" : "bg-emerald-600"}`}>
-              {data.mode || "PAPER"}
-            </span>
-            <span className="text-cyan-400 text-xs">{data.activeAccount || "Paper"}</span>
-          </div>
+          <span className={`px-3 py-1 rounded text-xs font-bold ${data.mode === "LIVE" ? "bg-red-600" : "bg-emerald-600"}`}>
+            {data.mode || "PAPER"}
+          </span>
         </div>
       </header>
 
@@ -77,7 +88,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* STATS GRID */}
+        {/* STATS */}
         <div className="grid grid-cols-5 gap-3 text-center">
           <div className="bg-gray-900/80 rounded-lg p-3 border border-purple-700">
             <TrendingUp className="w-5 h-5 mx-auto text-purple-400 mb-1" />
@@ -144,6 +155,15 @@ export default function Home() {
           </div>
         </div>
 
+        {/* ERROR BANNER */}
+        {error && (
+          <div className="bg-red-900/80 rounded-xl p-4 border border-red-700 text-center">
+            <AlertCircle className="w-5 h-5 inline text-red-400 mr-2" />
+            <span className="text-red-300">{error}</span>
+            <button onClick={() => window.location.reload()} className="ml-4 text-sm text-cyan-400 underline">Retry</button>
+          </div>
+        )}
+
         {/* FORCE SCAN */}
         <div className="text-center pt-4">
           <button
@@ -159,7 +179,7 @@ export default function Home() {
         {/* STATUS */}
         <div className="text-center py-6">
           <p className="text-lg font-bold text-cyan-400 animate-pulse">
-            v7000 • {ml.tradesLearned} TRADES LEARNED • AI ACTIVE
+            v7000 • {ml.tradesLearned} LEARNED • AI ACTIVE
           </p>
         </div>
       </main>
