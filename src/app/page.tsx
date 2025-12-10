@@ -1,4 +1,4 @@
-// app/page.tsx — AlphaStream v80000 — FINAL FIXED FOR VERCEL
+// app/page.tsx — AlphaStream v80000 — FINAL VERCEL-FIXED DASHBOARD
 'use client';
 import { RefreshCw, Brain, Zap, TrendingUp } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
@@ -41,7 +41,6 @@ export default function Home() {
       console.log("Scan failed");
     }
     setTimeout(() => setScanning(false), 3000);
-  );
   };
 
   if (loading) {
@@ -54,7 +53,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black text-white font-mono text-xs">
-      {/* HEADER */}
       <header className="fixed top-0 inset-x-0 z-50 bg-black/95 border-b border-purple-800 px-4 py-3">
         <div className="flex justify-between items-center max-w-3xl mx-auto">
           <div className="flex items-center gap-2">
