@@ -1,4 +1,4 @@
-// app/page.tsx — AlphaStream v100000 — EST TIME READY
+// app/page.tsx — AlphaStream v100000 — FINAL DASHBOARD
 'use client';
 import { RefreshCw, Brain } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
@@ -14,10 +14,9 @@ export default function Home() {
 
   const fetchData = async () => {
     try {
-      const res = await axios.get(BOT_URL, { timeout: 10000 });
+      const res = await axios.get(BOT_URL);
       setData(res.data);
     } catch {
-      console.log("Bot sleeping or offline");
     } finally {
       setLoading(false);
     }
@@ -25,8 +24,8 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
+    const i = setInterval(fetchData, 10000);
+    return () => clearInterval(i);
   }, []);
 
   useEffect(() => {
@@ -35,21 +34,15 @@ export default function Home() {
 
   const forceScan = async () => {
     setScanning(true);
-    try {
-      await axios.post(`${BOT_URL}/scan`);
-    } catch {
-      console.log("Scan failed");
-    }
+    await axios.post(`${BOT_URL}/scan`).catch(() => {});
     setTimeout(() => setScanning(false), 3000);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <Brain className="w-12 h-12 text-purple-500 animate-pulse" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <Brain className="w-12 h-12 text-purple-500 animate-pulse" />
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-black text-white font-mono text-xs">
@@ -62,18 +55,13 @@ export default function Home() {
             </h1>
           </div>
           <div className="flex gap-3 text-xs">
-            <span className="px-2 py-1 rounded bg-emerald-600 font-bold">
-              {data.mode || "PAPER"}
-            </span>
-            <span className="text-cyan-400">
-              EST {data.lastUpdate || "—"}
-            </span>
+            <span className="px-2 py-1 rounded bg-emerald-600 font-bold">{data.mode || "PAPER"}</span>
+            <span className="text-cyan-400">EST {data.lastUpdate || "—"}</span>
           </div>
         </div>
       </header>
 
       <main className="pt-16 px-4 max-w-3xl mx-auto space-y-4 pb-24">
-        {/* EQUITY */}
         <div className="bg-gradient-to-r from-purple-900/40 to-cyan-900/40 rounded-xl p-5 text-center border border-purple-700">
           <div className="text-3xl font-black">{data.equity || "$100,000"}</div>
           <div className={`text-xl font-bold mt-2 ${data.unrealized?.includes('+') ? "text-green-400" : "text-red-400"}`}>
@@ -81,7 +69,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* POSITIONS */}
         {data.positionsList?.length > 0 && (
           <div className="bg-gray-900/90 rounded-xl p-4 border border-cyan-700">
             {data.positionsList.map((p: any, i: number) => (
@@ -95,20 +82,18 @@ export default function Home() {
           </div>
         )}
 
-        {/* ROCKETS */}
         {data.rockets?.length > 0 && (
           <div className="bg-gradient-to-r from-pink-900/30 to-purple-900/30 rounded-xl p-3 border border-pink-700">
             <div className="grid grid-cols-6 gap-2 text-center text-xs">
-              {data.rockets.slice(0, 12).map((r: string, i: number) => (
+              {data.rockets.map((r: string, i: number) => (
                 <div key={i} className="bg-black/70 rounded p-2 font-bold text-pink-400 border border-pink-600">
-                  {r.split(" ")[0]}
+                  {r}
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* LOGS */}
         <div className="bg-black/90 rounded-xl p-3 border border-green-700">
           <div className="text-xs font-bold text-green-400 text-center mb-1">PPO LOGS</div>
           <div className="bg-black/70 rounded p-2 h-48 overflow-y-auto text-xs font-mono">
@@ -124,7 +109,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* FORCE HUNT */}
         <div className="text-center pt-6">
           <button
             onClick={forceScan}
