@@ -1,4 +1,4 @@
-// app/page.tsx — AlphaStream v80000 — FINAL VERCEL-FIXED DASHBOARD
+// app/page.tsx — AlphaStream v80000 — EST TIME FIXED
 'use client';
 import { RefreshCw, Brain, Zap, TrendingUp } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
@@ -65,7 +65,9 @@ export default function Home() {
             <span className="px-2 py-1 rounded bg-emerald-600 font-bold">
               {data.mode || "PAPER"}
             </span>
-            <span className="text-cyan-400">{data.lastUpdate || "—"}</span>
+            <span className="text-cyan-400">
+              EST {data.lastUpdate || "—"}
+            </span>
           </div>
         </div>
       </header>
