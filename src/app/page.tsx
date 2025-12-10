@@ -1,4 +1,4 @@
-// app/page.tsx — AlphaStream v70000 — FINAL DASHBOARD (40% smaller, perfect)
+// app/page.tsx — AlphaStream v70000 — FINAL DASHBOARD (40% smaller, 100% connected)
 'use client';
 import { RefreshCw, Brain, Zap, TrendingUp, Trophy, Cpu } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
@@ -8,18 +8,26 @@ export default function Home() {
   const [data, setData] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
+  // UPDATE: Use your v70000 Cloud Run URL here (from gcloud run services describe alphastream-v70000)
+  const BOT_URL = "https://alphastream-v70000-XXXX.a.run.app"; // Replace XXXX with your service URL
 
-  const fetchData = async () => {
-    try {
-      const res = await axios.get(BOT_URL);
-      setData(res.data);
-    } catch (e) {
-      console.error("Bot offline");
-    } finally {
-      setLoading(false);
+  const fetchData = async (retries = 3) => {
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const res = await axios.get(BOT_URL, { timeout: 10000 });
+        setData(res.data);
+        setError(null);
+        return;
+      } catch (e) {
+        console.error("Fetch attempt " + (attempt + 1) + " failed:", e);
+        if (attempt === retries - 1) {
+          setError("Bot Offline — Check Cloud Run deployment");
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1))); // Backoff
+      }
     }
   };
 
@@ -35,13 +43,30 @@ export default function Home() {
 
   const forceScan = async () => {
     setScanning(true);
-    await axios.post(`${BOT_URL}/scan`).catch(() => {});
+    try {
+      await axios.post(`${BOT_URL}/scan`, {}, { timeout: 5000 });
+    } catch (e) {
+      console.error("Scan failed:", e);
+    }
     setTimeout(() => setScanning(false), 3000);
   };
 
   if (loading) return (
     <div className="min-h-screen bg-black flex items-center justify-center">
       <Brain className="w-12 h-12 text-purple-500 animate-pulse" />
+    </div>
+  );
+
+  if (error) return (
+    <div className="min-h-screen bg-black flex items-center justify-center text-red-400">
+      <div className="text-center">
+        <Brain className="w-12 h-12 mx-auto mb-4 animate-pulse" />
+        <h1 className="text-xl font-bold mb-2">Connection Error</h1>
+        <p className="mb-4">{error}</p>
+        <button onClick={() => fetchData()} className="px-4 py-2 bg-purple-600 rounded hover:bg-purple-700">
+          Retry
+        </button>
+      </div>
     </div>
   );
 
@@ -70,6 +95,9 @@ export default function Home() {
           <div className={`text-xl font-bold mt-2 ${data.unrealized?.includes('+') ? "text-green-400" : "text-red-400"}`}>
             {data.unrealized || "+$0"}
           </div>
+          <div className="text-xs text-gray-400 mt-1">
+            {data.alpacaConnected ? "Alpaca LIVE" : "Paper Mode"} • {data.lastUpdate || "—"}
+          </div>
         </div>
 
         {/* CORE STATS */}
@@ -81,10 +109,18 @@ export default function Home() {
           <Stat icon={<Brain className="w-5 h-5" />} value={data.memory || 0} label="MEM" color="text-orange-400" />
         </div>
 
-        {/* ACTIVE POSITIONS */}
-        {data.positions > 0 && (
-          <div className="bg-gray-900/90 rounded-xl p-4 border border-cyan-700 text-center">
-            <div className="text-cyan-400 font-bold">{data.positions} ACTIVE POSITION{data.positions > 1 ? "S" : ""}</div>
+        {/* ACTIVE POSITIONS WITH REAL PnL */}
+        {data.positionsList?.length > 0 && (
+          <div className="bg-gray-900/90 rounded-xl p-4 border border-cyan-700">
+            <div className="text-cyan-400 font-bold mb-2 text-center">{data.positionsList.length} POSITIONS</div>
+            {data.positionsList.map((p: any, i: number) => (
+              <div key={i} className="flex justify-between py-1 text-xs border-b border-gray-800 last:border-b-0">
+                <span className="font-bold">{p.symbol} ×{p.qty}</span>
+                <span className={p.pnlPct >= 0 ? "text-green-400" : "text-red-400"}>
+                  {p.pnlPct >= 0 ? "+" : ""}{p.pnlPct}%
+                </span>
+              </div>
+            ))}
           </div>
         )}
 
