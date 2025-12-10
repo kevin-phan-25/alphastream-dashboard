@@ -1,6 +1,6 @@
-// app/page.tsx — AlphaStream v80000 — EST TIME FIXED
+// app/page.tsx — AlphaStream v100000 — EST TIME READY
 'use client';
-import { RefreshCw, Brain, Zap, TrendingUp } from 'lucide-react';
+import { RefreshCw, Brain } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
@@ -16,7 +16,7 @@ export default function Home() {
     try {
       const res = await axios.get(BOT_URL, { timeout: 10000 });
       setData(res.data);
-    } catch (e) {
+    } catch {
       console.log("Bot sleeping or offline");
     } finally {
       setLoading(false);
@@ -37,7 +37,7 @@ export default function Home() {
     setScanning(true);
     try {
       await axios.post(`${BOT_URL}/scan`);
-    } catch (e) {
+    } catch {
       console.log("Scan failed");
     }
     setTimeout(() => setScanning(false), 3000);
@@ -58,7 +58,7 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <Brain className="w-5 h-5 text-purple-400 animate-pulse" />
             <h1 className="text-sm font-black bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-              v80000
+              v100000
             </h1>
           </div>
           <div className="flex gap-3 text-xs">
@@ -137,7 +137,7 @@ export default function Home() {
         </div>
 
         <div className="text-center py-4 text-cyan-400 animate-pulse font-bold text-sm">
-          v80000 • PPO • {data.mode || "PAPER"} • LIVE
+          v100000 • PPO • {data.mode || "PAPER"} • LIVE
         </div>
       </main>
     </div>
