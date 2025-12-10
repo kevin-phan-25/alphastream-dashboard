@@ -1,6 +1,6 @@
-// app/page.tsx — AlphaStream v50000 — ULTRA COMPACT (40% smaller)
+// app/page.tsx — AlphaStream v70000 — FINAL DASHBOARD (40% smaller, perfect)
 'use client';
-import { RefreshCw, Brain, Zap, TrendingUp, Trophy } from 'lucide-react';
+import { RefreshCw, Brain, Zap, TrendingUp, Trophy, Cpu } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
@@ -25,7 +25,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
-    const i = setInterval(fetchData, 9000);
+    const i = setInterval(fetchData, 10000);
     return () => clearInterval(i);
   }, []);
 
@@ -47,17 +47,18 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black text-white font-mono text-xs">
+      {/* HEADER */}
       <header className="fixed top-0 inset-x-0 z-50 bg-black/95 border-b border-purple-800 px-4 py-3">
         <div className="flex justify-between items-center max-w-3xl mx-auto">
           <div className="flex items-center gap-2">
             <Brain className="w-5 h-5 text-purple-400 animate-pulse" />
             <h1 className="text-sm font-black bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-              v50000
+              v70000
             </h1>
           </div>
           <div className="flex gap-3 text-xs">
-            <span className="px-2 py-1 rounded bg-emerald-600 font-bold">RL</span>
-            <span className="text-cyan-400">ε {data.epsilon || "1.00"}</span>
+            <span className="px-2 py-1 rounded bg-emerald-600 font-bold">TRUE RL</span>
+            <span className="text-cyan-400">ε {data.epsilon?.toFixed(3) || "1.00"}</span>
           </div>
         </div>
       </header>
@@ -71,26 +72,27 @@ export default function Home() {
           </div>
         </div>
 
-        {/* STATS */}
-        <div className="grid grid-cols-4 gap-3">
+        {/* CORE STATS */}
+        <div className="grid grid-cols-5 gap-3">
           <Stat icon={<TrendingUp className="w-5 h-5" />} value={data.positions || 0} label="POS" color="text-cyan-400" />
           <Stat icon={<Zap className="w-5 h-5" />} value={data.rockets?.length || 0} label="FIRE" color="text-pink-400" />
           <Stat icon={<Trophy className="w-5 h-5" />} value={data.stats?.winRate || "—"} label="WIN%" color="text-emerald-400" />
-          <Stat icon={<Brain className="w-5 h-5" />} value={data.stats?.totalTrades || 0} label="TRADES" color="text-purple-400" />
+          <Stat icon={<Cpu className="w-5 h-5" />} value={data.step || 0} label="STEPS" color="text-purple-400" />
+          <Stat icon={<Brain className="w-5 h-5" />} value={data.memory || 0} label="MEM" color="text-orange-400" />
         </div>
 
-        {/* POSITIONS */}
+        {/* ACTIVE POSITIONS */}
         {data.positions > 0 && (
-          <div className="bg-gray-900/90 rounded-xl p-4 border border-cyan-700">
-            <div className="text-center text-xs font-bold text-cyan-400 mb-2">{data.positions} ACTIVE</div>
+          <div className="bg-gray-900/90 rounded-xl p-4 border border-cyan-700 text-center">
+            <div className="text-cyan-400 font-bold">{data.positions} ACTIVE POSITION{data.positions > 1 ? "S" : ""}</div>
           </div>
         )}
 
         {/* ROCKETS */}
         {data.rockets?.length > 0 && (
           <div className="bg-gradient-to-r from-pink-900/30 to-purple-900/30 rounded-xl p-3 border border-pink-700">
-            <div className="grid grid-cols-5 gap-2 text-center text-xs">
-              {data.rockets.slice(0, 10).map((r: string, i: number) => (
+            <div className="grid grid-cols-6 gap-2 text-center text-xs">
+              {data.rockets.slice(0, 12).map((r: string, i: number) => (
                 <div key={i} className="bg-black/70 rounded p-2 font-bold text-pink-400 border border-pink-600">
                   {r.split(" ")[0]}
                 </div>
@@ -99,17 +101,18 @@ export default function Home() {
           </div>
         )}
 
-        {/* LOGS */}
+        {/* NEURO LOGS */}
         <div className="bg-black/90 rounded-xl p-3 border border-green-700">
-          <div className="text-xs font-bold text-green-400 text-center mb-1">DQN LOGS</div>
+          <div className="text-xs font-bold text-green-400 text-center mb-1">NEURO LOGS</div>
           <div className="bg-black/70 rounded p-2 h-44 overflow-y-auto text-xs font-mono">
             {data.logs?.slice(-18).map((l: string, i: number) => {
               const text = l.split("] ")[1] || l;
               return (
                 <div key={i} className="py-0.5 border-b border-gray-800 last:border-0">
-                  {text.includes("DQN FIRE") ? <span className="text-cyan-400">FIRE {text.split("FIRE ")[1]}</span> :
-                   text.includes("WIN") ? <span className="text-green-400">WIN {text.split("WIN ")[1]}</span> :
-                   text.includes("LOSS") ? <span className="text-red-400">LOSS {text.split("LOSS ")[1]}</span> :
+                  {text.includes("DQN FIRE") || text.includes("FIRE") ? <span className="text-cyan-400">{text}</span> :
+                   text.includes("WIN") ? <span className="text-green-400">{text}</span> :
+                   text.includes("LOSS") ? <span className="text-red-400">{text}</span> :
+                   text.includes("MODEL SAVED") ? <span className="text-yellow-400">{text}</span> :
                    <span className="text-gray-500">{text}</span>}
                 </div>
               );
@@ -119,11 +122,11 @@ export default function Home() {
         </div>
 
         {/* FORCE HUNT */}
-        <div className="text-center pt-4">
+        <div className="text-center pt-6">
           <button
             onClick={forceScan}
             disabled={scanning}
-            className="px-20 py-4 text-sm font-black rounded-xl bg-gradient-to-r from-purple-600 to-cyan-600 hover:scale-105 transition disabled:opacity-50 border-2 border-purple-800"
+            className="px-24 py-4 text-sm font-black rounded-xl bg-gradient-to-r from-purple-600 to-cyan-600 hover:scale-105 transition disabled:opacity-50 border-2 border-purple-800 shadow-2xl"
           >
             <RefreshCw className={`inline w-6 h-6 mr-3 ${scanning ? 'animate-spin' : ''}`} />
             {scanning ? "HUNTING..." : "FORCE HUNT"}
@@ -131,7 +134,7 @@ export default function Home() {
         </div>
 
         <div className="text-center py-4 text-cyan-400 animate-pulse font-bold text-sm">
-          v50000 • TRUE REINFORCEMENT LEARNING • LIVE
+          v70000 • INSTITUTIONAL GRADE • TRUE LEARNING • LIVE
         </div>
       </main>
     </div>
