@@ -1,6 +1,6 @@
-// app/page.tsx — AlphaStream v100000 — FINAL DASHBOARD (40% smaller, 100% synced)
+// app/page.tsx — AlphaStream v100000 — FINAL DASHBOARD (Clean, Complete, No Warrior)
 'use client';
-import { RefreshCw, Brain, Zap } from 'lucide-react';
+import { RefreshCw, Brain, TrendingUp, Zap } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
@@ -30,26 +30,27 @@ export default function Home() {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [data.logs]);
 
-  const hunt = async () => {
+  const forceHunt = async () => {
     setScanning(true);
     await axios.post(`${BOT_URL}/scan`).catch(() => {});
     setTimeout(() => setScanning(false), 2800);
   };
 
   if (loading) return (
-    <div className="h-screen bg-black flex items-center">
+    <div className="h-screen bg-black flex items-center justify-center">
       <Brain className="w-12 h-12 text-purple-500 animate-pulse" />
     </div>
   );
 
   return (
     <div className="min-h-screen bg-black text-white font-mono text-xs">
+      {/* HEADER */}
       <header className="fixed top-0 inset-x-0 bg-black/95 border-b border-purple-800 px-4 py-2 z-50">
         <div className="flex justify-between items-center max-w-4xl mx-auto">
           <div className="flex items-center gap-2">
             <Brain className="w-5 h-5 text-purple-400 animate-pulse" />
             <h1 className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">
-              v100000 WARRIOR
+              AlphaStream v100000
             </h1>
           </div>
           <div className="flex gap-3 text-xs">
@@ -62,7 +63,7 @@ export default function Home() {
       </header>
 
       <main className="pt-12 px-4 max-w-4xl mx-auto space-y-3 pb-20">
-        {/* EQUITY */}
+        {/* EQUITY + P&L */}
         <div className="bg-gradient-to-r from-purple-900/30 to-cyan-900/30 rounded-lg p-4 text-center border border-purple-700">
           <div className="text-2xl font-black">{data.equity || "$100,000"}</div>
           <div className={`text-lg font-bold ${data.unrealized?.includes('+') ? "text-green-400" : "text-red-400"}`}>
@@ -70,9 +71,34 @@ export default function Home() {
           </div>
         </div>
 
+        {/* CORE STATS */}
+        <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="bg-gray-900/80 rounded p-3 border border-purple-700">
+            <TrendingUp className="w-5 h-5 mx-auto text-cyan-400 mb-1" />
+            <div className="font-bold">{data.positions || 0}</div>
+            <div className="text-gray-500 text-xs">POS</div>
+          </div>
+          <div className="bg-gray-900/80 rounded p-3 border-pink-700">
+            <Zap className="w-5 h-5 mx-auto text-pink-400 mb-1" />
+            <div className="font-bold">{data.rockets?.length || 0}</div>
+            <div className="text-gray-500 text-xs">GAPS</div>
+          </div>
+          <div className="bg-gray-900/80 rounded p-3 border-green-700">
+            <div className="font-bold">{data.stats?.winRate || "—"}%</div>
+            <div className="text-gray-500 text-xs">WIN</div>
+          </div>
+          <div className="bg-gray-900/80 rounded p-3 border-orange-700">
+            <div className="font-bold">{data.step || 0}</div>
+            <div className="text-gray-500 text-xs">CYCLES</div>
+          </div>
+        </div>
+
         {/* POSITIONS */}
         {data.positionsList?.length > 0 && (
           <div className="bg-gray-900/80 rounded-lg p-3 border border-cyan-700">
+            <div className="text-cyan-400 font-bold text-center mb-2">
+              {data.positionsList.length} POSITIONS
+            </div>
             {data.positionsList.map((p: any, i: number) => (
               <div key={i} className="flex justify-between py-1 text-xs">
                 <span className="font-bold">{p.symbol} ×{p.qty}</span>
@@ -87,8 +113,8 @@ export default function Home() {
         {/* ROCKETS */}
         {data.rockets?.length > 0 && (
           <div className="bg-gradient-to-r from-pink-900/20 to-purple-900/20 rounded-lg p-3 border border-pink-700">
-            <div className="grid grid-cols-4 gap-2 text-center text-xs">
-              {data.rockets.slice(0, 12).map((r: string, i: number) => (
+            <div className="grid grid-cols-5 gap-2 text-center text-xs">
+              {data.rockets.slice(0, 10).map((r: string, i: number) => (
                 <div key={i} className="bg-black/70 rounded p-2 font-bold text-pink-400 border border-pink-600">
                   {r}
                 </div>
@@ -108,8 +134,8 @@ export default function Home() {
                   {text.includes("BOUGHT") ? <span className="text-cyan-400 font-bold">{text}</span> :
                    text.includes("WIN") ? <span className="text-green-400 font-bold">{text}</span> :
                    text.includes("LOSS") ? <span className="text-red-400 font-bold">{text}</span> :
-                   text.includes("FORCED") ? <span className="text-yellow-400">{text}</span> :
-                   text.includes("BULL FLAG") || text.includes("FLAT TOP") ? <span className="text-orange-400">{text}</span> :
+                   text.includes("FORCED") || text.includes("SELL") ? <span className="text-yellow-400">{text}</span> :
+                   text.includes("AI") ? <span className="text-purple-400 font-bold">{text}</span> :
                    <span className="text-gray-500">{text}</span>}
                 </div>
               );
@@ -121,7 +147,7 @@ export default function Home() {
         {/* FORCE HUNT */}
         <div className="text-center pt-4">
           <button
-            onClick={hunt}
+            onClick={forceHunt}
             disabled={scanning}
             className="px-20 py-3 text-sm font-black rounded-lg bg-gradient-to-r from-purple-600 to-cyan-600 hover:scale-105 transition disabled:opacity-50 border border-purple-800"
           >
@@ -131,7 +157,7 @@ export default function Home() {
         </div>
 
         <div className="text-center py-3 text-cyan-400 text-xs animate-pulse font-bold">
-          v100000 • WARRIOR PATTERNS • LIVE • NO OVERNIGHT
+          v100000 • REAL ALPACA • LIVE EQUITY • NO OVERNIGHT
         </div>
       </main>
     </div>
