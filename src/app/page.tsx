@@ -101,7 +101,7 @@ export default function Home() {
         )}
 
         <div className="bg-black/90 rounded-lg p-3 border border-green-700">
-          <div className="text-xs font-bold text-green-400 text-center mb-1">LOGS</div>
+          <div className="text-xs font-bold text-green-400 text-center mb-1">NEURO LOGS</div>
           <div className="bg-black/70 rounded p-2 h-44 overflow-y-auto text-xs font-mono">
             {data.logs?.slice(-22).map((l: string, i: number) => {
               const text = l.split("] ")[1] || l;
@@ -131,7 +131,7 @@ export default function Home() {
         </div>
 
         <div className="text-center py-3 text-cyan-400 text-xs animate-pulse font-bold">
-          v100000 • REAL TRADING • LIVE EQUITY • NO OVERNIGHT
+          v100000 • GAP & GO • PM BREAK • ORB • LIVE
         </div>
       </main>
     </div>
