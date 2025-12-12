@@ -12,7 +12,7 @@ export default function Home() {
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // UPDATE THIS TO YOUR CLOUD RUN URL
-  const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app"; 
+  const BOT_URL = "https://alphastream-v200000-1017433009054.us-east1.run.app"; 
 
   const fetchData = async () => {
     try {
