@@ -8,7 +8,7 @@ export default function Home() {
   const [data, setData] = useState<any>({});
   const [scanning, setScanning] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
-  const BOT_URL = "https://alphastream-v200000-1017433009054.us-east1.run.app";
+  const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
 
   const fetchData = async () => {
     try { const res = await axios.get(BOT_URL, { timeout: 10000 }); setData(res.data); }
