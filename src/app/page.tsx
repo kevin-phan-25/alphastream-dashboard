@@ -1,5 +1,5 @@
-// app/page.tsx — AlphaStream v200000 Dashboard (2025 Final)
-// Fully synced with ML + Sentiment + Alpaca API
+// app/page.tsx — AlphaStream v200000 Dashboard (2025 Final, Full Sync)
+// Fully synced with ML + Sentiment + Alpaca API + Lorentzian
 'use client';
 import { RefreshCw, Brain, Zap, TrendingUp, Activity } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
@@ -14,7 +14,7 @@ export default function Home() {
   // UPDATE THIS TO YOUR CLOUD RUN URL
   const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app"; 
 
-  const fetch = async () => {
+  const fetchData = async () => {
     try {
       const res = await axios.get(BOT_URL, { timeout: 10000 });
       setData(res.data);
@@ -25,8 +25,8 @@ export default function Home() {
   };
 
   useEffect(() => {
-    fetch();
-    const interval = setInterval(fetch, 6500);
+    fetchData();
+    const interval = setInterval(fetchData, 6500);
     return () => clearInterval(interval);
   }, []);
 
@@ -49,6 +49,10 @@ export default function Home() {
   }
 
   const isCloseWindow = data.marketStatus?.includes("CLOSE");
+
+  const winRate = data.stats?.totalTrades
+    ? ((data.stats?.winningTrades || 0) / data.stats.totalTrades * 100).toFixed(1)
+    : "—";
 
   return (
     <div className="min-h-screen bg-black text-white font-mono text-xs">
@@ -86,29 +90,33 @@ export default function Home() {
         {data.brain && (
           <div className="bg-gradient-to-r from-pink-900/30 to-purple-900/30 rounded-xl p-3 border border-pink-700">
             <div className="text-pink-400 font-bold text-center text-2xs mb-2">TD(λ) BRAIN</div>
-            <div className="grid grid-cols-4 gap-2 text-center text-2xs">
+            <div className="grid grid-cols-5 gap-2 text-center text-2xs">
               <div>
-                <div className="font-bold text-white">{data.brain.lessons || 0}</div>
+                <div className="font-bold text-white">{data.brain.tradeCount || 0}</div>
                 <div className="text-gray-500">Lessons</div>
               </div>
               <div>
-                <div className="font-bold text-cyan-400">{data.brain.exploration || "30.0%"}</div>
+                <div className="font-bold text-cyan-400">{data.brain.epsilon ? (data.brain.epsilon*100).toFixed(1)+"%" : "30.0%"}</div>
                 <div className="text-gray-500">Explore</div>
               </div>
               <div>
-                <div className="font-bold text-yellow-400">{data.brain.gap}</div>
+                <div className="font-bold text-yellow-400">{data.brain.gap || 0}</div>
                 <div className="text-gray-500">Gap</div>
               </div>
               <div>
-                <div className="font-bold text-orange-400">{data.brain.risk}</div>
+                <div className="font-bold text-orange-400">{data.brain.risk || 0}</div>
                 <div className="text-gray-500">Risk</div>
+              </div>
+              <div>
+                <div className="font-bold text-purple-400">{data.brain.trailingStop || 14}%</div>
+                <div className="text-gray-500">Trail%</div>
               </div>
             </div>
           </div>
         )}
 
         {/* CORE STATS */}
-        <div className="grid grid-cols-4 gap-2 text-center">
+        <div className="grid grid-cols-5 gap-2 text-center">
           <div className="bg-gray-900/90 rounded-lg p-2 border border-purple-600">
             <TrendingUp className="w-5 h-5 mx-auto text-purple-400 mb-1" />
             <div className="text-lg font-bold">{data.positions || 0}</div>
@@ -120,14 +128,32 @@ export default function Home() {
             <div className="text-2xs text-gray-500">GAPS</div>
           </div>
           <div className="bg-gray-900/90 rounded-lg p-2 border border-green-600">
-            <div className="text-lg font-bold text-green-400">{data.stats?.winRate || "—"}%</div>
+            <div className="text-lg font-bold text-green-400">{winRate}%</div>
             <div className="text-2xs text-gray-500">WIN</div>
           </div>
           <div className="bg-gray-900/90 rounded-lg p-2 border border-orange-600">
             <div className="text-lg font-bold">{data.stats?.totalTrades || 0}</div>
             <div className="text-2xs text-gray-500">TRADES</div>
           </div>
+          <div className="bg-gray-900/90 rounded-lg p-2 border border-pink-600">
+            <div className="text-lg font-bold">{data.stats?.winningTrades || 0}</div>
+            <div className="text-2xs text-gray-500">WINS</div>
+          </div>
         </div>
+
+        {/* ROCKETS WITH LORENTZ + SENTIMENT */}
+        {data.rockets?.length > 0 && (
+          <div className="bg-gray-900/95 rounded-xl p-3 border border-cyan-600">
+            <div className="text-cyan-400 font-bold text-center text-2xs mb-2">TOP ROCKETS</div>
+            {data.rockets.map((r: any, i: number) => (
+              <div key={i} className="flex justify-between py-1.5 text-2xs border-b border-gray-800 last:border-0">
+                <span className="font-bold">{r.symbol || r.split(" ")[0]}</span>
+                <span className="text-green-400">{r.includes("+") ? r.split("|")[0].trim() : r}</span>
+                <span className="text-yellow-400">{r.includes("|") ? r.split("|")[1].trim() : ""}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* POSITIONS */}
         {data.positionsList?.length > 0 && (
@@ -178,7 +204,7 @@ export default function Home() {
         </div>
 
         <div className="text-center py-4 text-cyan-400 text-2xs font-bold animate-pulse">
-          v200000 • ML BRAIN • SENTIMENT • FIRESTORE • 3:45–3:59 CLOSE • $0 FOREVER
+          v200000 • ML BRAIN • SENTIMENT • LORENTZIAN • FIRESTORE • 3:45–3:59 CLOSE • $0 FOREVER
         </div>
       </main>
     </div>
