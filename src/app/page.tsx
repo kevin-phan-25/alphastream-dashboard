@@ -12,7 +12,7 @@ export default function Dashboard() {
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Point to your CORE service (trading + dashboard)
-  const BOT_URL = "https://alphastream-core-[YOUR-REGION].run.app"; // UPDATE THIS
+  const BOT_URL = "https://alphastream-core-1017433009054.us-east1.run.app"; // UPDATE THIS
 
   const fetchData = async () => {
     try {
