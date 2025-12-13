@@ -1,4 +1,5 @@
 'use client';
+
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import {
@@ -22,11 +23,13 @@ export default function Dashboard() {
 
   const fetchAll = async () => {
     try {
-      const res = await axios.get(CORE_URL, { timeout: 8000 });
+      const res = await axios.get(`${CORE_URL}/`, { timeout: 8000 });
       setCore(res.data);
       setError(null);
-    } catch {
+    } catch (e: any) {
+      console.error("Core fetch error:", e.message);
       setError("Core offline");
+      setCore(null);
     }
 
     try {
@@ -41,11 +44,14 @@ export default function Dashboard() {
     setScanning(true);
     try {
       await axios.post(`${CORE_URL}/scan`, {}, { timeout: 8000 });
-    } catch {}
-    setTimeout(() => {
-      fetchAll();
+      // small delay to allow core cycle to update
+      setTimeout(() => {
+        fetchAll();
+        setScanning(false);
+      }, 2500);
+    } catch {
       setScanning(false);
-    }, 2500);
+    }
   };
 
   useEffect(() => {
