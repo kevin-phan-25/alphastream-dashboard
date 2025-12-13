@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { RefreshCw, Brain, Zap, TrendingUp, Shield } from 'lucide-react';
+import { RefreshCw, Brain, Zap, Shield } from 'lucide-react';
 
 const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
 const ML_URL = "https://alphastream-ml-1017433009054.us-east1.run.app";
@@ -12,23 +12,20 @@ export default function Dashboard() {
   const [scanning, setScanning] = useState(false);
 
   const fetch = async () => {
-    try {
-      const res = await axios.get(CORE_URL);
-      setCore(res.data);
+    try { 
+      const res = await axios.get(CORE_URL); 
+      setCore(res.data); 
     } catch {}
-    try {
-      const res = await axios.get(`${ML_URL}/insights`);
-      setML(res.data);
+    try { 
+      const res = await axios.get(`${ML_URL}/insights`); 
+      setML(res.data); 
     } catch {}
   };
 
   const forceScan = async () => {
     setScanning(true);
     await axios.post(`${CORE_URL}/scan`).catch(() => {});
-    setTimeout(() => {
-      fetch();
-      setScanning(false);
-    }, 2000);
+    setTimeout(() => { fetch(); setScanning(false); }, 2000);
   };
 
   useEffect(() => {
@@ -53,7 +50,7 @@ export default function Dashboard() {
           <div className="text-sm flex items-center gap-2">
             {heal && <Shield className="w-4 h-4 text-orange-400" />}
             <span className={heal ? "text-orange-400" : "text-green-400"}>
-              {heal ? "HEAL MODE" : "LIVE"}
+              {heal ? "HEAL" : "LIVE"}
             </span>
             • {core.timeET}
           </div>
@@ -69,12 +66,10 @@ export default function Dashboard() {
       </div>
 
       {/* Equity */}
-      <div className="bg-gray-900 rounded-lg p-4 mb-4 text-center">
+      <div className="bg-gray-900 rounded p-4 mb-4 text-center">
         <div className="text-sm text-gray-500">EQUITY</div>
         <div className="text-3xl font-bold text-cyan-400">{equity}</div>
-        <div className="text-xs text-gray-500 mt-1">
-          Drawdown: {core.drawdown || "0%"}
-        </div>
+        <div className="text-xs text-gray-500 mt-1">Drawdown: {core.drawdown || "0%"}</div>
       </div>
 
       {/* Stats */}
@@ -98,7 +93,7 @@ export default function Dashboard() {
 
       {/* Positions */}
       {positions.length > 0 ? (
-        <div className="bg-gray-900 rounded-lg p-3 mb-4">
+        <div className="bg-gray-900 rounded p-3 mb-4">
           <div className="text-sm font-bold text-green-400 mb-2">POSITIONS</div>
           {positions.map((p: any) => (
             <div key={p.symbol} className="flex justify-between text-sm py-1">
@@ -110,25 +105,21 @@ export default function Dashboard() {
           ))}
         </div>
       ) : (
-        <div className="bg-gray-900 rounded-lg p-6 text-center text-gray-500 mb-4">
-          No positions
-        </div>
+        <div className="bg-gray-900 rounded p-6 text-center text-gray-500 mb-4">No positions</div>
       )}
 
       {/* Rockets */}
-      <div className="bg-gray-900 rounded-lg p-3 mb-4">
+      <div className="bg-gray-900 rounded p-3 mb-4">
         <div className="text-sm font-bold text-yellow-400 mb-2">ROCKETS ({rockets.length})</div>
         <div className="flex flex-wrap gap-2">
           {rockets.length > 0 ? rockets.map((r: string) => (
-            <span key={r} className="text-xs bg-yellow-900/50 px-2 py-1 rounded">
-              {r}
-            </span>
+            <span key={r} className="text-xs bg-yellow-900/50 px-2 py-1 rounded">{r}</span>
           )) : <span className="text-gray-500">None</span>}
         </div>
       </div>
 
       {/* ML Brain */}
-      <div className="bg-gray-900 rounded-lg p-3">
+      <div className="bg-gray-900 rounded p-3 mb-4">
         <div className="text-sm font-bold text-purple-400 mb-2 flex items-center gap-2">
           <Brain className="w-4 h-4" /> NEURO BRAIN
         </div>
@@ -142,6 +133,23 @@ export default function Dashboard() {
         ) : (
           <div className="text-xs text-gray-500">ML warming up...</div>
         )}
+      </div>
+
+      {/* FULL LIVE LOGS — RESTORED */}
+      <div className="bg-gray-900 rounded p-3">
+        <div className="text-sm font-bold text-green-400 mb-2">LIVE LOGS</div>
+        <div className="font-mono text-xs space-y-1 max-h-64 overflow-y-auto bg-black/50 rounded p-3">
+          {core.logs?.slice(-20).reverse().map((log: string, i: number) => {
+            const text = log.includes("] ") ? log.split("] ")[1] : log;
+            let color = "text-gray-500";
+            if (text.includes("ENTRY")) color = "text-cyan-400 font-bold";
+            if (text.includes("SELL") || text.includes("FLATTEN")) color = "text-green-400";
+            if (text.includes("TRAILING") || text.includes("PARTIAL")) color = "text-yellow-400";
+            if (text.includes("error") || text.includes("failed")) color = "text-red-400";
+            if (text.includes("ML") || text.includes("insights")) color = "text-purple-400";
+            return <div key={i} className={color}>{text}</div>;
+          }) || <div className="text-center text-gray-600 py-4">No logs yet</div>}
+        </div>
       </div>
     </div>
   );
