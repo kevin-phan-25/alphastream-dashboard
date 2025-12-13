@@ -1,254 +1,148 @@
 'use client';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import {
-  Brain,
-  Zap,
-  RefreshCw,
-  TrendingUp,
-  Shield,
-  Activity,
-  DollarSign,
-  Package
-} from 'lucide-react';
+import { RefreshCw, Brain, Zap, TrendingUp, Shield } from 'lucide-react';
 
-// Use your actual deployed Core URL
 const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
 const ML_URL = "https://alphastream-ml-1017433009054.us-east1.run.app";
 
 export default function Dashboard() {
-  const [coreData, setCoreData] = useState<any>(null);
-  const [mlData, setMLData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [core, setCore] = useState<any>(null);
+  const [ml, setML] = useState<any>(null);
+  const [scanning, setScanning] = useState(false);
 
-  const fetchCore = async () => {
+  const fetch = async () => {
     try {
-      const res = await axios.get(CORE_URL, { timeout: 10000 });
-      setCoreData(res.data);
-      setError(null);
-    } catch (err) {
-      setError("Core offline");
-    }
-  };
-
-  const fetchML = async () => {
-    if (!ML_URL) return;
+      const res = await axios.get(CORE_URL);
+      setCore(res.data);
+    } catch {}
     try {
-      const res = await axios.get(`${ML_URL}/insights`, { timeout: 10000 });
-      setMLData(res.data);
-    } catch (err) {
-      // ML may be cold — silent fail
-    }
+      const res = await axios.get(`${ML_URL}/insights`);
+      setML(res.data);
+    } catch {}
   };
 
   const forceScan = async () => {
-    setLoading(true);
-    try {
-      await axios.post(`${CORE_URL}/scan`, {}, { timeout: 15000 });
-      setTimeout(() => {
-        fetchCore();
-        setLoading(false);
-      }, 2000);
-    } catch (err) {
-      setLoading(false);
-    }
+    setScanning(true);
+    await axios.post(`${CORE_URL}/scan`).catch(() => {});
+    setTimeout(() => {
+      fetch();
+      setScanning(false);
+    }, 2000);
   };
 
   useEffect(() => {
-    fetchCore();
-    fetchML();
-
-    const coreInterval = setInterval(fetchCore, 8000);
-    const mlInterval = setInterval(fetchML, 20000);
-
-    return () => {
-      clearInterval(coreInterval);
-      clearInterval(mlInterval);
-    };
+    fetch();
+    const id = setInterval(fetch, 8000);
+    return () => clearInterval(id);
   }, []);
 
-  if (!coreData) {
-    return (
-      <div className="min-h-screen bg-black text-cyan-400 flex items-center justify-center text-xl">
-        Loading AlphaStream...
-      </div>
-    );
-  }
+  if (!core) return <div className="p-8 text-center text-gray-500">Loading...</div>;
 
-  const equity = coreData.equity ? parseFloat(coreData.equity).toLocaleString() : "0";
-  const peak = coreData.peakEquity ? parseFloat(coreData.peakEquity).toLocaleString() : equity;
-  const drawdown = coreData.drawdown || "0.0%";
-  const positions = coreData.positionsList || [];
-  const rockets = coreData.rockets || [];
-  const healMode = coreData.healMode || mlData?.healMode || false;
+  const equity = core.equity ? `$${parseFloat(core.equity).toLocaleString()}` : "$0";
+  const positions = core.positionsList || [];
+  const rockets = core.rockets || [];
+  const heal = core.healMode || ml?.healMode;
 
   return (
-    <div className="min-h-screen bg-black text-gray-200 p-4 md:p-6 max-w-4xl mx-auto">
+    <div className="min-h-screen bg-black text-gray-300 p-4">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-3">
-          <Brain className="w-8 h-8 text-purple-400 animate-pulse" />
-          <div>
-            <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">
-              AlphaStream v300000
-            </h1>
-            <div className="text-sm text-gray-500 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-green-400 animate-pulse" />
-              {healMode ? (
-                <span className="text-orange-400 flex items-center gap-1">
-                  <Shield className="w-4 h-4" /> HEAL MODE
-                </span>
-              ) : (
-                <span className="text-green-400">TRADING LIVE</span>
-              )}
-              • {coreData.timeET}
-            </div>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h1 className="text-xl font-bold text-cyan-400">AlphaStream</h1>
+          <div className="text-sm flex items-center gap-2">
+            {heal && <Shield className="w-4 h-4 text-orange-400" />}
+            <span className={heal ? "text-orange-400" : "text-green-400"}>
+              {heal ? "HEAL MODE" : "LIVE"}
+            </span>
+            • {core.timeET}
           </div>
         </div>
         <button
           onClick={forceScan}
-          disabled={loading}
-          className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 rounded-lg font-bold text-black shadow-lg disabled:opacity-60 transition"
+          disabled={scanning}
+          className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded flex items-center gap-2 text-black font-bold"
         >
-          <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? "SCANNING..." : "FORCE SCAN"}
+          <RefreshCw className={`w-4 h-4 ${scanning ? 'animate-spin' : ''}`} />
+          {scanning ? "SCANNING" : "SCAN"}
         </button>
       </div>
 
-      {/* Equity Hero */}
-      <div className="bg-gradient-to-r from-purple-900/30 via-black to-cyan-900/30 rounded-2xl p-6 mb-6 border border-purple-600/50">
-        <div className="text-center">
-          <div className="text-gray-400 mb-2">LIVE ALPACA EQUITY</div>
-          <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
-            ${equity}
-          </div>
-          <div className="text-sm text-gray-500 mt-3">
-            Peak: ${peak} • Drawdown: <span className="text-orange-400">{drawdown}</span>
-          </div>
+      {/* Equity */}
+      <div className="bg-gray-900 rounded-lg p-4 mb-4 text-center">
+        <div className="text-sm text-gray-500">EQUITY</div>
+        <div className="text-3xl font-bold text-cyan-400">{equity}</div>
+        <div className="text-xs text-gray-500 mt-1">
+          Drawdown: {core.drawdown || "0%"}
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={<DollarSign />} label="Positions" value={`${positions.length}/${coreData.maxPositions || 5}`} />
-        <StatCard icon={<Zap />} label="Rockets Found" value={rockets.length} color="text-yellow-400" />
-        <StatCard icon={<TrendingUp />} label="Config Gap" value={`${coreData.config?.minGapPct || 20}%`} />
-        <StatCard icon={<Package />} label="Risk/Trade" value={`${(coreData.config?.riskPerTrade * 100 || 2).toFixed(1)}%`} />
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="bg-gray-900 rounded p-3 text-center">
+          <Zap className="w-5 h-5 mx-auto text-yellow-400 mb-1" />
+          <div className="font-bold">{positions.length}/{core.maxPositions || 5}</div>
+          <div className="text-xs text-gray-500">POS</div>
+        </div>
+        <div className="bg-gray-900 rounded p-3 text-center">
+          <TrendingUp className="w-5 h-5 mx-auto text-green-400 mb-1" />
+          <div className="font-bold">{rockets.length}</div>
+          <div className="text-xs text-gray-500">ROCKETS</div>
+        </div>
+        <div className="bg-gray-900 rounded p-3 text-center">
+          <Brain className="w-5 h-5 mx-auto text-purple-400 mb-1" />
+          <div className="font-bold">{ml?.trainingStep || 0}</div>
+          <div className="text-xs text-gray-500">STEP</div>
+        </div>
       </div>
 
-      {/* Positions List */}
+      {/* Positions */}
       {positions.length > 0 ? (
-        <Panel title="Live Positions">
-          <div className="space-y-2">
-            {positions.map((p: any, i: number) => (
-              <div key={i} className="flex justify-between items-center bg-gray-900/50 rounded-lg p-3">
-                <div>
-                  <span className="font-bold text-cyan-400">{p.symbol}</span>
-                  <span className="text-gray-500 ml-2">×{p.qty}</span>
-                </div>
-                <div className={`font-bold ${p.pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {p.pnlPct >= 0 ? '+' : ''}{p.pnlPct?.toFixed(1) || '0.0'}%
-                </div>
-              </div>
-            ))}
-          </div>
-        </Panel>
+        <div className="bg-gray-900 rounded-lg p-3 mb-4">
+          <div className="text-sm font-bold text-green-400 mb-2">POSITIONS</div>
+          {positions.map((p: any) => (
+            <div key={p.symbol} className="flex justify-between text-sm py-1">
+              <span>{p.symbol} ×{p.qty}</span>
+              <span className={p.pnlPct >= 0 ? "text-green-400" : "text-red-400"}>
+                {p.pnlPct >= 0 ? "+" : ""}{p.pnlPct?.toFixed(1)}%
+              </span>
+            </div>
+          ))}
+        </div>
       ) : (
-        <Panel title="Positions">
-          <div className="text-center text-gray-500 py-8">No open positions</div>
-        </Panel>
+        <div className="bg-gray-900 rounded-lg p-6 text-center text-gray-500 mb-4">
+          No positions
+        </div>
       )}
 
       {/* Rockets */}
-      <Panel title={`Rockets Detected (${rockets.length})`}>
-        {rockets.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {rockets.map((r: string, i: number) => (
-              <span key={i} className="px-3 py-1 bg-gradient-to-r from-yellow-600 to-orange-600 rounded-full text-black font-bold text-xs">
-                {r}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center text-gray-500 py-6">Waiting for gappers...</div>
-        )}
-      </Panel>
+      <div className="bg-gray-900 rounded-lg p-3 mb-4">
+        <div className="text-sm font-bold text-yellow-400 mb-2">ROCKETS ({rockets.length})</div>
+        <div className="flex flex-wrap gap-2">
+          {rockets.length > 0 ? rockets.map((r: string) => (
+            <span key={r} className="text-xs bg-yellow-900/50 px-2 py-1 rounded">
+              {r}
+            </span>
+          )) : <span className="text-gray-500">None</span>}
+        </div>
+      </div>
 
       {/* ML Brain */}
-      <Panel title="NeuroSelf Brain (Rainbow DQN)" icon={<Brain className="w-5 h-5 text-purple-400 animate-pulse" />}>
-        {mlData ? (
-          <div className="grid grid-cols-2 gap-4">
-            <Insight label="Gap Threshold" value={`${mlData.gapThreshold}%`} />
-            <Insight label="Risk Multiplier" value={`${(mlData.riskMultiplier * 100).toFixed(2)}%`} />
-            <Insight label="Trail %" value={`${(mlData.trailPct * 100).toFixed(1)}%`} />
-            <Insight label="Heal Mode" value={mlData.healMode ? "ON" : "OFF"} color={mlData.healMode ? "text-orange-400" : "text-gray-500"} />
-            <div className="col-span-2 text-center text-purple-400 font-bold">
-              Training Step: {mlData.trainingStep?.toLocaleString() || 0}
-            </div>
-            <div className="col-span-2 text-center text-xs text-gray-500">
-              Buffer: {mlData.bufferSize?.toLocaleString() || 0} experiences
-            </div>
+      <div className="bg-gray-900 rounded-lg p-3">
+        <div className="text-sm font-bold text-purple-400 mb-2 flex items-center gap-2">
+          <Brain className="w-4 h-4" /> NEURO BRAIN
+        </div>
+        {ml ? (
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div>Gap: <span className="text-cyan-400">{ml.gapThreshold}%</span></div>
+            <div>Risk: <span className="text-yellow-400">{(ml.riskMultiplier*100).toFixed(1)}%</span></div>
+            <div>Trail: <span className="text-orange-400">{(ml.trailPct*100).toFixed(1)}%</span></div>
+            <div>Heal: <span className={ml.healMode ? "text-orange-400" : "text-gray-500"}>{ml.healMode ? "ON" : "OFF"}</span></div>
           </div>
         ) : (
-          <div className="text-center text-gray-500 py-6">
-            ML brain warming up... (cold start)
-          </div>
+          <div className="text-xs text-gray-500">ML warming up...</div>
         )}
-      </Panel>
-
-      {/* Logs */}
-      <Panel title="Live Logs">
-        <div className="font-mono text-xs space-y-1 max-h-64 overflow-y-auto bg-black/50 rounded p-3">
-          {coreData.logs?.slice(-20).reverse().map((log: string, i: number) => {
-            const text = log.split("] ")[1] || log;
-            let color = "text-gray-500";
-            if (text.includes("ENTRY")) color = "text-cyan-400 font-bold";
-            if (text.includes("SELL") || text.includes("FLATTEN")) color = "text-green-400";
-            if (text.includes("TRAILING") || text.includes("PARTIAL")) color = "text-yellow-400";
-            if (text.includes("error") || text.includes("failed")) color = "text-red-400";
-            if (text.includes("ML") || text.includes("insights")) color = "text-purple-400";
-            return <div key={i} className={color}>{text}</div>;
-          }) || <div className="text-center text-gray-600">No logs yet</div>}
-        </div>
-      </Panel>
-
-      {/* Footer */}
-      <div className="text-center text-xs text-gray-600 mt-8">
-        Intraday Momentum • AMEX/NASDAQ/NYSE Only • Kelly Sizing • Partial Profits • Self-Learning DQN
       </div>
-    </div>
-  );
-}
-
-// UI Components
-function StatCard({ icon, label, value, color = "text-cyan-400" }: any) {
-  return (
-    <div className="bg-gray-900/70 rounded-xl p-4 text-center border border-gray-800">
-      <div className={`w-8 h-8 mx-auto mb-2 ${color}`}>{icon}</div>
-      <div className="text-xl font-bold text-white">{value}</div>
-      <div className="text-xs text-gray-500 mt-1">{label}</div>
-    </div>
-  );
-}
-
-function Insight({ label, value, color = "text-cyan-400" }: any) {
-  return (
-    <div className="bg-gray-900/50 rounded-lg p-3 border border-gray-800">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`text-lg font-bold ${color}`}>{value}</div>
-    </div>
-  );
-}
-
-function Panel({ title, icon, children }: any) {
-  return (
-    <div className="bg-gray-900 rounded-xl p-4 mb-6 border border-gray-800">
-      <div className="flex items-center gap-2 mb-3 text-purple-400 font-bold">
-        {icon}
-        {title}
-      </div>
-      {children}
     </div>
   );
 }
