@@ -1,6 +1,6 @@
 'use client';
 
-import { RefreshCw, Brain, Zap, Shield, Activity, AlertCircle } from 'lucide-react';
+import { RefreshCw, Brain, Zap, Shield, Activity, AlertCircle, TrendingUp } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
@@ -65,7 +65,14 @@ export default function Dashboard() {
             <Activity className="w-4 h-4 text-cyan-400 animate-pulse" />
           </div>
           <div className="flex items-center gap-3">
-            {healActive && <Shield className="w-4 h-4 text-orange-400 animate-pulse" title="Heal Mode Active" />}
+            {healActive && (
+              <div className="group relative">
+                <Shield className="w-4 h-4 text-orange-400 animate-pulse" />
+                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-black/90 text-2xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                  Heal Mode Active
+                </span>
+              </div>
+            )}
             <span className={`px-2 py-0.5 rounded text-2xs font-bold ${
               error ? 'bg-red-600' :
               healActive ? 'bg-orange-600' :
@@ -87,7 +94,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* EQUITY — NOW SHOWS REAL ALPACA EQUITY */}
+        {/* EQUITY — REAL ALPACA */}
         <div className="bg-gradient-to-r from-purple-900/40 to-cyan-900/40 rounded-xl p-4 text-center border border-purple-700">
           <div className="text-xs text-gray-400 mb-1">LIVE ACCOUNT EQUITY</div>
           <div className="text-3xl font-bold">{liveEquity}</div>
