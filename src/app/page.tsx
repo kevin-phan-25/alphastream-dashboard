@@ -6,17 +6,24 @@ import axios from 'axios';
 
 export default function Dashboard() {
   const [data, setData] = useState<any>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  const BOT_URL = "https://alphastream-autopilot-1017433009054.us-east1.run.app";
+  // Point to your CORE service (trading + dashboard)
+  const BOT_URL = "https://alphastream-core-[YOUR-REGION].run.app"; // UPDATE THIS
 
   const fetchData = async () => {
     try {
       const res = await axios.get(BOT_URL, { timeout: 12000 });
       setData(res.data);
-    } catch (err) {
-      console.error("Connection lost");
+      setError(null);
+    } catch (err: any) {
+      console.error("Failed to connect to bot:", err.message);
+      setError("Bot offline — retrying...");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -32,15 +39,25 @@ export default function Dashboard() {
 
   const forceScan = async () => {
     setScanning(true);
-    await axios.post(`${BOT_URL}/scan`).catch(() => {});
+    try {
+      await axios.post(`${BOT_URL}/scan`, {}, { timeout: 10000 });
+    } catch (err) {
+      console.error("Force scan failed");
+    }
     setTimeout(() => setScanning(false), 2000);
   };
 
-  const liveEquity = data.equity?.live || data.equity?.simulated || "$100,000";
+  // Real data from Alpaca via core service
+  const liveEquity = data.equity?.live || "$0";
   const positions = data.positionsList || [];
+  const winRate = data.stats?.totalTrades > 0
+    ? ((data.stats.winningTrades || 0) / data.stats.totalTrades * 100).toFixed(1)
+    : "—";
+  const healActive = data.mlStatus?.healMode;
 
   return (
     <div className="min-h-screen bg-black text-white font-mono text-xs">
+      {/* HEADER */}
       <header className="fixed top-0 inset-x-0 bg-black/95 border-b border-purple-800 px-4 py-2 z-50">
         <div className="flex justify-between items-center max-w-2xl mx-auto">
           <div className="flex items-center gap-2">
@@ -49,7 +66,7 @@ export default function Dashboard() {
             <Activity className="w-4 h-4 text-cyan-400 animate-pulse" />
           </div>
           <div className="flex items-center gap-3">
-            {data.mlStatus?.healMode && (
+            {healActive && (
               <div className="group relative">
                 <Shield className="w-4 h-4 text-orange-400 animate-pulse" />
                 <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-black/90 text-2xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
@@ -57,8 +74,12 @@ export default function Dashboard() {
                 </span>
               </div>
             )}
-            <span className={`px-2 py-0.5 rounded text-2xs font-bold ${data.mlStatus?.healMode ? 'bg-orange-600' : 'bg-green-600'}`}>
-              {data.status || "LIVE"}
+            <span className={`px-2 py-0.5 rounded text-2xs font-bold ${
+              error ? 'bg-red-600' :
+              healActive ? 'bg-orange-600' :
+              'bg-green-600'
+            }`}>
+              {error ? "OFFLINE" : healActive ? "HEAL MODE" : data.status || "LIVE"}
             </span>
             <span className="text-cyan-400 text-2xs font-mono">{data.timeET || "--:--"}</span>
           </div>
@@ -66,12 +87,24 @@ export default function Dashboard() {
       </header>
 
       <main className="pt-14 px-4 max-w-2xl mx-auto space-y-4 pb-20">
+        {/* CONNECTION ERROR */}
+        {error && (
+          <div className="bg-red-900/50 border border-red-600 rounded-xl p-3 text-center flex items-center justify-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-red-400">{error}</span>
+          </div>
+        )}
+
+        {/* LIVE EQUITY FROM ALPACA */}
         <div className="bg-gradient-to-r from-purple-900/40 to-cyan-900/40 rounded-xl p-4 text-center border border-purple-700">
           <div className="text-xs text-gray-400 mb-1">LIVE ALPACA EQUITY</div>
           <div className="text-3xl font-bold">{liveEquity}</div>
-          <div className="text-xs text-gray-400 mt-2">Drawdown: {data.drawdown || "0%"}</div>
+          <div className="text-xs text-gray-400 mt-2">
+            Drawdown: {data.drawdown || "0%"} • Peak: {data.peakEquity || liveEquity}
+          </div>
         </div>
 
+        {/* CORE STATS */}
         <div className="grid grid-cols-4 gap-3">
           <div className="bg-gray-900/80 rounded-lg p-3 text-center border border-purple-600">
             <Zap className="w-5 h-5 mx-auto text-purple-400 mb-1" />
@@ -84,10 +117,8 @@ export default function Dashboard() {
             <div className="text-2xs text-gray-500">ROCKETS</div>
           </div>
           <div className="bg-gray-900/80 rounded-lg p-3 text-center border border-green-600">
-            <div className="text-lg font-bold text-green-400">
-              {data.stats?.totalTrades > 0 ? ((data.stats.winningTrades / data.stats.totalTrades)*100).toFixed(1) : "—"}%
-            </div>
-            <div className="text-2xs text-gray-500">WIN</div>
+            <div className="text-lg font-bold text-green-400">{winRate}%</div>
+            <div className="text-2xs text-gray-500">WIN RATE</div>
           </div>
           <div className="bg-gray-900/80 rounded-lg p-3 text-center border border-yellow-600">
             <div className="text-lg font-bold">{data.stats?.totalTrades || 0}</div>
@@ -95,47 +126,74 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* LIVE POSITIONS FROM ALPACA */}
         {positions.length > 0 ? (
           <div className="bg-gray-900/90 rounded-xl p-3 border border-green-600">
             <div className="text-green-400 font-bold text-2xs mb-2 text-center">LIVE POSITIONS</div>
-            {positions.slice(0, 6).map((p: any, i: number) => (
-              <div key={i} className="flex justify-between text-2xs py-1 border-b border-gray-800 last:border-0">
-                <span className="font-bold">{p.symbol} ×{p.qty}</span>
-                <span className={p.pnlPct >= 0 ? "text-green-400" : "text-red-400"}>
-                  {p.pnlPct >= 0 ? "+" : ""}{p.pnlPct.toFixed(1)}%
-                </span>
-              </div>
-            ))}
+            <div className="space-y-1">
+              {positions.slice(0, 6).map((p: any, i: number) => (
+                <div key={i} className="flex justify-between text-2xs py-1 border-b border-gray-800 last:border-0">
+                  <span className="font-bold">{p.symbol} ×{p.qty}</span>
+                  <span className={p.pnlPct >= 0 ? "text-green-400" : "text-red-400"}>
+                    {p.pnlPct >= 0 ? "+" : ""}{p.pnlPct?.toFixed(1) || "0.0"}%
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
-          <div className="bg-gray-900/60 rounded-xl p-4 text-center text-gray-500">No open positions</div>
+          <div className="bg-gray-900/60 rounded-xl p-4 text-center text-gray-500 border border-gray-800">
+            No open positions
+          </div>
         )}
 
+        {/* ML STATUS */}
+        <div className="bg-gray-900/90 rounded-xl p-3 border border-purple-600">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-purple-400 font-bold text-2xs">NEUROSELF BRAIN</span>
+            <Brain className="w-4 h-4 text-purple-400 animate-pulse" />
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-2xs">
+            <div>Risk: <span className="text-yellow-400">{(data.config?.riskPerTrade * 100).toFixed(1) || "2.0"}%</span></div>
+            <div>Gap Threshold: <span className="text-cyan-400">{data.config?.minGapPct || "20"}%</span></div>
+            <div>Heal Mode: <span className={healActive ? "text-orange-400" : "text-gray-500"}>{healActive ? "ON" : "OFF"}</span></div>
+            <div>Buffer Size: <span className="text-green-400">{data.mlStatus?.bufferSize || "—"}</span></div>
+          </div>
+        </div>
+
+        {/* LIVE LOGS */}
         <div className="bg-black/90 rounded-xl p-3 border border-green-700">
           <div className="text-green-400 font-bold text-2xs mb-2 text-center">LIVE LOGS</div>
           <div className="bg-black/70 rounded p-2 h-32 overflow-y-auto text-2xs font-mono">
             {data.logs?.slice(-15).map((log: string, i: number) => {
               const text = log.split("] ")[1] || log;
               let color = "text-gray-500";
-              if (text.includes("ENTRY")) color = "text-cyan-400 font-bold";
-              if (text.includes("EXIT")) color = "text-green-400";
+              if (text.includes("ENTRY") || text.includes("BUY")) color = "text-cyan-400 font-bold";
+              if (text.includes("EXIT") || text.includes("SELL")) color = "text-green-400";
               if (text.includes("STOP") || text.includes("failed")) color = "text-red-400";
+              if (text.includes("DQN") || text.includes("trained")) color = "text-purple-400 font-bold";
               return <div key={i} className={`py-0.5 ${color}`}>{text}</div>;
-            })}
+            }) || (
+              <div className="text-gray-600 text-center py-8">Waiting for activity...</div>
+            )}
             <div ref={logsEndRef} />
           </div>
         </div>
 
+        {/* FORCE SCAN */}
         <div className="text-center pt-4">
-          <button onClick={forceScan} disabled={scanning}
-            className="px-12 py-3 text-sm font-bold rounded-full bg-gradient-to-r from-purple-600 to-cyan-600 hover:scale-105 transition-all disabled:opacity-60 border-2 border-purple-800 shadow-xl">
+          <button
+            onClick={forceScan}
+            disabled={scanning || !!error}
+            className="px-12 py-3 text-sm font-bold rounded-full bg-gradient-to-r from-purple-600 to-cyan-600 hover:scale-105 transition-all disabled:opacity-60 disabled:cursor-not-allowed border-2 border-purple-800 shadow-xl"
+          >
             <RefreshCw className={`inline w-5 h-5 mr-2 ${scanning ? 'animate-spin' : ''}`} />
-            {scanning ? "SCANNING..." : "FORCE SCAN"}
+            {scanning ? "SCANNING..." : error ? "OFFLINE" : "FORCE SCAN"}
           </button>
         </div>
 
         <div className="text-center py-3 text-purple-400 text-2xs font-bold animate-pulse">
-          v300000 • DQN • SELF-HEALING • ALPACA LIVE
+          v300000 • DOUBLE DUELING DQN • LIVE TRADING • SELF-LEARNING
         </div>
       </main>
     </div>
