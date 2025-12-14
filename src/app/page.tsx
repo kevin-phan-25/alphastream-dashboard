@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import {
   RefreshCw, Brain, Zap, TrendingUp, Shield,
-  Terminal, AlertTriangle, Play, X, Loader2, BarChart3
+  Terminal, AlertTriangle, Play, X, Loader2
 } from 'lucide-react';
 
 const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
@@ -19,7 +19,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [coreError, setCoreError] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [selectedPos, setSelectedPos] = useState<any>(null);
 
   const fetchCore = async () => {
     try {
@@ -65,9 +64,8 @@ export default function Dashboard() {
   const actionPost = async (endpoint: string, label: string) => {
     setActionLoading(label);
     try {
-      await axios.post(`${CORE_URL}${endpoint}`, {}, { timeout: 15000 });
+      await axios.post(`${CORE_URL}${endpoint}`, {}, { timeout: 10000 });
       await fetchCore();
-      await fetchPositions();
     } catch (err) {
       console.error(`${label} failed`, err);
     } finally {
@@ -94,189 +92,170 @@ export default function Dashboard() {
   if (loading) return <Loader />;
   if (coreError) return <Offline retry={fetchCore} />;
 
-  const heal = core.healMode;
+  const heal = core.healMode || ml?.healMode;
   const equity = `$${Number(core.equity?.live || core.equity || 0).toLocaleString()}`;
   const drawdown = core.drawdown || "0%";
 
-  const mlOnline = !!ml;
+  const winRate = core.stats?.totalTrades > 0
+    ? ((core.stats.winningTrades / core.stats.totalTrades) * 100).toFixed(1)
+    : "—";
+
+  // Enhanced ML Confidence (0-100%)
   const mlConfidence = ml
-    ? Math.min(100, Math.floor(
-        (ml.step || 0) / 300 * 50 +
-        (ml.bufferSize || 0) / 5000 * 30 +
-        (ml.epsilon < 0.3 ? 20 : 0)
-      ))
+    ? Math.min(
+        100,
+        Math.floor(
+          ((ml.step || 0) / 500) * 40 +               // Training progress
+          ((ml.bufferSize || 0) / 8000) * 30 +        // Experience collected
+          (ml.epsilon < 0.3 ? 20 : 10) +               // Low exploration = high confidence
+          10                                          // Base
+        )
+      )
     : 0;
 
-  const topRocket = core.rockets?.[0]?.split(" ")[0] || "—";
-  const mlThinksGood = mlOnline && mlConfidence > 70;
+  const mlStatusText = mlConfidence < 40 ? "LEARNING" :
+                       mlConfidence < 70 ? "CAUTIOUS" :
+                       "CONFIDENT";
+
+  const mlStatusColor = mlConfidence < 40 ? "text-red-400" :
+                        mlConfidence < 70 ? "text-yellow-400" :
+                        "text-green-400";
 
   return (
-    <div className="min-h-screen bg-black text-gray-300 p-4 text-sm">
+    <div className="min-h-screen bg-black text-gray-300 p-3 text-sm">
       {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-cyan-400">AlphaStream v300000</h1>
-          <div className="text-sm flex items-center gap-3 mt-2">
-            {heal && <Shield className="w-5 h-5 text-orange-400 animate-pulse" />}
-            <span className={heal ? "text-orange-400 font-bold" : "text-green-400 font-bold"}>
+          <h1 className="text-sm font-bold text-purple-400">AlphaStream v300000</h1>
+          <div className="text-2xs flex items-center gap-2 mt-1">
+            {heal && <Shield className="w-4 h-4 text-orange-400 animate-pulse" />}
+            <span className={heal ? "text-orange-400" : "text-green-400 font-bold"}>
               {heal ? "HEAL MODE" : "LIVE"}
             </span>
             <span>• {core.timeET || "--:--"}</span>
-            {mlOnline ? (
-              <span className="text-green-400 flex items-center gap-1">
-                <Brain className="w-4 h-4" /> ML Online
-              </span>
-            ) : (
-              <span className="text-red-400">ML Offline</span>
-            )}
           </div>
         </div>
 
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           <button
             onClick={() => actionPost("/scan", "SCAN")}
             disabled={!!actionLoading}
-            className="px-6 py-3 bg-cyan-600 rounded-lg flex items-center gap-3 text-black font-bold hover:bg-cyan-500 disabled:opacity-50 transition"
+            className="px-12 py-3 text-sm font-bold rounded-full bg-gradient-to-r from-purple-600 to-cyan-600 hover:scale-105 transition-all disabled:opacity-60"
           >
-            {actionLoading === "SCAN" ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
-            FORCE SCAN
-          </button>
-
-          <button
-            onClick={() => actionPost("/panic", "PANIC")}
-            disabled={!!actionLoading}
-            className="px-6 py-3 bg-red-600 rounded-lg flex items-center gap-3 text-white font-bold hover:bg-red-500 disabled:opacity-50 transition"
-          >
-            <AlertTriangle className="w-5 h-5" />
-            PANIC STOP
-          </button>
-
-          <button
-            onClick={() => actionPost("/resume", "RESUME")}
-            disabled={!!actionLoading}
-            className="px-6 py-3 bg-green-600 rounded-lg flex items-center gap-3 text-black font-bold hover:bg-green-500 disabled:opacity-50 transition"
-          >
-            <Play className="w-5 h-5" />
-            RESUME
+            {actionLoading === "SCAN" ? <Loader2 className="inline w-5 h-5 animate-spin mr-2" /> : <RefreshCw className="inline w-5 h-5 mr-2" />}
+            {actionLoading === "SCAN" ? "SCANNING..." : "FORCE SCAN"}
           </button>
         </div>
       </div>
 
       {/* EQUITY */}
-      <div className="bg-gradient-to-r from-purple-900/40 to-cyan-900/40 rounded-2xl p-8 text-center mb-6 border border-purple-700">
-        <div className="text-lg text-gray-400">LIVE ALPACA EQUITY</div>
-        <div className="text-6xl font-bold text-white mt-4">{equity}</div>
-        <div className="text-lg text-gray-400 mt-6">Drawdown: {drawdown}</div>
+      <div className="bg-gradient-to-r from-purple-900/40 to-cyan-900/40 rounded-xl p-4 text-center mb-4 border border-purple-700">
+        <div className="text-xs text-gray-400">LIVE ALPACA EQUITY</div>
+        <div className="text-3xl font-bold">{equity}</div>
+        <div className="text-xs text-gray-400 mt-2">Drawdown: {drawdown}</div>
       </div>
 
-      {/* STATS GRID */}
-      <div className="grid grid-cols-4 gap-5 mb-6">
-        <Stat icon={<Zap className="w-8 h-8 text-purple-400" />} value={`${positions.length}/5`} label="POSITIONS" />
-        <Stat icon={<TrendingUp className="w-8 h-8 text-cyan-400" />} value={core.rockets?.length || 0} label="ROCKETS" />
-        <Stat icon={<Brain className="w-8 h-8 text-purple-400" />} value={`${mlConfidence}%`} label="ML CONFIDENCE" />
-        <Stat icon={<BarChart3 className="w-8 h-8 text-green-400" />} value={topRocket} label="TOP TICKER" />
+      {/* STATS */}
+      <div className="grid grid-cols-4 gap-3 mb-4">
+        <Stat icon={<Zap className="w-5 h-5 mx-auto text-purple-400 mb-1" />} value={`${positions.length}/5`} label="POS" />
+        <Stat icon={<TrendingUp className="w-5 h-5 mx-auto text-cyan-400 mb-1" />} value={core.rockets?.length || 0} label="ROCKETS" />
+        <Stat icon={<Brain className="w-5 h-5 mx-auto text-purple-400 mb-1" />} value={`${winRate}%`} label="WIN" />
+        <Stat icon={<Terminal className="w-5 h-5 mx-auto text-yellow-400 mb-1" />} value={core.stats?.totalTrades || 0} label="TRADES" />
       </div>
 
-      {/* ML THINKS */}
-      <Panel title="RAINBOW DQN THINKS" color="text-purple-400">
-        <div className="text-center py-6">
-          <div className="text-2xl font-bold mb-4">
-            {mlOnline ? (
-              mlThinksGood ? (
-                <span className="text-green-400">YES — STRONG BUY SIGNAL</span>
-              ) : (
-                <span className="text-yellow-400">CAUTIOUS — WAIT</span>
-              )
-            ) : (
-              <span className="text-red-400">ML OFFLINE</span>
-            )}
-          </div>
-          <div className="text-lg mb-2">Top Rocket: <span className="font-bold text-cyan-400">{topRocket}</span></div>
-          <div className="text-sm text-gray-500">
-            Confidence: {mlConfidence}% • Epsilon: {ml?.epsilon ? parseFloat(ml.epsilon).toFixed(3) : "—"} • Step: {ml?.step || 0}
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <div className="text-sm text-gray-500 mb-2">ML Learning Progress</div>
-          <div className="w-full bg-gray-800 h-4 rounded-full overflow-hidden">
-            <div
-              className={`h-4 rounded-full transition-all duration-1000 ${
-                mlConfidence < 40 ? "bg-red-500" :
-                mlConfidence < 70 ? "bg-yellow-400" :
-                "bg-green-500"
-              }`}
-              style={{ width: `${mlConfidence}%` }}
+      {/* ENHANCED ML CONFIDENCE GAUGE */}
+      <div className="bg-gray-900/90 rounded-xl p-5 mb-4 border border-purple-600">
+        <div className="text-purple-400 font-bold text-center mb-4">RAINBOW DQN CONFIDENCE</div>
+        
+        {/* Circular Gauge */}
+        <div className="relative w-48 h-48 mx-auto">
+          <svg viewBox="0 0 36 36" className="transform -rotate-90 w-full h-full">
+            {/* Background */}
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1f2937" strokeWidth="3" />
+            
+            {/* Gradient Progress */}
+            <defs>
+              <linearGradient id="gradient">
+                <stop offset="0%" stopColor="#ef4444" />
+                <stop offset="50%" stopColor="#eab308" />
+                <stop offset="100%" stopColor="#22c55e" />
+              </linearGradient>
+            </defs>
+            
+            <circle
+              cx="18"
+              cy="18"
+              r="15.9"
+              fill="none"
+              stroke="url(#gradient)"
+              strokeWidth="3"
+              strokeDasharray={`${mlConfidence} 100`}
+              className="transition-all duration-1000 ease-out"
             />
+          </svg>
+          
+          {/* Center Text */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className={`text-4xl font-bold ${mlStatusColor}`}>
+              {mlConfidence}%
+            </div>
+            <div className={`text-sm font-bold mt-1 ${mlStatusColor}`}>
+              {mlStatusText}
+            </div>
           </div>
         </div>
-      </Panel>
 
-      {/* POSITIONS WITH CHARTS */}
+        {/* ML Details */}
+        <div className="grid grid-cols-2 gap-4 mt-6 text-xs">
+          <div>
+            <div className="text-gray-500">Epsilon</div>
+            <div className="font-bold text-cyan-400">{ml?.epsilon ? parseFloat(ml.epsilon).toFixed(3) : "—"}</div>
+          </div>
+          <div>
+            <div className="text-gray-500">Training Step</div>
+            <div className="font-bold text-yellow-400">{ml?.step || 0}</div>
+          </div>
+          <div>
+            <div className="text-gray-500">Buffer Size</div>
+            <div className="font-bold text-green-400">{ml?.bufferSize || 0}</div>
+          </div>
+          <div>
+            <div className="text-gray-500">Last Trained</div>
+            <div className="font-bold text-purple-400">{ml?.lastTrained ? new Date(ml.lastTrained).toLocaleTimeString() : "—"}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* POSITIONS */}
       <Panel title="LIVE POSITIONS" color="text-green-400">
         {positions.length > 0 ? (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {positions.map((p: any) => (
-              <div
-                key={p.symbol}
-                onClick={() => setSelectedPos(p)}
-                className="bg-gray-800/50 rounded-lg p-4 cursor-pointer hover:bg-gray-700 transition"
-              >
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-lg font-bold">{p.symbol} ×{p.qty}</span>
-                  <span className={p.pnlPct >= 0 ? "text-green-400 text-xl font-bold" : "text-red-400 text-xl font-bold"}>
-                    {p.pnlPct >= 0 ? "+" : ""}{p.pnlPct?.toFixed(1)}%
-                  </span>
-                </div>
-                <div className="text-xs text-gray-500">
-                  Entry: ${p.entry?.toFixed(2)} • Current: ${p.current?.toFixed(2)}
-                </div>
+              <div key={p.symbol} className="flex justify-between text-xs py-1 border-b border-gray-800">
+                <span className="font-bold">{p.symbol} ×{p.qty}</span>
+                <span className={p.pnlPct >= 0 ? "text-green-400" : "text-red-400"}>
+                  {p.pnlPct >= 0 ? "+" : ""}{p.pnlPct?.toFixed(1)}%
+                </span>
               </div>
             ))}
           </div>
         ) : (
-          <div className="text-gray-500 text-center py-12 text-lg">No open positions</div>
+          <div className="text-gray-500 text-center py-8">No open positions</div>
         )}
       </Panel>
 
       {/* LOGS */}
       <Panel title="LIVE LOGS" color="text-cyan-400">
-        <div className="font-mono text-xs max-h-80 overflow-y-auto space-y-1 bg-black/50 p-4 rounded-lg">
+        <div className="font-mono text-2xs max-h-64 overflow-y-auto space-y-1 bg-black/50 p-3 rounded">
           {core.logs?.slice(-25).map((log: string, i: number) => (
             <div key={i} className="text-gray-400">{log}</div>
-          )) || <div className="text-gray-600 text-center py-16">Waiting for activity...</div>}
+          )) || <div className="text-gray-600 text-center py-12">Waiting for activity...</div>}
         </div>
       </Panel>
 
-      <div className="text-center py-6 text-purple-400 text-sm font-bold animate-pulse">
-        v300000 • RAINBOW DQN • LIVE TRADING • SELF-LEARNING • REAL-TIME CHARTS
+      <div className="text-center py-4 text-purple-400 text-xs font-bold animate-pulse">
+        v300000 • RAINBOW DQN • LIVE TRADING • SELF-LEARNING
       </div>
-
-      {/* CHART MODAL */}
-      {selectedPos && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl p-8 max-w-md w-full">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-cyan-400">{selectedPos.symbol}</h2>
-              <X className="w-6 h-6 cursor-pointer text-gray-400 hover:text-white" onClick={() => setSelectedPos(null)} />
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold mb-4" 
-                className={selectedPos.pnlPct >= 0 ? "text-green-400" : "text-red-400"}>
-                {selectedPos.pnlPct >= 0 ? "+" : ""}{selectedPos.pnlPct?.toFixed(1)}%
-              </div>
-              <div className="text-sm text-gray-500 mb-2">
-                Qty: {selectedPos.qty} • Entry: ${selectedPos.entry?.toFixed(2)}
-              </div>
-            </div>
-            {/* Placeholder for real chart — you can integrate lightweight chart lib later */}
-            <div className="bg-gray-800 rounded-lg h-48 flex items-center justify-center mt-6">
-              <BarChart3 className="w-16 h-16 text-gray-600" />
-              <span className="ml-4 text-gray-600">Real-time Chart (Coming Soon)</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -299,16 +278,16 @@ const Offline = ({ retry }: { retry: () => void }) => (
 );
 
 const Stat = ({ icon, value, label }: any) => (
-  <div className="bg-gray-900 rounded-xl p-6 text-center border border-gray-800">
-    <div className="mx-auto mb-4">{icon}</div>
-    <div className="text-3xl font-bold text-white">{value}</div>
-    <div className="text-sm text-gray-500 mt-2">{label}</div>
+  <div className="bg-gray-900 rounded-lg p-4 text-center border border-gray-800">
+    <div className="mx-auto mb-2">{icon}</div>
+    <div className="text-xl font-bold text-white">{value}</div>
+    <div className="text-xs text-gray-500 mt-1">{label}</div>
   </div>
 );
 
 const Panel = ({ title, children, color }: any) => (
-  <div className="bg-gray-900 rounded-2xl p-6 mb-6 border border-gray-800">
-    <div className={`text-xl font-bold mb-5 ${color}`}>{title}</div>
+  <div className="bg-gray-900 rounded-xl p-5 mb-5 border border-gray-800">
+    <div className={`text-lg font-bold mb-4 ${color}`}>{title}</div>
     {children}
   </div>
 );
