@@ -2,17 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import axios from 'axios';
+import { Line } from 'react-chartjs-2';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
   Tooltip,
-  ResponsiveContainer,
-  ReferenceDot
-} from 'recharts';
+  Legend,
+  Filler
+} from 'chart.js';
 import { RefreshCw, Zap, Brain, TrendingUp, AlertCircle, Shield, Activity, Target, Loader2, Sun, Moon } from 'lucide-react';
+
+// Register ChartJS components
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
 const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
@@ -36,19 +41,13 @@ export default function Dashboard() {
       ]);
 
       const newEquity = Number(cRes.data.equity || 0);
-      const prevEquity = equityHistory.length > 0 ? equityHistory[equityHistory.length - 1].equity : newEquity;
-
-      const newEntry = {
-        time: new Date().toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' }),
-        equity: newEquity,
-        change: newEquity - prevEquity
-      };
+      const timeLabel = new Date().toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' });
 
       setCore(cRes.data);
       setML(mRes.data);
 
       setEquityHistory(prev => {
-        const updated = [...prev, newEntry].slice(-50); // Keep last 50 points for better interaction
+        const updated = [...prev, { time: timeLabel, equity: newEquity }].slice(-30);
         return updated;
       });
 
@@ -115,6 +114,40 @@ export default function Dashboard() {
 
   const positionsArray = core.positions ? Object.entries(core.positions) : [];
 
+  // Chart Data
+  const chartData = {
+    labels: equityHistory.map(d => d.time),
+    datasets: [
+      {
+        label: 'Equity',
+        data: equityHistory.map(d => d.equity),
+        borderColor: '#06b6d4',
+        backgroundColor: 'rgba(6, 182, 212, 0.2)',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      }
+    ]
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => `$${context.parsed.y.toLocaleString()}`
+        }
+      }
+    },
+    scales: {
+      x: { grid: { display: false } },
+      y: { grid: { color: darkMode ? '#374151' : '#e5e7eb' } }
+    }
+  };
+
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-300' : 'bg-gray-100 text-gray-800'} transition-colors duration-300 pb-20`}>
       <div className="max-w-6xl mx-auto px-4 pt-4">
@@ -134,64 +167,36 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Interactive Equity Chart */}
+        {/* Real-Time Chart */}
         <div className="mb-8">
           <h2 className={`text-lg font-bold mb-3 ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>Live Equity Performance</h2>
-          <div className={`p-4 rounded-lg border ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-300'}`}>
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={equityHistory} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#374151" : "#e5e7eb"} />
-                <XAxis 
-                  dataKey="time" 
-                  stroke={darkMode ? "#9ca3af" : "#4b5563"}
-                  tick={{ fontSize: 12 }}
-                />
-                <YAxis 
-                  stroke={darkMode ? "#9ca3af" : "#4b5563"}
-                  tick={{ fontSize: 12 }}
-                  domain={['dataMin - 500', 'dataMax + 500']}
-                />
-                <Tooltip
-                  contentStyle={{ 
-                    backgroundColor: darkMode ? '#1f2937' : '#f3f4f6', 
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '10px'
-                  }}
-                  labelStyle={{ color: darkMode ? '#e5e7eb' : '#111827', fontWeight: 'bold' }}
-                  formatter={(value: number) => `$${value.toLocaleString()}`}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="equity" 
-                  stroke="#06b6d4" 
-                  strokeWidth={3} 
-                  dot={false}
-                  animationDuration={500}
-                />
-                {/* Highlight big changes */}
-                {equityHistory.map((entry, i) => 
-                  i > 0 && Math.abs(entry.change) > 500 ? (
-                    <ReferenceDot
-                      key={i}
-                      x={entry.time}
-                      y={entry.equity}
-                      r={6}
-                      fill={entry.change > 0 ? "#10b981" : "#ef4444"}
-                      stroke="none"
-                    />
-                  ) : null
-                )}
-              </LineChart>
-            </ResponsiveContainer>
-            <div className="text-center text-xs text-gray-500 mt-2">
-              Drag to zoom • Double-click to reset
-            </div>
+          <div className={`p-4 rounded-lg border ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-300'} h-64`}>
+            <Line data={chartData} options={chartOptions} />
           </div>
         </div>
 
-        {/* Rest of your dashboard (stats, rockets, positions, logs, scan button) */}
-        {/* ... keep your previous compact sections here ... */}
+        {/* Top Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+          {[
+            { label: "Equity", value: `$${Number(core.equity || 0).toLocaleString()}`, icon: <Shield className="w-4 h-4" /> },
+            { label: "Positions", value: `${positionsArray.length}/5` },
+            { label: "Rockets", value: core.rockets?.length || 0, icon: <Zap className="w-4 h-4" /> },
+            { label: "Rainbow DQN", value: ml?.status || "Active", extra: ml?.steps ? `Steps: ${ml.steps.toLocaleString()}` : "", icon: <Brain className="w-4 h-4" /> },
+            { label: "Symbols", value: core.dailySymbols?.length || 0, icon: <Activity className="w-4 h-4" /> },
+            { label: "Risk", value: core.risk ? `${(core.risk * 100).toFixed(1)}%` : "2.0%", icon: <Target className="w-4 h-4" /> }
+          ].map((stat, i) => (
+            <div key={i} className={`p-3 rounded-lg border ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-300'} text-center`}>
+              <div className={`text-xs flex items-center justify-center gap-1 mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                {stat.icon}
+                {stat.label}
+              </div>
+              <div className={`text-base sm:text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{stat.value}</div>
+              {stat.extra && <div className="text-xs text-gray-500 mt-1">{stat.extra}</div>}
+            </div>
+          ))}
+        </div>
+
+        {/* Rockets, Positions, Logs — keep your existing compact sections */}
 
         {/* Force Scan Button */}
         <button
