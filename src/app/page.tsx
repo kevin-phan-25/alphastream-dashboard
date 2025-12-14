@@ -30,7 +30,7 @@ export default function Dashboard() {
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
     } catch (e: any) {
       console.error("Fetch error:", e);
-      setError("Services unreachable — check Cloud Run status");
+      setError("Services unreachable");
     } finally {
       setLoading(false);
     }
@@ -42,132 +42,93 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black text-cyan-400 flex items-center justify-center text-2xl flex-col gap-6">
-        <Activity className="w-12 h-12 animate-pulse" />
-        <div>Initializing AlphaStream AI...</div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-screen bg-black text-cyan-400 flex flex-col items-center justify-center gap-4 text-xl">
+      <Activity className="w-8 h-8 animate-pulse" />
+      <div>Initializing AlphaStream AI...</div>
+    </div>
+  );
 
-  if (error || !core) {
-    return (
-      <div className="min-h-screen bg-black text-red-400 flex items-center justify-center text-xl flex-col gap-8 px-6 text-center">
-        <AlertCircle className="w-20 h-20" />
-        <div>{error || "Core service down"}</div>
-        <button onClick={fetchData} className="bg-cyan-600 hover:bg-cyan-500 text-black font-bold py-4 px-10 rounded-full transition">
-          Retry Connection
-        </button>
-      </div>
-    );
-  }
+  if (error || !core) return (
+    <div className="min-h-screen bg-black text-red-400 flex flex-col items-center justify-center gap-4 text-lg px-4 text-center">
+      <AlertCircle className="w-16 h-16" />
+      <div>{error || "Core service down"}</div>
+      <button onClick={fetchData} className="bg-cyan-600 hover:bg-cyan-500 text-black font-bold py-2 px-6 rounded-full transition">
+        Retry
+      </button>
+    </div>
+  );
 
-  const positionsArray = core.positions ? Array.from(Object.entries(core.positions)) : [];
+  const positionsArray = core.positions ? Object.entries(core.positions) : [];
 
   return (
-    <div className="min-h-screen bg-black text-gray-300 p-6 pb-32">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold text-cyan-400">AlphaStream AI Trader</h1>
-          <div className="text-sm text-gray-500">Last update: {lastUpdate} ET</div>
+    <div className="min-h-screen bg-black text-gray-300 p-4 pb-20">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold text-cyan-400">AlphaStream AI Trader</h1>
+          <div className="text-xs text-gray-500">Last update: {lastUpdate} ET</div>
         </div>
 
         {/* Top Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-10">
-          <div className="bg-gray-900 p-6 rounded-xl border border-purple-700">
-            <div className="text-gray-400 text-sm flex items-center gap-2">
-              <Shield className="w-4 h-4" /> Live Equity
+        <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-6 gap-3 mb-6 text-sm">
+          {[{
+            label: "Live Equity", value: `$${Number(core.equity || 0).toLocaleString()}`, extra: `Peak: $${Number(core.peakEquity || 0).toLocaleString()}`, icon: <Shield className="w-3 h-3" />
+          },{
+            label: "Open Positions", value: `${positionsArray.length}/5`, icon: null
+          },{
+            label: "Today's Rockets", value: core.rockets?.length || 0, icon: <Zap className="w-3 h-3" />
+          },{
+            label: "Rainbow DQN", value: ml?.status || "Active", extra: ml?.steps ? `Steps: ${ml.steps.toLocaleString()}` : "", icon: <Brain className="w-3 h-3" />
+          },{
+            label: "Daily Symbols", value: core.dailySymbols?.length || 0, icon: <Activity className="w-3 h-3" />
+          },{
+            label: "Next ML Action", value: nextAction?.symbol || "Waiting...", extra: nextAction?.action ? `Action: ${nextAction.action}` : "", icon: <Target className="w-3 h-3" />
+          }].map((s,i) => (
+            <div key={i} className="bg-gray-900 p-3 rounded-lg border border-gray-700 text-center">
+              <div className="text-gray-400 flex items-center justify-center gap-1">{s.icon}{s.label}</div>
+              <div className="font-bold text-white text-lg mt-1">{s.value}</div>
+              {s.extra && <div className="text-gray-500 text-xs mt-0.5">{s.extra}</div>}
             </div>
-            <div className="text-4xl font-bold text-white mt-2">
-              ${Number(core.equity || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </div>
-            <div className="text-sm text-gray-500 mt-1">Peak: ${Number(core.peakEquity || 0).toLocaleString()}</div>
-          </div>
-
-          <div className="bg-gray-900 p-6 rounded-xl border border-green-700">
-            <div className="text-gray-400 text-sm">Open Positions</div>
-            <div className="text-4xl font-bold text-green-400 mt-2">{positionsArray.length}/5</div>
-          </div>
-
-          <div className="bg-gray-900 p-6 rounded-xl border border-yellow-700">
-            <div className="text-gray-400 text-sm flex items-center gap-2">
-              <Zap className="w-4 h-4" /> Today's Rockets
-            </div>
-            <div className="text-4xl font-bold text-yellow-400 mt-2">{core.rockets?.length || 0}</div>
-          </div>
-
-          <div className="bg-gray-900 p-6 rounded-xl border border-cyan-700">
-            <div className="text-gray-400 text-sm flex items-center gap-2">
-              <Brain className="w-4 h-4" /> Rainbow DQN Status
-            </div>
-            <div className="text-2xl font-bold text-cyan-400 mt-2">
-              {ml?.status || "Active"}
-            </div>
-            {ml?.steps !== undefined && (
-              <div className="text-sm text-gray-500 mt-1">
-                Steps: {ml.steps.toLocaleString()}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-gray-900 p-6 rounded-xl border border-pink-700">
-            <div className="text-gray-400 text-sm flex items-center gap-2">
-              <Activity className="w-4 h-4" /> Daily Symbols
-            </div>
-            <div className="text-2xl font-bold text-pink-400 mt-2">{core.dailySymbols?.length || 0}</div>
-          </div>
-
-          <div className="bg-gray-900 p-6 rounded-xl border border-red-700">
-            <div className="text-gray-400 text-sm flex items-center gap-2">
-              <Target className="w-4 h-4" /> Next ML Action
-            </div>
-            <div className="text-2xl font-bold text-red-400 mt-2">
-              {nextAction?.symbol || "Waiting..."}
-            </div>
-            {nextAction?.action && (
-              <div className="text-sm text-gray-500 mt-1">Action: {nextAction.action}</div>
-            )}
-          </div>
+          ))}
         </div>
 
-        {/* Rockets Grid */}
-        <div className="mb-10">
-          <h2 className="text-2xl font-bold text-yellow-400 mb-6 flex items-center gap-3">
-            <Zap className="w-8 h-8" /> Today's Rockets ({core.rockets?.length || 0})
+        {/* Rockets */}
+        <div className="mb-6">
+          <h2 className="text-lg font-bold text-yellow-400 mb-2 flex items-center gap-2">
+            <Zap className="w-5 h-5" /> Today's Rockets ({core.rockets?.length || 0})
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
             {core.rockets?.length > 0 ? core.rockets.map((r: any, i: number) => (
-              <div key={i} className="bg-gray-900 p-5 rounded-xl border border-yellow-600 text-center hover:border-yellow-400 transition">
-                <div className="font-bold text-white text-xl">{r.symbol}</div>
-                <div className="text-3xl text-yellow-400 font-bold mt-2">+{r.gap}%</div>
+              <div key={i} className="bg-gray-900 p-2 rounded-lg border border-yellow-600 text-center hover:border-yellow-400 transition">
+                <div className="font-bold text-white text-sm">{r.symbol}</div>
+                <div className="text-yellow-400 font-bold text-base">+{r.gap}%</div>
               </div>
             )) : (
-              <div className="col-span-full text-center py-16 text-gray-500 text-xl bg-gray-900 rounded-xl">
-                No gappers ≥20% today — market quiet
+              <div className="col-span-full text-center py-8 text-gray-500 text-sm bg-gray-900 rounded-lg">
+                No gappers ≥20% today
               </div>
             )}
           </div>
         </div>
 
         {/* Live Positions */}
-        <div className="mb-10">
-          <h2 className="text-2xl font-bold text-green-400 mb-6 flex items-center gap-3">
-            <TrendingUp className="w-8 h-8" /> Live Positions
+        <div className="mb-6">
+          <h2 className="text-lg font-bold text-green-400 mb-2 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5" /> Live Positions
           </h2>
           {positionsArray.length > 0 ? (
-            <div className="space-y-5">
-              {positionsArray.map(([symbol, p]: any, idx: number) => {
-                const pnlPct = p.entry && p.current ? ((p.current - p.entry) / p.entry) * 100 : 0;
+            <div className="space-y-3 text-sm">
+              {positionsArray.map(([symbol, p]: any) => {
+                const pnlPct = p.entry && p.current ? ((p.current - p.entry)/p.entry)*100 : 0;
                 return (
-                  <div key={symbol} className="bg-gray-900 p-6 rounded-xl border border-green-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                  <div key={symbol} className="bg-gray-900 p-3 rounded-lg border border-green-700 flex justify-between items-center">
                     <div>
-                      <div className="font-bold text-white text-2xl">{symbol} ×{p.qty || 0}</div>
-                      <div className="text-gray-400 mt-1">
-                        Entry: ${Number(p.entry || 0).toFixed(2)} → Current: ${Number(p.current || 0).toFixed(2)}
+                      <div className="font-bold text-white">{symbol} ×{p.qty || 0}</div>
+                      <div className="text-gray-400 text-xs">
+                        Entry: ${Number(p.entry||0).toFixed(2)} → ${Number(p.current||0).toFixed(2)}
                       </div>
                     </div>
-                    <div className={`text-4xl font-bold ${pnlPct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                    <div className={`font-bold text-lg ${pnlPct >= 0 ? "text-green-400" : "text-red-400"}`}>
                       {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%
                     </div>
                   </div>
@@ -175,23 +136,18 @@ export default function Dashboard() {
               })}
             </div>
           ) : (
-            <div className="text-center py-16 text-gray-500 text-xl bg-gray-900 rounded-xl border border-gray-800">
-              No open positions — Rainbow DQN waiting for high-confidence gappers
+            <div className="text-center py-8 text-gray-500 text-sm bg-gray-900 rounded-lg border border-gray-800">
+              No open positions
             </div>
           )}
         </div>
 
         {/* Force Scan */}
         <button
-          onClick={() => {
-            axios.post(`${CORE_URL}/scan`)
-              .then(() => fetchData())
-              .catch(() => alert("Scan failed — check core service"));
-          }}
-          className="fixed bottom-10 right-10 bg-cyan-600 hover:bg-cyan-500 text-black font-bold py-6 px-12 rounded-full flex items-center gap-4 shadow-2xl transition transform hover:scale-110 z-50 text-xl"
+          onClick={() => axios.post(`${CORE_URL}/scan`).then(fetchData).catch(()=>alert("Scan failed"))}
+          className="fixed bottom-6 right-6 bg-cyan-600 hover:bg-cyan-500 text-black font-bold py-3 px-6 rounded-full flex items-center gap-2 shadow-lg transition transform hover:scale-105 text-sm"
         >
-          <RefreshCw className="w-8 h-8" />
-          Force Scan Now
+          <RefreshCw className="w-5 h-5" /> Force Scan
         </button>
       </div>
     </div>
