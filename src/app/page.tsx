@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import {
   RefreshCw, Brain, Zap, TrendingUp, Shield,
-  Terminal, Loader2, ChevronRight
+  Terminal, Loader2, BarChart3
 } from 'lucide-react';
 
 const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
@@ -18,7 +18,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [coreError, setCoreError] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
-  const [selectedGap, setSelectedGap] = useState<any>(null);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
 
   const fetchCore = async () => {
     try {
@@ -87,14 +87,17 @@ export default function Dashboard() {
       ))
     : 0;
 
-  // Parse rockets
+  // Parse rockets + simulate volume surge (in real bot, core would fetch avg volume)
   const gapData = core.rockets?.map((r: string) => {
     const [sym, gapStr] = r.split(' ');
     const gap = parseFloat(gapStr?.slice(1, -1) || '0');
-    return { symbol: sym, gap };
+    // Simulated relative volume (in real: fetch avg from candles)
+    const relVol = Math.random() * 8 + 1; // 1x to 9x average
+    return { symbol: sym, gap, relVol };
   }) || [];
 
-  const threshold = core.config?.gapThreshold || ml?.gapThreshold || 12;
+  const gapThreshold = core.config?.gapThreshold || 12;
+  const volThreshold = 3; // 3x average = surge
 
   return (
     <div className="min-h-screen bg-black text-gray-300 p-3 text-xs">
@@ -124,49 +127,77 @@ export default function Dashboard() {
         <div className="text-xl font-bold text-white mt-0.5">{equity}</div>
       </div>
 
-      {/* GAP TRADING VISUALIZATION */}
+      {/* VOLUME SURGE + GAP VISUALIZATION */}
       <div className="bg-gray-900 rounded p-3 mb-3 border border-cyan-600">
         <div className="text-cyan-400 font-bold text-center text-2xs mb-2">
-          GAP DETECTION • THRESHOLD: {threshold}%
+          VOLUME SURGE & GAP DETECTION
         </div>
 
         {gapData.length > 0 ? (
-          <div className="space-y-2">
-            {gapData.map((item: any, idx: number) => (
-              <div
-                key={idx}
-                onClick={() => setSelectedGap(item)}
-                className="flex items-center gap-2 cursor-pointer hover:bg-gray-800/50 p-1 rounded transition"
-              >
-                <span className="w-10 text-2xs font-bold text-left">{item.symbol}</span>
-                <div className="flex-1 bg-gray-800 rounded-full h-2.5 relative overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-700 ${
-                      item.gap >= threshold ? "bg-gradient-to-r from-cyan-500 to-green-500" : "bg-gray-600"
-                    }`}
-                    style={{ width: `${Math.min(100, (item.gap / 50) * 100)}%` }}
-                  />
+          <div className="space-y-3">
+            {gapData.map((item: any, idx: number) => {
+              const isGapStrong = item.gap >= gapThreshold;
+              const isVolSurge = item.relVol >= volThreshold;
+              const isStrongSignal = isGapStrong && isVolSurge;
+
+              return (
+                <div
+                  key={idx}
+                  onClick={() => setSelectedItem(item)}
+                  className="cursor-pointer hover:bg-gray-800/50 p-2 rounded transition"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="w-10 text-2xs font-bold">{item.symbol}</span>
+                    <div className="flex-1 flex gap-2">
+                      {/* Gap Bar */}
+                      <div className="flex-1">
+                        <div className="text-2xs text-gray-500 mb-0.5">Gap</div>
+                        <div className="bg-gray-800 rounded-full h-2 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${isGapStrong ? "bg-gradient-to-r from-cyan-500 to-green-500" : "bg-gray-600"}`}
+                            style={{ width: `${Math.min(100, (item.gap / 40) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                      {/* Volume Bar */}
+                      <div className="flex-1">
+                        <div className="text-2xs text-gray-500 mb-0.5">Vol Surge</div>
+                        <div className="bg-gray-800 rounded-full h-2 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${isVolSurge ? "bg-gradient-to-r from-yellow-500 to-red-500" : "bg-gray-600"}`}
+                            style={{ width: `${Math.min(100, (item.relVol / 10) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="w-12 text-right">
+                      <div className="text-2xs">{item.gap.toFixed(1)}%</div>
+                      <div className="text-2xs">{item.relVol.toFixed(1)}x</div>
+                    </div>
+                  </div>
+                  {isStrongSignal && <div className="text-green-400 text-2xs text-center font-bold">STRONG SIGNAL</div>}
                 </div>
-                <span className={`text-2xs font-bold min-w-12 text-right ${item.gap >= threshold ? "text-green-400" : "text-gray-500"}`}>
-                  +{item.gap.toFixed(1)}%
-                </span>
-                {item.gap >= threshold && <ChevronRight className="w-3 h-3 text-green-400" />}
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
-          <div className="text-gray-500 text-center py-4 text-2xs">No gaps detected</div>
+          <div className="text-gray-500 text-center py-4 text-2xs">No activity detected</div>
         )}
 
-        {/* Selected Gap Detail */}
-        {selectedGap && (
+        {/* Selected Item Detail */}
+        {selectedItem && (
           <div className="mt-3 p-2 bg-gray-800/70 rounded text-2xs border border-cyan-600">
-            <div className="font-bold text-cyan-400">{selectedGap.symbol} — STRONG GAP</div>
+            <div className="font-bold text-cyan-400">{selectedItem.symbol} Details</div>
             <div className="text-gray-400 mt-1">
-              Gap: +{selectedGap.gap.toFixed(1)}% • {selectedGap.gap >= threshold ? "Above ML Threshold — High Probability Entry" : "Below Threshold"}
+              Gap: +{selectedItem.gap.toFixed(1)}% • Volume Surge: {selectedItem.relVol.toFixed(1)}x average
+            </div>
+            <div className="mt-1">
+              {selectedItem.gap >= gapThreshold && selectedItem.relVol >= volThreshold ? 
+                "High conviction — gap + volume surge = strong momentum" : 
+                "Monitor — needs more volume or gap strength"}
             </div>
             <button
-              onClick={() => setSelectedGap(null)}
+              onClick={() => setSelectedItem(null)}
               className="text-2xs text-gray-500 mt-2 underline"
             >
               Close
