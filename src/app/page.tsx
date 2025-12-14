@@ -7,7 +7,7 @@ import {
   Terminal, AlertTriangle, Play, X, Loader2
 } from 'lucide-react';
 
-const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app"; // Your core URL
+const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
 const ML_URL = "https://alphastream-ml-1017433009054.us-east1.run.app";
 
 export default function Dashboard() {
@@ -57,15 +57,15 @@ export default function Dashboard() {
       setML(res.data);
     } catch (err) {
       console.error("ML fetch failed");
+      setML(null);
     }
   };
 
-  // Actions with loading state
   const actionPost = async (endpoint: string, label: string) => {
     setActionLoading(label);
     try {
       await axios.post(`${CORE_URL}${endpoint}`, {}, { timeout: 10000 });
-      await fetchCore(); // refresh after action
+      await fetchCore();
     } catch (err) {
       console.error(`${label} failed`, err);
     } finally {
@@ -95,9 +95,12 @@ export default function Dashboard() {
   const heal = core.healMode || ml?.healMode;
   const equity = `$${Number(core.equity?.live || core.equity || 0).toLocaleString()}`;
   const drawdown = core.drawdown || "0%";
-  const winRate = core.stats?.totalTrades > 0 
+
+  const winRate = core.stats?.totalTrades > 0
     ? ((core.stats.winningTrades / core.stats.totalTrades) * 100).toFixed(1)
     : "—";
+
+  const mlOnline = !!ml;
 
   return (
     <div className="min-h-screen bg-black text-gray-300 p-3 text-sm">
@@ -111,6 +114,7 @@ export default function Dashboard() {
               {heal ? "HEAL MODE" : "LIVE"}
             </span>
             <span>• {core.timeET || "--:--"}</span>
+            {!mlOnline && <span className="text-red-400">ML Offline</span>}
           </div>
         </div>
 
