@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import {
   RefreshCw, Brain, Zap, TrendingUp, Shield,
-  Terminal, AlertTriangle, Loader2
+  Terminal, Loader2, ChevronRight
 } from 'lucide-react';
 
 const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [coreError, setCoreError] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
+  const [selectedGap, setSelectedGap] = useState<any>(null);
 
   const fetchCore = async () => {
     try {
@@ -76,13 +77,7 @@ export default function Dashboard() {
   if (loading) return <Loader />;
   if (coreError) return <Offline retry={fetchCore} />;
 
-  const heal = core.healMode || ml?.healMode;
   const equity = `$${Number(core.equity?.live || core.equity || 0).toLocaleString()}`;
-  const drawdown = core.drawdown || "0%";
-
-  const winRate = core.stats?.totalTrades > 0
-    ? ((core.stats.winningTrades / core.stats.totalTrades) * 100).toFixed(1)
-    : "—";
 
   const mlConfidence = ml
     ? Math.min(100, Math.floor(
@@ -92,14 +87,14 @@ export default function Dashboard() {
       ))
     : 0;
 
-  // Parse rockets for gap visualization
+  // Parse rockets
   const gapData = core.rockets?.map((r: string) => {
     const [sym, gapStr] = r.split(' ');
     const gap = parseFloat(gapStr?.slice(1, -1) || '0');
     return { symbol: sym, gap };
   }) || [];
 
-  const threshold = core.config?.gapThreshold || 12;
+  const threshold = core.config?.gapThreshold || ml?.gapThreshold || 12;
 
   return (
     <div className="min-h-screen bg-black text-gray-300 p-3 text-xs">
@@ -108,10 +103,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-base font-bold text-cyan-400">AlphaStream</h1>
           <div className="text-2xs flex items-center gap-2 mt-1">
-            {heal && <Shield className="w-3 h-3 text-orange-400 animate-pulse" />}
-            <span className={heal ? "text-orange-400" : "text-green-400 font-bold"}>
-              {heal ? "HEAL MODE" : "LIVE"}
-            </span>
+            <span className="text-green-400 font-bold">LIVE</span>
             <span>• {core.timeET || "--:--"}</span>
           </div>
         </div>
@@ -130,48 +122,63 @@ export default function Dashboard() {
       <div className="bg-gradient-to-r from-purple-900/40 to-cyan-900/40 rounded p-2 text-center mb-3 border border-purple-700">
         <div className="text-2xs text-gray-400">LIVE ALPACA EQUITY</div>
         <div className="text-xl font-bold text-white mt-0.5">{equity}</div>
-        <div className="text-2xs text-gray-400 mt-0.5">Drawdown: {drawdown}</div>
       </div>
 
-      {/* STATS GRID */}
-      <div className="grid grid-cols-4 gap-2 mb-3">
-        <Stat icon={<Zap className="w-4 h-4 mx-auto text-purple-400" />} value={`${positions.length}/5`} label="POS" />
-        <Stat icon={<TrendingUp className="w-4 h-4 mx-auto text-cyan-400" />} value={core.rockets?.length || 0} label="ROCKETS" />
-        <Stat icon={<Brain className="w-4 h-4 mx-auto text-purple-400" />} value={`${winRate}%`} label="WIN" />
-        <Stat icon={<Terminal className="w-4 h-4 mx-auto text-yellow-400" />} value={core.stats?.totalTrades || 0} label="TRADES" />
-      </div>
+      {/* GAP TRADING VISUALIZATION */}
+      <div className="bg-gray-900 rounded p-3 mb-3 border border-cyan-600">
+        <div className="text-cyan-400 font-bold text-center text-2xs mb-2">
+          GAP DETECTION • THRESHOLD: {threshold}%
+        </div>
 
-      {/* GAP DETECTION VISUALIZATION */}
-      <Panel title="GAP DETECTION" color="text-cyan-400">
         {gapData.length > 0 ? (
           <div className="space-y-2">
-            {gapData.map((item: any) => (
-              <div key={item.symbol} className="flex items-center gap-2">
-                <span className="w-12 text-2xs font-bold">{item.symbol}</span>
-                <div className="flex-1 bg-gray-800 rounded-full h-3 relative overflow-hidden">
+            {gapData.map((item: any, idx: number) => (
+              <div
+                key={idx}
+                onClick={() => setSelectedGap(item)}
+                className="flex items-center gap-2 cursor-pointer hover:bg-gray-800/50 p-1 rounded transition"
+              >
+                <span className="w-10 text-2xs font-bold text-left">{item.symbol}</span>
+                <div className="flex-1 bg-gray-800 rounded-full h-2.5 relative overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all ${item.gap >= threshold ? "bg-gradient-to-r from-cyan-500 to-green-500" : "bg-gray-600"}`}
-                    style={{ width: `${Math.min(100, (item.gap / 40) * 100)}%` }}
+                    className={`h-full rounded-full transition-all duration-700 ${
+                      item.gap >= threshold ? "bg-gradient-to-r from-cyan-500 to-green-500" : "bg-gray-600"
+                    }`}
+                    style={{ width: `${Math.min(100, (item.gap / 50) * 100)}%` }}
                   />
                 </div>
-                <span className={`text-2xs font-bold ${item.gap >= threshold ? "text-green-400" : "text-gray-500"}`}>
-                  {item.gap.toFixed(1)}%
+                <span className={`text-2xs font-bold min-w-12 text-right ${item.gap >= threshold ? "text-green-400" : "text-gray-500"}`}>
+                  +{item.gap.toFixed(1)}%
                 </span>
+                {item.gap >= threshold && <ChevronRight className="w-3 h-3 text-green-400" />}
               </div>
             ))}
-            <div className="text-2xs text-gray-500 mt-2 text-center">
-              Threshold: {threshold}%
-            </div>
           </div>
         ) : (
           <div className="text-gray-500 text-center py-4 text-2xs">No gaps detected</div>
         )}
-      </Panel>
+
+        {/* Selected Gap Detail */}
+        {selectedGap && (
+          <div className="mt-3 p-2 bg-gray-800/70 rounded text-2xs border border-cyan-600">
+            <div className="font-bold text-cyan-400">{selectedGap.symbol} — STRONG GAP</div>
+            <div className="text-gray-400 mt-1">
+              Gap: +{selectedGap.gap.toFixed(1)}% • {selectedGap.gap >= threshold ? "Above ML Threshold — High Probability Entry" : "Below Threshold"}
+            </div>
+            <button
+              onClick={() => setSelectedGap(null)}
+              className="text-2xs text-gray-500 mt-2 underline"
+            >
+              Close
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* ML CONFIDENCE GAUGE */}
       <div className="bg-gray-900 rounded p-3 mb-3 border border-purple-600">
         <div className="text-purple-400 font-bold text-center text-2xs mb-2">RAINBOW DQN CONFIDENCE</div>
-        
+
         <div className="relative w-28 h-28 mx-auto">
           <svg viewBox="0 0 36 36" className="transform -rotate-90 w-full h-full">
             <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1f2937" strokeWidth="2.5" />
@@ -193,7 +200,7 @@ export default function Dashboard() {
               className="transition-all duration-1000"
             />
           </svg>
-          
+
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <div className="text-lg font-bold text-white">
               {mlConfidence}%
@@ -238,10 +245,6 @@ export default function Dashboard() {
           )) || <div className="text-gray-600 text-center py-6">Waiting for activity...</div>}
         </div>
       </Panel>
-
-      <div className="text-center py-3 text-purple-400 text-2xs font-bold">
-        RAINBOW DQN • LIVE TRADING • SELF-LEARNING
-      </div>
     </div>
   );
 }
@@ -260,14 +263,6 @@ const Offline = ({ retry }: { retry: () => void }) => (
     <button onClick={retry} className="px-5 py-2 bg-red-600 rounded text-white text-sm font-bold">
       Retry
     </button>
-  </div>
-);
-
-const Stat = ({ icon, value, label }: any) => (
-  <div className="bg-gray-900 rounded p-2 text-center border border-gray-800">
-    <div className="mb-1">{icon}</div>
-    <div className="text-base font-bold text-white">{value}</div>
-    <div className="text-2xs text-gray-500 mt-1">{label}</div>
   </div>
 );
 
