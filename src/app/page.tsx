@@ -10,6 +10,7 @@ export default function Dashboard() {
   const [core, setCore] = useState<any>(null);
   const [ml, setML] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -19,8 +20,10 @@ export default function Dashboard() {
       ]);
       setCore(cRes.data);
       setML(mRes.data);
-    } catch (e) {
+      setError(null);
+    } catch (e: any) {
       console.error("Fetch error", e);
+      setError("Services unreachable: " + (e.message || "Unknown error"));
     } finally {
       setLoading(false);
     }
@@ -40,14 +43,17 @@ export default function Dashboard() {
     );
   }
 
-  // Fallback if data is partially loaded or unexpected
-  if (!core) {
+  if (error || !core || !ml) {
     return (
-      <div className="min-h-screen bg-black text-red-400 flex items-center justify-center text-2xl">
-        Core service unreachable or invalid response
+      <div className="min-h-screen bg-black text-red-400 flex items-center justify-center text-2xl flex-col gap-4">
+        <div>{error || "Invalid response from services"}</div>
+        <button onClick={fetchData} className="text-cyan-400 underline">Retry</button>
       </div>
     );
   }
+
+  // Safely handle positions (support both old tuple format and new empty/array format)
+  const positions = Array.isArray(core.positions) ? core.positions : [];
 
   return (
     <div className="min-h-screen bg-black text-gray-300 p-6">
@@ -57,20 +63,16 @@ export default function Dashboard() {
         <div className="bg-gray-900 p-6 rounded-lg border border-purple-700">
           <div className="text-gray-400 text-sm">Live Equity</div>
           <div className="text-4xl font-bold text-white">
-            {core.equity || "N/A"}
+            ${Number(core.equity || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
         <div className="bg-gray-900 p-6 rounded-lg border border-green-700">
           <div className="text-gray-400 text-sm">Open Positions</div>
-          <div className="text-4xl font-bold text-green-400">
-            {core.positionsOpen || 0}/{core.config?.maxPositions || 5}
-          </div>
+          <div className="text-4xl font-bold text-green-400">{positions.length}/5</div>
         </div>
         <div className="bg-gray-900 p-6 rounded-lg border border-purple-700">
-          <div className="text-gray-400 text-sm">ML Status</div>
-          <div className="text-2xl font-bold text-purple-400">
-            {ml?.status || "Unknown"}
-          </div>
+          <div className="text-gray-400 text-sm">ML Memory</div>
+          <div className="text-2xl font-bold text-purple-400">{ml.trackedSymbols} symbols</div>
         </div>
       </div>
 
@@ -81,8 +83,8 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {core.rockets?.length > 0 ? core.rockets.map((r: any, i: number) => (
             <div key={i} className="bg-gray-900 p-4 rounded border border-yellow-600">
-              <div className="font-bold text-white">{r.symbol || "Unknown"}</div>
-              <div className="text-2xl text-yellow-400">+{r.gap ?? "?"}%</div>
+              <div className="font-bold text-white">{r.symbol}</div>
+              <div className="text-2xl text-yellow-400">+{r.gap}%</div>
             </div>
           )) : (
             <div className="text-gray-500 col-span-full text-center py-8">No gappers today</div>
@@ -90,7 +92,49 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Add more sections as needed for your new core response */}
+      <div className="mb-8">
+        <h2 className="text-xl font-bold text-green-400 mb-4 flex items-center gap-2">
+          <TrendingUp className="w-6 h-6" /> Live Positions
+        </h2>
+        {positions.length > 0 ? (
+          <div className="space-y-3">
+            {positions.map((item: any, idx: number) => {
+              // Support tuple format [symbol, data] or direct object
+              const symbol = typeof item[0] === 'string' ? item[0] : item.symbol || `Pos ${idx}`;
+              const p = typeof item[0] === 'string' ? item[1] : item;
+              return (
+                <div key={symbol} className="bg-gray-900 p-4 rounded border border-green-700 flex justify-between items-center">
+                  <div>
+                    <div className="font-bold text-white">{symbol} ×{p.qty || 0}</div>
+                    <div className="text-sm text-gray-400">Entry: ${Number(p.entry || 0).toFixed(2)}</div>
+                  </div>
+                  <div className={`text-2xl font-bold ${p.current > p.entry ? "text-green-400" : "text-red-400"}`}>
+                    {p.entry ? ((p.current - p.entry) / p.entry * 100).toFixed(1) : "0.0"}%
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-gray-500 text-center py-8">No open positions</div>
+        )}
+      </div>
+
+      <div>
+        <h2 className="text-xl font-bold text-cyan-400 mb-4 flex items-center gap-2">
+          <Brain className="w-6 h-6" /> ML Top 5 Learned Symbols
+        </h2>
+        <div className="grid grid-cols-5 gap-3">
+          {ml.top?.length > 0 ? ml.top.map((s: any, i: number) => (
+            <div key={i} className="bg-gray-900 p-3 rounded border border-purple-600 text-center">
+              <div className="font-bold text-white">{s.symbol}</div>
+              <div className="text-sm text-purple-400">{(s.confidence * 100).toFixed(0)}%</div>
+            </div>
+          )) : (
+            <div className="col-span-5 text-gray-500 text-center py-4">Learning in progress...</div>
+          )}
+        </div>
+      </div>
 
       <button
         onClick={() => axios.post(`${CORE_URL}/scan`).catch(console.error)}
