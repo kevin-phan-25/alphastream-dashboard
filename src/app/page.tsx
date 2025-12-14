@@ -1,4 +1,5 @@
 'use client';
+
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import {
@@ -6,9 +7,12 @@ import {
   Terminal, AlertTriangle, Play, Loader2
 } from 'lucide-react';
 
-/* =============================
+const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
+const ML_URL = "https://alphastream-ml-1017433009054.us-east1.run.app";
+
+/* ======================
    HELPER COMPONENTS
-============================= */
+====================== */
 const Loader = () => (
   <div className="min-h-screen bg-black flex items-center justify-center">
     <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
@@ -25,7 +29,7 @@ const Offline = ({ retry }: { retry: () => void }) => (
   </div>
 );
 
-const Stat = ({ icon, value, label }: { icon: JSX.Element; value: any; label: string }) => (
+const Stat = ({ icon, value, label }: any) => (
   <div className="bg-gray-900 rounded-lg p-4 text-center border border-gray-800">
     <div className="mx-auto mb-2">{icon}</div>
     <div className="text-xl font-bold text-white">{value}</div>
@@ -33,19 +37,16 @@ const Stat = ({ icon, value, label }: { icon: JSX.Element; value: any; label: st
   </div>
 );
 
-const Panel = ({ title, children, color }: { title: string; children: React.ReactNode; color?: string }) => (
+const Panel = ({ title, children, color }: any) => (
   <div className="bg-gray-900 rounded-xl p-4 mb-4 border border-gray-800">
     <div className={`text-sm font-bold mb-3 ${color}`}>{title}</div>
     {children}
   </div>
 );
 
-/* =============================
-   DASHBOARD
-============================= */
-const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
-const ML_URL = "https://alphastream-ml-1017433009054.us-east1.run.app";
-
+/* ======================
+   DASHBOARD COMPONENT
+====================== */
 export default function Dashboard() {
   const [core, setCore] = useState<any>(null);
   const [positions, setPositions] = useState<any[]>([]);
@@ -56,9 +57,7 @@ export default function Dashboard() {
   const [coreError, setCoreError] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  /* =============================
-     FETCH FUNCTIONS
-  ============================ */
+  /* Fetch core service */
   const fetchCore = async () => {
     try {
       const res = await axios.get(CORE_URL, { timeout: 12000 });
@@ -72,6 +71,7 @@ export default function Dashboard() {
     }
   };
 
+  /* Fetch positions */
   const fetchPositions = async () => {
     try {
       const res = await axios.get(`${CORE_URL}/positions`, { timeout: 8000 });
@@ -81,6 +81,7 @@ export default function Dashboard() {
     }
   };
 
+  /* Fetch scan progress */
   const fetchScan = async () => {
     try {
       const res = await axios.get(`${CORE_URL}/scan-progress`, { timeout: 5000 });
@@ -90,16 +91,17 @@ export default function Dashboard() {
     }
   };
 
+  /* Fetch ML insights */
   const fetchML = async () => {
     try {
       const res = await axios.get(`${ML_URL}/insights`, { timeout: 10000 });
       setML(res.data);
     } catch (err) {
-      console.error("ML fetch failed");
       setML(null);
     }
   };
 
+  /* Post actions to Core */
   const actionPost = async (endpoint: string, label: string) => {
     setActionLoading(label);
     try {
@@ -112,9 +114,7 @@ export default function Dashboard() {
     }
   };
 
-  /* =============================
-     EFFECTS
-  ============================ */
+  /* Initial load & intervals */
   useEffect(() => {
     fetchCore();
     fetchPositions();
@@ -127,6 +127,7 @@ export default function Dashboard() {
       setInterval(fetchScan, 2000),
       setInterval(fetchML, 20000),
     ];
+
     return () => intervals.forEach(clearInterval);
   }, []);
 
@@ -136,10 +137,13 @@ export default function Dashboard() {
   const heal = core.healMode || ml?.healMode;
   const equity = `$${Number(core.equity?.live || core.equity || 0).toLocaleString()}`;
   const drawdown = core.drawdown || "0%";
+
   const winRate = core.stats?.totalTrades > 0
     ? ((core.stats.winningTrades / core.stats.totalTrades) * 100).toFixed(1)
     : "—";
+
   const mlOnline = !!ml;
+
   const mlConfidence = ml
     ? Math.min(
         100,
@@ -208,8 +212,39 @@ export default function Dashboard() {
       <div className="grid grid-cols-4 gap-3 mb-4">
         <Stat icon={<Zap className="w-6 h-6 text-purple-400" />} value={`${positions.length}/5`} label="POSITIONS" />
         <Stat icon={<TrendingUp className="w-6 h-6 text-cyan-400" />} value={core.rockets?.length || 0} label="ROCKETS" />
-        <Stat icon={<Brain className="w-6 h-6 text-purple-400" />} value={winRate}% label="WIN RATE" />
+        <Stat icon={<Brain className="w-6 h-6 text-purple-400" />} value={`${winRate}%`} label="WIN RATE" />
         <Stat icon={<Terminal className="w-6 h-6 text-yellow-400" />} value={core.stats?.totalTrades || 0} label="TRADES" />
+      </div>
+
+      {/* POSITIONS PANEL */}
+      <Panel title="LIVE POSITIONS" color="text-green-400">
+        {positions.length > 0 ? (
+          <div className="space-y-2">
+            {positions.map((p: any) => (
+              <div key={p.symbol} className="flex justify-between text-xs">
+                <span className="font-bold">{p.symbol} ×{p.qty}</span>
+                <span className={p.pnlPct >= 0 ? "text-green-400" : "text-red-400"}>
+                  {p.pnlPct >= 0 ? "+" : ""}{p.pnlPct?.toFixed(1)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-gray-500 text-center py-4">No open positions</div>
+        )}
+      </Panel>
+
+      {/* LOGS PANEL */}
+      <Panel title="LIVE LOGS" color="text-cyan-400">
+        <div className="font-mono text-xs max-h-64 overflow-y-auto space-y-1">
+          {core.logs?.slice(-20).map((log: string, i: number) => (
+            <div key={i} className="text-gray-400">{log}</div>
+          )) || <div className="text-gray-600 text-center py-8">Waiting for logs...</div>}
+        </div>
+      </Panel>
+
+      <div className="text-center py-4 text-purple-400 text-xs font-bold animate-pulse">
+        v300000 • LIVE TRADING • CORE SERVICE RELIABLE
       </div>
     </div>
   );
