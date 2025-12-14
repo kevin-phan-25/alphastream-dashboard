@@ -60,7 +60,7 @@ export default function Dashboard() {
     );
   }
 
-  const positions = Array.isArray(core.positions) ? core.positions : [];
+  const positionsArray = core.positions ? Array.from(Object.entries(core.positions)) : [];
 
   return (
     <div className="min-h-screen bg-black text-gray-300 p-6 pb-32">
@@ -71,7 +71,7 @@ export default function Dashboard() {
         </div>
 
         {/* Top Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-10">
           <div className="bg-gray-900 p-6 rounded-xl border border-purple-700">
             <div className="text-gray-400 text-sm flex items-center gap-2">
               <Shield className="w-4 h-4" /> Live Equity
@@ -79,16 +79,12 @@ export default function Dashboard() {
             <div className="text-4xl font-bold text-white mt-2">
               ${Number(core.equity || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </div>
-            {core.risk && (
-              <div className="text-sm text-gray-500 mt-2">
-                Risk: {(core.risk * 100).toFixed(2)}%
-              </div>
-            )}
+            <div className="text-sm text-gray-500 mt-1">Peak: ${Number(core.peakEquity || 0).toLocaleString()}</div>
           </div>
 
           <div className="bg-gray-900 p-6 rounded-xl border border-green-700">
             <div className="text-gray-400 text-sm">Open Positions</div>
-            <div className="text-4xl font-bold text-green-400 mt-2">{positions.length}/5</div>
+            <div className="text-4xl font-bold text-green-400 mt-2">{positionsArray.length}/5</div>
           </div>
 
           <div className="bg-gray-900 p-6 rounded-xl border border-yellow-700">
@@ -110,6 +106,13 @@ export default function Dashboard() {
                 Steps: {ml.steps.toLocaleString()}
               </div>
             )}
+          </div>
+
+          <div className="bg-gray-900 p-6 rounded-xl border border-pink-700">
+            <div className="text-gray-400 text-sm flex items-center gap-2">
+              <Activity className="w-4 h-4" /> Daily Symbols
+            </div>
+            <div className="text-2xl font-bold text-pink-400 mt-2">{core.dailySymbols?.length || 0}</div>
           </div>
         </div>
 
@@ -137,13 +140,10 @@ export default function Dashboard() {
           <h2 className="text-2xl font-bold text-green-400 mb-6 flex items-center gap-3">
             <TrendingUp className="w-8 h-8" /> Live Positions
           </h2>
-          {positions.length > 0 ? (
+          {positionsArray.length > 0 ? (
             <div className="space-y-5">
-              {positions.map((item: any, idx: number) => {
-                const symbol = typeof item[0] === 'string' ? item[0] : item.symbol || `Pos ${idx + 1}`;
-                const p = typeof item[0] === 'string' ? item[1] : item;
-                const pnlPct = p.entry ? ((p.current - p.entry) / p.entry) * 100 : 0;
-
+              {positionsArray.map(([symbol, p]: any, idx: number) => {
+                const pnlPct = p.entry && p.current ? ((p.current - p.entry) / p.entry) * 100 : 0;
                 return (
                   <div key={symbol} className="bg-gray-900 p-6 rounded-xl border border-green-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
