@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Brain, Shield } from 'lucide-react';
+import { Brain } from 'lucide-react';
 
 const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
 const ML_URL = "https://alphastream-ml-1017433009054.us-east1.run.app";
@@ -11,9 +11,10 @@ export default function Dashboard() {
   const [ml, setML] = useState<any>(null);
   const [mlError, setMLError] = useState(false);
 
-  // Fetch core & ML data
+  // Fetch Core & ML data
   useEffect(() => {
     const load = async () => {
+      // Always fetch core
       try {
         const c = await axios.get(CORE_URL, { timeout: 10000 });
         setCore(c.data);
@@ -22,6 +23,7 @@ export default function Dashboard() {
         setCore(null);
       }
 
+      // Try fetching ML, but don't block
       try {
         const m = await axios.get(`${ML_URL}/insights`, { timeout: 10000 });
         setML(m.data);
@@ -39,7 +41,11 @@ export default function Dashboard() {
   }, []);
 
   if (!core) {
-    return <div className="bg-black text-gray-500 p-6 min-h-screen flex items-center justify-center">Connecting to Core…</div>;
+    return (
+      <div className="bg-black text-gray-500 p-6 min-h-screen flex items-center justify-center">
+        Connecting to Core…
+      </div>
+    );
   }
 
   return (
@@ -77,7 +83,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Positions with ML conviction */}
+      {/* Positions from Core */}
       <div className="bg-gray-900 p-3 rounded">
         <div className="font-bold mb-2 flex items-center gap-1">
           <Brain className="w-4 h-4 text-purple-400" /> POSITIONS
