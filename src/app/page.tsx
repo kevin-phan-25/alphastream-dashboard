@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { RefreshCw, Zap, Brain, TrendingUp, AlertCircle, Shield, Activity } from 'lucide-react';
+import { RefreshCw, Zap, Brain, TrendingUp, AlertCircle, Shield, Activity, Target } from 'lucide-react';
 
 const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
 const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
@@ -10,19 +10,22 @@ const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433
 export default function Dashboard() {
   const [core, setCore] = useState<any>(null);
   const [ml, setML] = useState<any>(null);
+  const [nextAction, setNextAction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<string>("");
 
   const fetchData = async () => {
     try {
-      const [cRes, mRes] = await Promise.all([
+      const [cRes, mRes, aRes] = await Promise.all([
         axios.get(CORE_URL, { timeout: 12000 }),
-        axios.get(ML_URL, { timeout: 12000 }).catch(() => ({ data: null }))
+        axios.get(ML_URL, { timeout: 12000 }).catch(() => ({ data: null })),
+        axios.get(`${ML_URL}/next-action`, { timeout: 8000 }).catch(() => ({ data: null }))
       ]);
 
       setCore(cRes.data);
       setML(mRes.data);
+      setNextAction(aRes.data);
       setError(null);
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
     } catch (e: any) {
@@ -71,7 +74,7 @@ export default function Dashboard() {
         </div>
 
         {/* Top Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-10">
           <div className="bg-gray-900 p-6 rounded-xl border border-purple-700">
             <div className="text-gray-400 text-sm flex items-center gap-2">
               <Shield className="w-4 h-4" /> Live Equity
@@ -113,6 +116,18 @@ export default function Dashboard() {
               <Activity className="w-4 h-4" /> Daily Symbols
             </div>
             <div className="text-2xl font-bold text-pink-400 mt-2">{core.dailySymbols?.length || 0}</div>
+          </div>
+
+          <div className="bg-gray-900 p-6 rounded-xl border border-red-700">
+            <div className="text-gray-400 text-sm flex items-center gap-2">
+              <Target className="w-4 h-4" /> Next ML Action
+            </div>
+            <div className="text-2xl font-bold text-red-400 mt-2">
+              {nextAction?.symbol || "Waiting..."}
+            </div>
+            {nextAction?.action && (
+              <div className="text-sm text-gray-500 mt-1">Action: {nextAction.action}</div>
+            )}
           </div>
         </div>
 
