@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 
 const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
-const ML_URL = "https://alphastream-ml-1017433009054.us-east1.run.app";
 
 /* ======================
    HELPER COMPONENTS
@@ -51,7 +50,6 @@ export default function Dashboard() {
   const [core, setCore] = useState<any>(null);
   const [positions, setPositions] = useState<any[]>([]);
   const [scan, setScan] = useState<any>(null);
-  const [ml, setML] = useState<any>(null);
 
   const [loading, setLoading] = useState(true);
   const [coreError, setCoreError] = useState(false);
@@ -74,7 +72,7 @@ export default function Dashboard() {
     try {
       const res = await axios.get(`${CORE_URL}/positions`, { timeout: 8000 });
       setPositions(res.data || []);
-    } catch (err) {
+    } catch {
       console.error("Positions fetch failed");
     }
   };
@@ -85,15 +83,6 @@ export default function Dashboard() {
       setScan(res.data);
     } catch {
       setScan(null);
-    }
-  };
-
-  const fetchML = async () => {
-    try {
-      const res = await axios.get(`${ML_URL}/insights`, { timeout: 10000 });
-      setML(res.data);
-    } catch {
-      setML(null);
     }
   };
 
@@ -113,13 +102,11 @@ export default function Dashboard() {
     fetchCore();
     fetchPositions();
     fetchScan();
-    fetchML();
 
     const intervals = [
       setInterval(fetchCore, 8000),
       setInterval(fetchPositions, 5000),
       setInterval(fetchScan, 2000),
-      setInterval(fetchML, 20000),
     ];
 
     return () => intervals.forEach(clearInterval);
@@ -128,7 +115,7 @@ export default function Dashboard() {
   if (loading) return <Loader />;
   if (coreError) return <Offline retry={fetchCore} />;
 
-  const heal = core.healMode || ml?.healMode;
+  const heal = core.healMode;
   const equity = `$${Number(core.equity?.live || core.equity || 0).toLocaleString()}`;
   const drawdown = core.drawdown || "0%";
 
@@ -136,32 +123,18 @@ export default function Dashboard() {
     ? ((core.stats.winningTrades / core.stats.totalTrades) * 100).toFixed(1)
     : "—";
 
-  const mlOnline = !!ml;
-
-  const mlConfidence = ml
-    ? Math.min(
-        100,
-        Math.floor(
-          ((ml.step || 0) / 300) * 50 +
-          ((ml.bufferSize || 0) / 5000) * 30 +
-          (ml.healMode ? -20 : 20)
-        )
-      )
-    : null;
-
   return (
     <div className="min-h-screen bg-black text-gray-300 p-3 text-sm">
       {/* HEADER */}
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h1 className="text-xl font-bold text-cyan-400">AlphaStream v300000</h1>
+          <h1 className="text-xl font-bold text-cyan-400">AlphaStream Dashboard</h1>
           <div className="text-xs flex items-center gap-2 mt-1">
             {heal && <Shield className="w-4 h-4 text-orange-400 animate-pulse" />}
             <span className={heal ? "text-orange-400" : "text-green-400 font-bold"}>
               {heal ? "HEAL MODE" : "LIVE"}
             </span>
             <span>• {core.timeET || "--:--"}</span>
-            {!mlOnline && <span className="text-red-400">ML Offline</span>}
           </div>
         </div>
 
@@ -210,55 +183,6 @@ export default function Dashboard() {
         <Stat icon={<Terminal className="w-6 h-6 text-yellow-400" />} value={core.stats?.totalTrades || 0} label="TRADES" />
       </div>
 
-      {/* CONDITIONAL ML PANEL */}
-      {mlOnline && (
-        <Panel title="RAINBOW DQN INSIGHTS" color="text-purple-400">
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div>
-              <div className="text-gray-500">Gap Threshold</div>
-              <div className="font-bold text-cyan-400">{ml.gapThreshold || "—"}%</div>
-            </div>
-            <div>
-              <div className="text-gray-500">Risk %</div>
-              <div className="font-bold text-yellow-400">{(ml.riskMultiplier * 100 || 0).toFixed(2)}%</div>
-            </div>
-            <div>
-              <div className="text-gray-500">Trail Stop</div>
-              <div className="font-bold text-green-400">{(ml.trailPct * 100 || 0).toFixed(1)}%</div>
-            </div>
-            <div>
-              <div className="text-gray-500">Epsilon</div>
-              <div className="font-bold text-orange-400">{ml.epsilon ? parseFloat(ml.epsilon).toFixed(3) : "—"}</div>
-            </div>
-            <div>
-              <div className="text-gray-500">Training Step</div>
-              <div className="font-bold">{ml.step || 0}</div>
-            </div>
-            <div>
-              <div className="text-gray-500">Buffer Size</div>
-              <div className="font-bold">{ml.bufferSize || 0}</div>
-            </div>
-          </div>
-
-          {/* ML Confidence Bar */}
-          {mlConfidence !== null && (
-            <div className="mt-4">
-              <div className="text-xs text-gray-500 mb-1">Learning Confidence</div>
-              <div className="w-full bg-gray-800 h-3 rounded overflow-hidden">
-                <div
-                  className={`h-3 rounded transition-all duration-1000 ${
-                    mlConfidence < 40 ? "bg-red-500" :
-                    mlConfidence < 70 ? "bg-yellow-400" :
-                    "bg-green-500"
-                  }`}
-                  style={{ width: `${mlConfidence}%` }}
-                />
-              </div>
-            </div>
-          )}
-        </Panel>
-      )}
-
       {/* POSITIONS PANEL */}
       <Panel title="LIVE POSITIONS" color="text-green-400">
         {positions.length > 0 ? (
@@ -285,10 +209,6 @@ export default function Dashboard() {
           )) || <div className="text-gray-600 text-center py-8">Waiting for logs...</div>}
         </div>
       </Panel>
-
-      <div className="text-center py-4 text-purple-400 text-xs font-bold animate-pulse">
-        v300000 • LIVE TRADING • CORE SERVICE RELIABLE
-      </div>
     </div>
   );
 }
