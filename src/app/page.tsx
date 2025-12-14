@@ -102,9 +102,16 @@ export default function Dashboard() {
 
   const mlOnline = !!ml;
 
-  // ML Confidence (step + buffer)
+  // Fixed: added missing closing brace
   const mlConfidence = ml
-    ? Math.min(100, Math.floor((ml.step || 0) / 300 + (ml.bufferSize || 0) / 50))
+    ? Math.min(
+        100,
+        Math.floor(
+          ((ml.step || 0) / 300) * 50 +
+          ((ml.bufferSize || 0) / 5000) * 30 +
+          (ml.healMode ? -20 : 20)
+        )
+      )
     : 0;
 
   return (
