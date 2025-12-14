@@ -1,4 +1,106 @@
 'use client';
+
+import { useEffect, useState } from 'react';
+import axios from 'axios';
+import {
+  RefreshCw, Brain, Zap, TrendingUp, Shield,
+  Terminal, AlertTriangle, Loader2
+} from 'lucide-react';
+
+const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
+const ML_URL = "https://alphastream-ml-1017433009054.us-east1.run.app";
+
+export default function Dashboard() {
+  const [core, setCore] = useState<any>(null);
+  const [positions, setPositions] = useState<any[]>([]);
+  const [ml, setML] = useState<any>(null);
+
+  const [loading, setLoading] = useState(true);
+  const [coreError, setCoreError] = useState(false);
+  const [scanLoading, setScanLoading] = useState(false);
+
+  const fetchCore = async () => {
+    try {
+      const res = await axios.get(CORE_URL, { timeout: 12000 });
+      setCore(res.data);
+      setCoreError(false);
+    } catch (err) {
+      console.error("Core fetch failed", err);
+      setCoreError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPositions = async () => {
+    try {
+      const res = await axios.get(`${CORE_URL}/positions`, { timeout: 8000 });
+      setPositions(res.data || []);
+    } catch {}
+  };
+
+  const fetchML = async () => {
+    try {
+      const res = await axios.get(`${ML_URL}/insights`, { timeout: 10000 });
+      setML(res.data);
+    } catch {}
+  };
+
+  const forceScan = async () => {
+    setScanLoading(true);
+    try {
+      await axios.post(`${CORE_URL}/scan`, {}, { timeout: 20000 });
+      await fetchCore();
+      await fetchPositions();
+    } catch (err) {
+      console.error("Force scan failed", err);
+    } finally {
+      setScanLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCore();
+    fetchPositions();
+    fetchML();
+
+    const intervals = [
+      setInterval(fetchCore, 8000),
+      setInterval(fetchPositions, 5000),
+      setInterval(fetchML, 20000),
+    ];
+
+    return () => intervals.forEach(clearInterval);
+  }, []);
+
+  if (loading) return <Loader />;
+  if (coreError) return <Offline retry={fetchCore} />;
+
+  const equity = `$${Number(core.equity?.live || core.equity || 0).toLocaleString()}`;
+
+  const mlConfidence = ml
+    ? Math.min(100, Math.floor(
+        ((ml.step || 0) / 500) * 40 +
+        ((ml.bufferSize || 0) / 8000) * 30 +
+        (ml.epsilon < 0.3 ? 20 : 10) + 10
+      ))
+    : 0;
+
+  return (
+    <div className="min-h-screen bg-black text-gray-300 p-3 text-xs">
+      {/* HEADER */}
+      <div className="flex justify-between items-center mb-3">
+        <div>
+          <h1 className="text-base font-bold text-cyan-400">AlphaStream</h1>
+          <div className="text-2xs flex items-center gap-2 mt-1">
+            <span className="text-green-400 font-bold">LIVE</span>
+            <span>• {core.timeET || "--:--"}</span>
+          </div>
+        </div>
+
+        <button
+          onClick={forceScan}
+          disabled={scanLoading}
           className="px-6 py-1.5 bg-cyan-600 rounded flex items-center gap-1.5 text-black font-bold text-2xs hover:bg-cyan-500 disabled:opacity-50 transition"
         >
           {scanLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
@@ -58,4 +160,54 @@
 
       {/* POSITIONS */}
       <Panel title="LIVE POSITIONS" color="text-green-400">
-        {positions.length >
+        {positions.length > 0 ? (
+          <div className="space-y-1 text-2xs">
+            {positions.map((p: any) => (
+              <div key={p.symbol} className="flex justify-between py-1 border-b border-gray-800">
+                <span className="font-bold">{p.symbol} ×{p.qty}</span>
+                <span className={p.pnlPct >= 0 ? "text-green-400" : "text-red-400"}>
+                  {p.pnlPct >= 0 ? "+" : ""}{p.pnlPct?.toFixed(1)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-gray-500 text-center py-4 text-2xs">No open positions</div>
+        )}
+      </Panel>
+
+      {/* LOGS */}
+      <Panel title="LIVE LOGS" color="text-cyan-400">
+        <div className="font-mono text-2xs max-h-48 overflow-y-auto space-y-0.5 bg-black/50 p-2 rounded">
+          {core.logs?.slice(-20).map((log: string, i: number) => (
+            <div key={i} className="text-gray-400">{log}</div>
+          )) || <div className="text-gray-600 text-center py-6">Waiting for activity...</div>}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+/* COMPONENTS */
+const Loader = () => (
+  <div className="min-h-screen bg-black flex items-center justify-center">
+    <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
+  </div>
+);
+
+const Offline = ({ retry }: { retry: () => void }) => (
+  <div className="min-h-screen bg-black flex flex-col items-center justify-center text-red-400">
+    <AlertTriangle className="w-12 h-12 mb-4" />
+    <div className="text-lg mb-4">Bot Offline</div>
+    <button onClick={retry} className="px-5 py-2 bg-red-600 rounded text-white text-sm font-bold">
+      Retry
+    </button>
+  </div>
+);
+
+const Panel = ({ title, children, color }: any) => (
+  <div className="bg-gray-900 rounded p-3 mb-3 border border-gray-800">
+    <div className={`text-xs font-bold mb-2 ${color}`}>{title}</div>
+    {children}
+  </div>
+);
