@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import {
-  RefreshCw, Brain, Zap, TrendingUp, Shield,
-  Terminal, AlertTriangle, Loader2
+  RefreshCw, Loader2, AlertTriangle
 } from 'lucide-react';
 
 const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
@@ -13,16 +12,19 @@ const ML_URL = "https://alphastream-ml-1017433009054.us-east1.run.app";
 export default function Dashboard() {
   const [core, setCore] = useState<any>(null);
   const [positions, setPositions] = useState<any[]>([]);
+  const [rockets, setRockets] = useState<string[]>([]);
   const [ml, setML] = useState<any>(null);
 
   const [loading, setLoading] = useState(true);
   const [coreError, setCoreError] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
 
+  /* ==================== FETCH FUNCTIONS ==================== */
   const fetchCore = async () => {
     try {
       const res = await axios.get(CORE_URL, { timeout: 12000 });
       setCore(res.data);
+      setRockets(res.data.rockets || []);
       setCoreError(false);
     } catch (err) {
       console.error("Core fetch failed", err);
@@ -34,8 +36,12 @@ export default function Dashboard() {
 
   const fetchPositions = async () => {
     try {
-      const res = await axios.get(`${CORE_URL}/positions`, { timeout: 8000 });
-      setPositions(res.data || []);
+      const res = await axios.get(`${CORE_URL}`, { timeout: 8000 });
+      const openPositions = Array.from(res.data.positionsList || []).map((p: any) => ({
+        ...p,
+        pnlPct: p.current && p.entry ? ((p.current - p.entry) / p.entry) * 100 : 0
+      }));
+      setPositions(openPositions);
     } catch {}
   };
 
@@ -157,6 +163,21 @@ export default function Dashboard() {
           <div><span className="text-gray-500">Last Train:</span> <span className="font-bold text-purple-400">{ml?.lastTrained ? new Date(ml.lastTrained).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "—"}</span></div>
         </div>
       </div>
+
+      {/* ROCKET ALERTS */}
+      <Panel title="TOP ROCKETS" color="text-yellow-400">
+        {rockets.length > 0 ? (
+          <div className="space-y-1 text-2xs">
+            {rockets.map((r, i) => (
+              <div key={i} className="flex justify-between py-1 border-b border-gray-800">
+                <span className="font-bold">{r}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-gray-500 text-center py-2 text-2xs">No gap alerts</div>
+        )}
+      </Panel>
 
       {/* POSITIONS */}
       <Panel title="LIVE POSITIONS" color="text-green-400">
