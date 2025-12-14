@@ -16,7 +16,6 @@ import {
 } from 'chart.js';
 import { RefreshCw, Zap, Brain, TrendingUp, AlertCircle, Shield, Activity, Target, Loader2, Sun, Moon } from 'lucide-react';
 
-// Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
@@ -36,7 +35,7 @@ export default function Dashboard() {
   const fetchData = async () => {
     try {
       const [cRes, mRes] = await Promise.all([
-        axios.get(CORE_URL, { timeout: 12000 }),
+        axios.get(CORE_URL, { timeout: 15000 }),
         axios.get(ML_URL, { timeout: 10000 }).catch(() => ({ data: null }))
       ]);
 
@@ -62,16 +61,23 @@ export default function Dashboard() {
   };
 
   const forceScan = async () => {
+    if (scanning) return;
     setScanning(true);
     setScanMessage("Triggering scan...");
+
     try {
-      await axios.post(`${CORE_URL}/scan`, {}, { timeout: 10000 });
-      setScanMessage("Scan triggered!");
-      setTimeout(() => setScanMessage(""), 3000);
-      await fetchData();
-    } catch (err) {
-      setScanMessage("Scan failed");
-      setTimeout(() => setScanMessage(""), 5000);
+      const response = await axios.post(`${CORE_URL}/scan`, {}, { timeout: 20000 });
+      if (response.data.success) {
+        setScanMessage("Scan triggered successfully!");
+      } else {
+        setScanMessage("Scan completed (no response)");
+      }
+      setTimeout(() => setScanMessage(""), 4000);
+      await fetchData(); // Force refresh
+    } catch (err: any) {
+      console.error("Scan error:", err);
+      setScanMessage("Scan failed — check core service");
+      setTimeout(() => setScanMessage(""), 6000);
     } finally {
       setScanning(false);
     }
@@ -114,7 +120,6 @@ export default function Dashboard() {
 
   const positionsArray = core.positions ? Object.entries(core.positions) : [];
 
-  // Chart Data
   const chartData = {
     labels: equityHistory.map(d => d.time),
     datasets: [
@@ -198,7 +203,7 @@ export default function Dashboard() {
 
         {/* Rockets, Positions, Logs — keep your existing compact sections */}
 
-        {/* Force Scan Button */}
+        {/* Force Scan Button — FIXED */}
         <button
           onClick={forceScan}
           disabled={scanning}
@@ -207,9 +212,10 @@ export default function Dashboard() {
           }`}
         >
           {scanning ? <Loader2 className="w-6 h-6 animate-spin" /> : <RefreshCw className="w-6 h-6" />}
-          {scanning ? "Scanning..." : "Force Scan"}
+          {scanning ? "Scanning..." : "Force Scan Now"}
         </button>
 
+        {/* Scan Message */}
         {scanMessage && (
           <div className={`fixed bottom-20 left-1/2 -translate-x-1/2 px-5 py-2 rounded-full shadow-lg text-sm z-40 ${
             darkMode ? 'bg-green-800 text-white' : 'bg-green-700 text-white'
