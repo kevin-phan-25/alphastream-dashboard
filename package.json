@@ -13,7 +13,8 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "axios": "^1.7.7",
-    "recharts": "^2.12.7",
+    "chart.js": "^4.4.4",
+    "react-chartjs-2": "^5.2.0",
     "lucide-react": "^0.441.0"
   },
   "devDependencies": {
