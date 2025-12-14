@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import {
-  RefreshCw, Loader2, AlertTriangle
-} from 'lucide-react';
+import { RefreshCw, Loader2, AlertTriangle } from 'lucide-react';
 
 const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
 const ML_URL = "https://alphastream-ml-1017433009054.us-east1.run.app";
@@ -12,7 +10,7 @@ const ML_URL = "https://alphastream-ml-1017433009054.us-east1.run.app";
 export default function Dashboard() {
   const [core, setCore] = useState<any>(null);
   const [positions, setPositions] = useState<any[]>([]);
-  const [rockets, setRockets] = useState<string[]>([]);
+  const [rockets, setRockets] = useState<any[]>([]);
   const [ml, setML] = useState<any>(null);
 
   const [loading, setLoading] = useState(true);
@@ -37,19 +35,23 @@ export default function Dashboard() {
   const fetchPositions = async () => {
     try {
       const res = await axios.get(`${CORE_URL}`, { timeout: 8000 });
-      const openPositions = Array.from(res.data.positionsList || []).map((p: any) => ({
+      const openPositions = (res.data.positionsList || []).map((p: any) => ({
         ...p,
         pnlPct: p.current && p.entry ? ((p.current - p.entry) / p.entry) * 100 : 0
       }));
       setPositions(openPositions);
-    } catch {}
+    } catch (err) {
+      console.error("Positions fetch failed", err);
+    }
   };
 
   const fetchML = async () => {
     try {
       const res = await axios.get(`${ML_URL}/insights`, { timeout: 10000 });
       setML(res.data);
-    } catch {}
+    } catch (err) {
+      console.error("ML fetch failed", err);
+    }
   };
 
   const forceScan = async () => {
@@ -85,11 +87,15 @@ export default function Dashboard() {
   const equity = `$${Number(core.equity?.live || core.equity || 0).toLocaleString()}`;
 
   const mlConfidence = ml
-    ? Math.min(100, Math.floor(
-        ((ml.step || 0) / 500) * 40 +
-        ((ml.bufferSize || 0) / 8000) * 30 +
-        (ml.epsilon < 0.3 ? 20 : 10) + 10
-      ))
+    ? Math.min(
+        100,
+        Math.floor(
+          ((ml.step || 0) / 500) * 40 +
+          ((ml.bufferSize || 0) / 8000) * 30 +
+          (ml.epsilon < 0.3 ? 20 : 10) +
+          10
+        )
+      )
     : 0;
 
   return (
@@ -147,9 +153,7 @@ export default function Dashboard() {
           </svg>
 
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-lg font-bold text-white">
-              {mlConfidence}%
-            </div>
+            <div className="text-lg font-bold text-white">{mlConfidence}%</div>
             <div className="text-2xs text-gray-400 mt-0.5">
               {mlConfidence < 40 ? "LEARNING" : mlConfidence < 70 ? "CAUTIOUS" : "CONFIDENT"}
             </div>
@@ -157,7 +161,7 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-2 gap-2 mt-3 text-2xs">
-          <div><span className="text-gray-500">Epsilon:</span> <span className="font-bold text-cyan-400">{ml?.epsilon ? parseFloat(ml.epsilon).toFixed(3) : "—"}</span></div>
+          <div><span className="text-gray-500">Epsilon:</span> <span className="font-bold text-cyan-400">{ml?.epsilon?.toFixed(3) ?? "—"}</span></div>
           <div><span className="text-gray-500">Step:</span> <span className="font-bold text-yellow-400">{ml?.step || 0}</span></div>
           <div><span className="text-gray-500">Buffer:</span> <span className="font-bold text-green-400">{ml?.bufferSize || 0}</span></div>
           <div><span className="text-gray-500">Last Train:</span> <span className="font-bold text-purple-400">{ml?.lastTrained ? new Date(ml.lastTrained).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "—"}</span></div>
@@ -168,9 +172,10 @@ export default function Dashboard() {
       <Panel title="TOP ROCKETS" color="text-yellow-400">
         {rockets.length > 0 ? (
           <div className="space-y-1 text-2xs">
-            {rockets.map((r, i) => (
+            {rockets.map((r: any, i: number) => (
               <div key={i} className="flex justify-between py-1 border-b border-gray-800">
-                <span className="font-bold">{r}</span>
+                <span className="font-bold">{r.symbol || r}</span>
+                <span className="text-gray-400">{r.gap ? `${r.gap}%` : ""}</span>
               </div>
             ))}
           </div>
@@ -209,7 +214,7 @@ export default function Dashboard() {
   );
 }
 
-/* COMPONENTS */
+/* ==================== COMPONENTS ==================== */
 const Loader = () => (
   <div className="min-h-screen bg-black flex items-center justify-center">
     <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
