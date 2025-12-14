@@ -12,10 +12,10 @@ export default function Dashboard() {
   const [positions, setPositions] = useState<any[]>([]);
   const [rockets, setRockets] = useState<any[]>([]);
   const [ml, setML] = useState<any>(null);
-
+  const [timeET, setTimeET] = useState<string>("--:--");
+  const [scanLoading, setScanLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [coreError, setCoreError] = useState(false);
-  const [scanLoading, setScanLoading] = useState(false);
 
   /* ==================== FETCH FUNCTIONS ==================== */
   const fetchCore = async () => {
@@ -67,15 +67,42 @@ export default function Dashboard() {
     }
   };
 
+  /* ==================== TIME & SESSION ==================== */
+  const updateTime = () => {
+    const now = new Date();
+    const nowET = now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour12: false });
+    setTimeET(nowET);
+  };
+
+  const getSession = () => {
+    const [h, m] = timeET.split(":").map(Number);
+    if ((h >= 4 && h < 9) || (h === 9 && m <= 29)) return "PREMARKET";
+    if ((h === 9 && m >= 30) || (h > 9 && h < 16)) return "MARKET";
+    return "CLOSED";
+  };
+
+  const timeToMarketClose = () => {
+    const now = new Date();
+    const closeET = new Date();
+    closeET.setHours(15, 45, 0); // 3:45 PM ET auto exit
+    const diff = closeET.getTime() - now.getTime();
+    if (diff <= 0) return "00:00";
+    const mins = Math.floor(diff / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
   useEffect(() => {
     fetchCore();
     fetchPositions();
     fetchML();
+    updateTime();
 
     const intervals = [
       setInterval(fetchCore, 8000),
       setInterval(fetchPositions, 5000),
       setInterval(fetchML, 20000),
+      setInterval(updateTime, 1000),
     ];
 
     return () => intervals.forEach(clearInterval);
@@ -85,7 +112,6 @@ export default function Dashboard() {
   if (coreError) return <Offline retry={fetchCore} />;
 
   const equity = `$${Number(core.equity?.live || core.equity || 0).toLocaleString()}`;
-
   const mlConfidence = ml
     ? Math.min(
         100,
@@ -98,14 +124,6 @@ export default function Dashboard() {
       )
     : 0;
 
-  const getSession = () => {
-    const now = new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" });
-    const [h, m] = now.split(":").map(x => parseInt(x));
-    if ((h >= 4 && h < 9) || (h === 9 && m <= 29)) return "PREMARKET";
-    if ((h === 9 && m >= 30) || (h > 9 && h < 16)) return "MARKET";
-    return "CLOSED";
-  };
-
   return (
     <div className="min-h-screen bg-black text-gray-300 p-3 text-xs">
       {/* HEADER */}
@@ -114,7 +132,7 @@ export default function Dashboard() {
           <h1 className="text-base font-bold text-cyan-400">AlphaStream</h1>
           <div className="text-2xs flex items-center gap-2 mt-1">
             <span className="text-green-400 font-bold">{getSession()}</span>
-            <span>• {core.timeET || "--:--"}</span>
+            <span>• {timeET}</span>
           </div>
         </div>
 
@@ -133,6 +151,13 @@ export default function Dashboard() {
         <div className="text-2xs text-gray-400">LIVE ALPACA EQUITY</div>
         <div className="text-xl font-bold text-white mt-0.5">{equity}</div>
       </div>
+
+      {/* MARKET CLOSE COUNTDOWN */}
+      {getSession() === "MARKET" && (
+        <div className="bg-gray-900 rounded p-2 mb-3 border border-purple-600 text-center text-2xs">
+          <span className="font-bold text-yellow-400">TIME TO AUTO-EXIT POSITIONS:</span> {timeToMarketClose()}
+        </div>
+      )}
 
       {/* ML CONFIDENCE GAUGE */}
       <div className="bg-gray-900 rounded p-3 mb-3 border border-purple-600">
@@ -196,14 +221,21 @@ export default function Dashboard() {
       <Panel title="LIVE POSITIONS" color="text-green-400">
         {positions.length > 0 ? (
           <div className="space-y-1 text-2xs">
-            {positions.map((p: any) => (
-              <div key={p.symbol} className="flex justify-between py-1 border-b border-gray-800">
-                <span className="font-bold">{p.symbol} ×{p.qty}</span>
-                <span className={p.pnlPct >= 0 ? "text-green-400" : "text-red-400"}>
-                  {p.pnlPct >= 0 ? "+" : ""}{p.pnlPct?.toFixed(1)}%
-                </span>
-              </div>
-            ))}
+            {positions.map((p: any) => {
+              const minutesToClose = parseInt(timeToMarketClose().split(":")[0]) * 60 + parseInt(timeToMarketClose().split(":")[1]);
+              const nearExit = minutesToClose <= 30; // warning if <30min to auto-exit
+              return (
+                <div
+                  key={p.symbol}
+                  className={`flex justify-between py-1 border-b border-gray-800 ${nearExit ? 'bg-red-900/30' : ''}`}
+                >
+                  <span className="font-bold">{p.symbol} ×{p.qty}</span>
+                  <span className={p.pnlPct >= 0 ? "text-green-400" : "text-red-400"}>
+                    {p.pnlPct >= 0 ? "+" : ""}{p.pnlPct?.toFixed(1)}%
+                  </span>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="text-gray-500 text-center py-4 text-2xs">No open positions</div>
