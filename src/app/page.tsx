@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import {
   RefreshCw, Brain, Zap, TrendingUp, Shield,
-  Terminal, AlertTriangle, Play, Loader2
+  Terminal, AlertTriangle, Loader2
 } from 'lucide-react';
 
 const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
@@ -13,7 +13,6 @@ const ML_URL = "https://alphastream-ml-1017433009054.us-east1.run.app";
 export default function Dashboard() {
   const [core, setCore] = useState<any>(null);
   const [positions, setPositions] = useState<any[]>([]);
-  const [scan, setScan] = useState<any>(null);
   const [ml, setML] = useState<any>(null);
 
   const [loading, setLoading] = useState(true);
@@ -40,21 +39,15 @@ export default function Dashboard() {
     } catch {}
   };
 
-  const fetchScan = async () => {
-    try {
-      const res = await axios.get(`${CORE_URL}/scan-progress`, { timeout: 5000 });
-      setScan(res.data);
-    } catch {}
-  };
-
   const fetchML = async () => {
     try {
       const res = await axios.get(`${ML_URL}/insights`, { timeout: 10000 });
       setML(res.data);
-    } catch {}
+    } catch {
+      setML(null);
+    }
   };
 
-  // Fixed Force Scan with loading state
   const forceScan = async () => {
     setScanLoading(true);
     try {
@@ -71,13 +64,11 @@ export default function Dashboard() {
   useEffect(() => {
     fetchCore();
     fetchPositions();
-    fetchScan();
     fetchML();
 
     const intervals = [
       setInterval(fetchCore, 8000),
       setInterval(fetchPositions, 5000),
-      setInterval(fetchScan, 2000),
       setInterval(fetchML, 20000),
     ];
 
@@ -95,6 +86,8 @@ export default function Dashboard() {
     ? ((core.stats.winningTrades / core.stats.totalTrades) * 100).toFixed(1)
     : "—";
 
+  const mlOnline = !!ml;
+
   const mlConfidence = ml
     ? Math.min(100, Math.floor(
         ((ml.step || 0) / 500) * 40 +
@@ -102,6 +95,10 @@ export default function Dashboard() {
         (ml.epsilon < 0.3 ? 20 : 10) + 10
       ))
     : 0;
+
+  const confidenceColor = mlConfidence < 40 ? "text-red-400" :
+                          mlConfidence < 70 ? "text-yellow-400" :
+                          "text-green-400";
 
   return (
     <div className="min-h-screen bg-black text-gray-300 p-3 text-xs">
@@ -115,24 +112,29 @@ export default function Dashboard() {
               {heal ? "HEAL MODE" : "LIVE"}
             </span>
             <span>• {core.timeET || "--:--"}</span>
+            {mlOnline ? (
+              <span className="text-green-400 text-2xs">ML Online</span>
+            ) : (
+              <span className="text-red-400 text-2xs">ML Offline</span>
+            )}
           </div>
         </div>
 
         <button
           onClick={forceScan}
           disabled={scanLoading}
-          className="px-8 py-2 bg-cyan-600 rounded flex items-center gap-2 text-black font-bold text-2xs hover:bg-cyan-500 disabled:opacity-50 transition"
+          className="px-6 py-1.5 bg-cyan-600 rounded text-black font-bold text-2xs hover:bg-cyan-500 disabled:opacity-50 transition flex items-center gap-1.5"
         >
-          {scanLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          {scanLoading ? "SCANNING..." : "FORCE SCAN"}
+          {scanLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+          {scanLoading ? "SCANNING" : "FORCE SCAN"}
         </button>
       </div>
 
       {/* EQUITY */}
-      <div className="bg-gradient-to-r from-purple-900/40 to-cyan-900/40 rounded-lg p-3 text-center mb-3 border border-purple-700">
+      <div className="bg-gradient-to-r from-purple-900/40 to-cyan-900/40 rounded p-2 text-center mb-3 border border-purple-700">
         <div className="text-2xs text-gray-400">LIVE ALPACA EQUITY</div>
-        <div className="text-2xl font-bold text-white mt-1">{equity}</div>
-        <div className="text-2xs text-gray-400 mt-1">Drawdown: {drawdown}</div>
+        <div className="text-xl font-bold text-white mt-0.5">{equity}</div>
+        <div className="text-2xs text-gray-400 mt-0.5">Drawdown: {drawdown}</div>
       </div>
 
       {/* STATS GRID */}
@@ -144,10 +146,10 @@ export default function Dashboard() {
       </div>
 
       {/* ML CONFIDENCE GAUGE */}
-      <div className="bg-gray-900/90 rounded-lg p-3 mb-3 border border-purple-600">
+      <div className="bg-gray-900 rounded p-3 mb-3 border border-purple-600">
         <div className="text-purple-400 font-bold text-center text-2xs mb-2">RAINBOW DQN CONFIDENCE</div>
-        
-        <div className="relative w-32 h-32 mx-auto">
+
+        <div className="relative w-28 h-28 mx-auto">
           <svg viewBox="0 0 36 36" className="transform -rotate-90 w-full h-full">
             <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1f2937" strokeWidth="2.5" />
             <defs>
@@ -168,12 +170,12 @@ export default function Dashboard() {
               className="transition-all duration-1000"
             />
           </svg>
-          
+
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-xl font-bold text-white">
+            <div className={`text-lg font-bold ${confidenceColor}`}>
               {mlConfidence}%
             </div>
-            <div className="text-2xs text-gray-400 mt-1">
+            <div className="text-2xs text-gray-400 mt-0.5">
               {mlConfidence < 40 ? "LEARNING" : mlConfidence < 70 ? "CAUTIOUS" : "CONFIDENT"}
             </div>
           </div>
@@ -239,15 +241,15 @@ const Offline = ({ retry }: { retry: () => void }) => (
 );
 
 const Stat = ({ icon, value, label }: any) => (
-  <div className="bg-gray-900 rounded p-3 text-center border border-gray-800">
+  <div className="bg-gray-900 rounded p-2 text-center border border-gray-800">
     <div className="mb-1">{icon}</div>
-    <div className="text-lg font-bold text-white">{value}</div>
+    <div className="text-base font-bold text-white">{value}</div>
     <div className="text-2xs text-gray-500 mt-1">{label}</div>
   </div>
 );
 
 const Panel = ({ title, children, color }: any) => (
-  <div className="bg-gray-900 rounded-lg p-3 mb-3 border border-gray-800">
+  <div className="bg-gray-900 rounded p-3 mb-3 border border-gray-800">
     <div className={`text-xs font-bold mb-2 ${color}`}>{title}</div>
     {children}
   </div>
