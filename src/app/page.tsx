@@ -37,7 +37,7 @@ export default function Dashboard() {
       const res = await axios.get(`${CORE_URL}`, { timeout: 8000 });
       const openPositions = (res.data.positionsList || []).map((p: any) => ({
         ...p,
-        pnlPct: p.current && p.entry ? ((p.current - p.entry) / p.entry) * 100 : 0
+        pnlPct: p.current && p.entry ? ((p.current - p.entry) / p.entry) * 100 : 0,
       }));
       setPositions(openPositions);
     } catch (err) {
@@ -98,6 +98,14 @@ export default function Dashboard() {
       )
     : 0;
 
+  const getSession = () => {
+    const now = new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" });
+    const [h, m] = now.split(":").map(x => parseInt(x));
+    if ((h >= 4 && h < 9) || (h === 9 && m <= 29)) return "PREMARKET";
+    if ((h === 9 && m >= 30) || (h > 9 && h < 16)) return "MARKET";
+    return "CLOSED";
+  };
+
   return (
     <div className="min-h-screen bg-black text-gray-300 p-3 text-xs">
       {/* HEADER */}
@@ -105,7 +113,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-base font-bold text-cyan-400">AlphaStream</h1>
           <div className="text-2xs flex items-center gap-2 mt-1">
-            <span className="text-green-400 font-bold">LIVE</span>
+            <span className="text-green-400 font-bold">{getSession()}</span>
             <span>• {core.timeET || "--:--"}</span>
           </div>
         </div>
@@ -175,7 +183,7 @@ export default function Dashboard() {
             {rockets.map((r: any, i: number) => (
               <div key={i} className="flex justify-between py-1 border-b border-gray-800">
                 <span className="font-bold">{r.symbol || r}</span>
-                <span className="text-gray-400">{r.gap ? `${r.gap}%` : ""}</span>
+                <span className="text-gray-400">{r.gap ? `${r.gap.toFixed(1)}%` : ""}</span>
               </div>
             ))}
           </div>
