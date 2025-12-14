@@ -102,6 +102,11 @@ export default function Dashboard() {
 
   const mlOnline = !!ml;
 
+  // ML Confidence (step + buffer)
+  const mlConfidence = ml
+    ? Math.min(100, Math.floor((ml.step || 0) / 300 + (ml.bufferSize || 0) / 50))
+    : 0;
+
   return (
     <div className="min-h-screen bg-black text-gray-300 p-3 text-sm">
       {/* HEADER */}
@@ -162,6 +167,55 @@ export default function Dashboard() {
         <Stat icon={<Brain className="w-6 h-6 text-purple-400" />} value={winRate}% label="WIN RATE" />
         <Stat icon={<Terminal className="w-6 h-6 text-yellow-400" />} value={core.stats?.totalTrades || 0} label="TRADES" />
       </div>
+
+      {/* ML INSIGHTS VISUALIZATION */}
+      <Panel title="RAINBOW DQN INSIGHTS" color="text-purple-400">
+        {mlOnline ? (
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <div className="text-gray-500">Gap Threshold</div>
+              <div className="font-bold text-cyan-400">{ml.gapThreshold || "—"}%</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Risk %</div>
+              <div className="font-bold text-yellow-400">{(ml.riskMultiplier * 100 || 0).toFixed(2)}%</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Trail Stop</div>
+              <div className="font-bold text-green-400">{(ml.trailPct * 100 || 0).toFixed(1)}%</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Epsilon</div>
+              <div className="font-bold text-orange-400">{ml.epsilon ? parseFloat(ml.epsilon).toFixed(3) : "—"}</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Training Step</div>
+              <div className="font-bold">{ml.step || 0}</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Buffer Size</div>
+              <div className="font-bold">{ml.bufferSize || 0}</div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-red-400 text-center py-4">ML Service Offline</div>
+        )}
+
+        {/* ML Confidence Bar */}
+        <div className="mt-4">
+          <div className="text-xs text-gray-500 mb-1">Learning Confidence</div>
+          <div className="w-full bg-gray-800 h-3 rounded overflow-hidden">
+            <div
+              className={`h-3 rounded transition-all duration-1000 ${
+                mlConfidence < 40 ? "bg-red-500" :
+                mlConfidence < 70 ? "bg-yellow-400" :
+                "bg-green-500"
+              }`}
+              style={{ width: `${mlConfidence}%` }}
+            />
+          </div>
+        </div>
+      </Panel>
 
       {/* POSITIONS */}
       <Panel title="LIVE POSITIONS" color="text-green-400">
