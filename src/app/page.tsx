@@ -1,17 +1,9 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import {
-  RefreshCw,
-  Brain,
-  Zap,
-  TrendingUp,
-  Shield,
-  Terminal,
-  Settings
-} from 'lucide-react';
+import { RefreshCw, Brain, Zap, TrendingUp, Shield, Terminal } from 'lucide-react';
 
+// Your deployed URLs
 const CORE_URL = "https://alphastream-core-1017433009054.us-east1.run.app";
 const ML_URL = "https://alphastream-ml-1017433009054.us-east1.run.app";
 
@@ -19,23 +11,32 @@ export default function Dashboard() {
   const [core, setCore] = useState<any>(null);
   const [ml, setML] = useState<any>(null);
   const [scanning, setScanning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [coreError, setCoreError] = useState(false);
+  const [mlError, setMLError] = useState(false);
 
-  const fetchAll = async () => {
+  const fetchCore = async () => {
     try {
-      const res = await axios.get(`${CORE_URL}/`, { timeout: 8000 });
+      const res = await axios.get(CORE_URL, { 
+        timeout: 15000,
+        headers: { 'Accept': 'application/json' }
+      });
       setCore(res.data);
-      setError(null);
-    } catch (e: any) {
-      console.error("Core fetch error:", e.message);
-      setError("Core offline");
-      setCore(null);
+      setCoreError(false);
+    } catch (err) {
+      console.error("Core fetch failed:", err);
+      setCoreError(true);
     }
+  };
 
+  const fetchML = async () => {
     try {
-      const res = await axios.get(`${ML_URL}/insights`, { timeout: 8000 });
+      const res = await axios.get(`${ML_URL}/insights`, { 
+        timeout: 15000 
+      });
       setML(res.data);
-    } catch {
+      setMLError(false);
+    } catch (err) {
+      setMLError(true);
       setML(null);
     }
   };
@@ -43,27 +44,46 @@ export default function Dashboard() {
   const forceScan = async () => {
     setScanning(true);
     try {
-      await axios.post(`${CORE_URL}/scan`, {}, { timeout: 8000 });
-      // small delay to allow core cycle to update
-      setTimeout(() => {
-        fetchAll();
-        setScanning(false);
-      }, 2500);
-    } catch {
+      await axios.post(`${CORE_URL}/scan`, {}, { timeout: 15000 });
+      setTimeout(fetchCore, 3000);
+    } catch (err) {
+      console.error("Scan failed:", err);
+    } finally {
       setScanning(false);
     }
   };
 
   useEffect(() => {
-    fetchAll();
-    const id = setInterval(fetchAll, 8000);
-    return () => clearInterval(id);
+    fetchCore();
+    fetchML();
+
+    const coreInterval = setInterval(fetchCore, 8000);
+    const mlInterval = setInterval(fetchML, 20000);
+
+    return () => {
+      clearInterval(coreInterval);
+      clearInterval(mlInterval);
+    };
   }, []);
 
-  if (!core) {
+  if (!core && !coreError) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-gray-500">
-        {error || "Loading AlphaStream..."}
+      <div className="min-h-screen bg-black flex items-center justify-center text-gray-500 text-lg">
+        Connecting to AlphaStream...
+      </div>
+    );
+  }
+
+  if (coreError) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-red-400">
+        <div className="text-2xl mb-4">Core Service Offline</div>
+        <button 
+          onClick={fetchCore}
+          className="px-6 py-3 bg-red-600 hover:bg-red-500 rounded text-white"
+        >
+          Retry Connection
+        </button>
       </div>
     );
   }
@@ -76,7 +96,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-black text-gray-300 p-3 text-sm">
-
       {/* HEADER */}
       <div className="flex justify-between items-center mb-3">
         <div>
@@ -87,9 +106,9 @@ export default function Dashboard() {
               {heal ? "HEAL MODE" : "LIVE"}
             </span>
             • {core.timeET}
+            {mlError && <span className="text-red-400 ml-2">• ML Offline</span>}
           </div>
         </div>
-
         <button
           onClick={forceScan}
           disabled={scanning}
@@ -113,8 +132,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-4 gap-2 mb-3">
         <Stat icon={<Zap className="w-4 h-4 text-yellow-400" />} value={`${positions.length}/${core.maxPositions}`} label="POS" />
         <Stat icon={<TrendingUp className="w-4 h-4 text-green-400" />} value={rockets.length} label="ROCKETS" />
-        <Stat icon={<Brain className="w-4 h-4 text-purple-400" />} value={ml?.trainingStep || 0} label="ML STEP" />
-        <Stat icon={<Settings className="w-4 h-4 text-cyan-400" />} value={`${(core.config?.riskPerTrade * 100).toFixed(1)}%`} label="RISK" />
+        <Stat icon={<Brain className="w-4 h-4 text-purple-400" />} value={ml?.trainingStep || "—"} label="ML STEP" />
+        <Stat icon={<Terminal className="w-4 h-4 text-cyan-400" />} value={`${(core.config?.riskPerTrade * 100 || 0).toFixed(1)}%`} label="RISK" />
       </div>
 
       {/* POSITIONS */}
@@ -123,7 +142,7 @@ export default function Dashboard() {
           <Row key={p.symbol}>
             <span>{p.symbol} ×{p.qty}</span>
             <span className={p.pnlPct >= 0 ? "text-green-400" : "text-red-400"}>
-              {p.pnlPct >= 0 ? "+" : ""}{p.pnlPct.toFixed(1)}%
+              {p.pnlPct >= 0 ? "+" : ""}{p.pnlPct?.toFixed(1)}%
             </span>
           </Row>
         )) : <Empty>No positions</Empty>}
@@ -140,7 +159,7 @@ export default function Dashboard() {
         </div>
       </Panel>
 
-      {/* ML INSIGHTS */}
+      {/* NEURO BRAIN */}
       <Panel title="NEURO BRAIN" color="text-purple-400" icon={<Brain className="w-3 h-3" />}>
         {ml ? (
           <div className="grid grid-cols-2 gap-1 text-[11px]">
@@ -150,28 +169,35 @@ export default function Dashboard() {
             <div>Heal: <span className={ml.healMode ? "text-orange-400" : "text-gray-500"}>
               {ml.healMode ? "ON" : "OFF"}
             </span></div>
+            <div className="col-span-2 text-center text-xs mt-1">
+              Step: {ml.trainingStep || 0} • Buffer: {ml.bufferSize || 0}
+            </div>
           </div>
         ) : (
-          <Empty>ML warming up…</Empty>
+          <Empty>ML warming up or offline...</Empty>
         )}
       </Panel>
 
-      {/* LOGS */}
+      {/* LIVE LOGS */}
       <Panel title="LIVE LOGS" color="text-cyan-400" icon={<Terminal className="w-3 h-3" />}>
-        <div className="bg-black rounded p-2 text-[10px] font-mono max-h-48 overflow-y-auto space-y-1">
-          {logs.length ? logs.map((l: string, i: number) => (
-            <div key={i} className="text-gray-400">{l}</div>
-          )) : <div className="text-gray-600">No logs yet</div>}
+        <div className="bg-black rounded p-2 text-[10px] font-mono max-h-48 overflow-y-auto space-y-0.5">
+          {logs.length ? logs.map((l: string, i: number) => {
+            const text = l.includes("] ") ? l.split("] ")[1] : l;
+            let color = "text-gray-500";
+            if (text.includes("ENTRY")) color = "text-cyan-400 font-bold";
+            if (text.includes("SELL") || text.includes("FLATTEN")) color = "text-green-400";
+            if (text.includes("TRAILING") || text.includes("PARTIAL")) color = "text-yellow-400";
+            if (text.includes("error") || text.includes("failed")) color = "text-red-400";
+            if (text.includes("ML")) color = "text-purple-400";
+            return <div key={i} className={color}>{text}</div>;
+          }) : <div className="text-gray-600 text-center py-2">No logs</div>}
         </div>
       </Panel>
-
     </div>
   );
 }
 
-/* =======================
-   UI HELPERS
-======================= */
+/* UI HELPERS */
 function Stat({ icon, value, label }: any) {
   return (
     <div className="bg-gray-900 rounded p-2 text-center">
@@ -185,7 +211,7 @@ function Stat({ icon, value, label }: any) {
 function Panel({ title, children, color, icon }: any) {
   return (
     <div className="bg-gray-900 rounded p-2 mb-3">
-      <div className={`text-xs font-bold mb-1 flex items-center gap-1 ${color}`}>
+      <div className={`text-xs font-bold mb-1 flex items-center gap-1 ${color || 'text-gray-300'}`}>
         {icon}{title}
       </div>
       {children}
@@ -194,7 +220,7 @@ function Panel({ title, children, color, icon }: any) {
 }
 
 function Row({ children }: any) {
-  return <div className="flex justify-between py-0.5">{children}</div>;
+  return <div className="flex justify-between py-0.5 text-xs">{children}</div>;
 }
 
 function Empty({ children }: any) {
