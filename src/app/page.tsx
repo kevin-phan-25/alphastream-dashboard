@@ -57,7 +57,6 @@ export default function Dashboard() {
   const [coreError, setCoreError] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  /* Fetch core service */
   const fetchCore = async () => {
     try {
       const res = await axios.get(CORE_URL, { timeout: 12000 });
@@ -71,7 +70,6 @@ export default function Dashboard() {
     }
   };
 
-  /* Fetch positions */
   const fetchPositions = async () => {
     try {
       const res = await axios.get(`${CORE_URL}/positions`, { timeout: 8000 });
@@ -81,27 +79,24 @@ export default function Dashboard() {
     }
   };
 
-  /* Fetch scan progress */
   const fetchScan = async () => {
     try {
       const res = await axios.get(`${CORE_URL}/scan-progress`, { timeout: 5000 });
       setScan(res.data);
-    } catch (err) {
+    } catch {
       setScan(null);
     }
   };
 
-  /* Fetch ML insights */
   const fetchML = async () => {
     try {
       const res = await axios.get(`${ML_URL}/insights`, { timeout: 10000 });
       setML(res.data);
-    } catch (err) {
+    } catch {
       setML(null);
     }
   };
 
-  /* Post actions to Core */
   const actionPost = async (endpoint: string, label: string) => {
     setActionLoading(label);
     try {
@@ -114,7 +109,6 @@ export default function Dashboard() {
     }
   };
 
-  /* Initial load & intervals */
   useEffect(() => {
     fetchCore();
     fetchPositions();
@@ -153,7 +147,7 @@ export default function Dashboard() {
           (ml.healMode ? -20 : 20)
         )
       )
-    : 0;
+    : null;
 
   return (
     <div className="min-h-screen bg-black text-gray-300 p-3 text-sm">
@@ -215,6 +209,55 @@ export default function Dashboard() {
         <Stat icon={<Brain className="w-6 h-6 text-purple-400" />} value={`${winRate}%`} label="WIN RATE" />
         <Stat icon={<Terminal className="w-6 h-6 text-yellow-400" />} value={core.stats?.totalTrades || 0} label="TRADES" />
       </div>
+
+      {/* CONDITIONAL ML PANEL */}
+      {mlOnline && (
+        <Panel title="RAINBOW DQN INSIGHTS" color="text-purple-400">
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <div className="text-gray-500">Gap Threshold</div>
+              <div className="font-bold text-cyan-400">{ml.gapThreshold || "—"}%</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Risk %</div>
+              <div className="font-bold text-yellow-400">{(ml.riskMultiplier * 100 || 0).toFixed(2)}%</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Trail Stop</div>
+              <div className="font-bold text-green-400">{(ml.trailPct * 100 || 0).toFixed(1)}%</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Epsilon</div>
+              <div className="font-bold text-orange-400">{ml.epsilon ? parseFloat(ml.epsilon).toFixed(3) : "—"}</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Training Step</div>
+              <div className="font-bold">{ml.step || 0}</div>
+            </div>
+            <div>
+              <div className="text-gray-500">Buffer Size</div>
+              <div className="font-bold">{ml.bufferSize || 0}</div>
+            </div>
+          </div>
+
+          {/* ML Confidence Bar */}
+          {mlConfidence !== null && (
+            <div className="mt-4">
+              <div className="text-xs text-gray-500 mb-1">Learning Confidence</div>
+              <div className="w-full bg-gray-800 h-3 rounded overflow-hidden">
+                <div
+                  className={`h-3 rounded transition-all duration-1000 ${
+                    mlConfidence < 40 ? "bg-red-500" :
+                    mlConfidence < 70 ? "bg-yellow-400" :
+                    "bg-green-500"
+                  }`}
+                  style={{ width: `${mlConfidence}%` }}
+                />
+              </div>
+            </div>
+          )}
+        </Panel>
+      )}
 
       {/* POSITIONS PANEL */}
       <Panel title="LIVE POSITIONS" color="text-green-400">
