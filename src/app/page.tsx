@@ -12,12 +12,13 @@ import {
   Tooltip,
   Filler
 } from 'chart.js';
-import { RefreshCw, Zap, Activity, Loader2, Sun, Moon, AlertCircle, FileText } from 'lucide-react';
+import { RefreshCw, Zap, Brain, Activity, Loader2, Sun, Moon, AlertCircle, FileText } from 'lucide-react';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
 
 export default function Dashboard() {
   const [core, setCore] = useState<any>(null);
+  const [ml, setML] = useState<any>(null); // ← NEW: Direct ML fetch
   const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,19 +28,25 @@ export default function Dashboard() {
   const [darkMode, setDarkMode] = useState(true);
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
+  const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
 
   const fetchData = async () => {
     try {
-      const res = await axios.get(CORE_URL, { timeout: 12000 });
-      const equity = Number(res.data.equity || 0);
+      const [coreRes, mlRes] = await Promise.all([
+        axios.get(CORE_URL, { timeout: 12000 }),
+        axios.get(ML_URL, { timeout: 8000 }).catch(() => ({ data: null }))
+      ]);
+
+      const equity = Number(coreRes.data.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      setCore(res.data);
+      setCore(coreRes.data);
+      setML(mlRes.data);
       setEquityHistory(prev => [...prev, { time, equity }].slice(-30));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
       setError(null);
     } catch (e) {
-      setError("Core service not responding — check GET / endpoint");
+      setError("Connection issue — retrying");
     } finally {
       setLoading(false);
     }
@@ -77,7 +84,7 @@ export default function Dashboard() {
   if (error || !core) return (
     <div className="min-h-screen bg-black text-red-400 flex flex-col items-center justify-center gap-6 p-8 text-center">
       <AlertCircle className="w-16 h-16" />
-      <p className="text-lg">{error || "Core offline"}</p>
+      <p className="text-lg">{error || "Services offline"}</p>
       <button onClick={fetchData} className="bg-cyan-600 hover:bg-cyan-500 text-black font-bold py-3 px-8 rounded-full">Retry</button>
     </div>
   );
@@ -111,26 +118,28 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-6">
           {[
-            { label: "Equity", value: `$${Number(core.equity).toLocaleString()}` },
-            { label: "Positions", value: positions.length },
-            { label: "Rockets", value: rockets.length },
-            { label: "Watchlist", value: watchlist.length },
+            { icon: Shield, label: "Equity", value: `$${Number(core.equity).toLocaleString()}` },
+            { icon: Activity, label: "Positions", value: positions.length },
+            { icon: Zap, label: "Rockets", value: rockets.length },
+            { icon: Brain, label: "DQN Steps", value: ml?.steps ? (ml.steps / 1000).toFixed(1) + "k" : "—" },
+            { icon: Activity, label: "Watchlist", value: watchlist.length },
           ].map((s, i) => (
             <div key={i} className="p-3 rounded-lg bg-gray-900/50 text-center">
+              <s.icon className="w-5 h-5 mx-auto mb-1 text-cyan-400" />
               <div className="text-xs text-gray-400">{s.label}</div>
               <div className="font-bold">{s.value}</div>
             </div>
           ))}
         </div>
 
-        {/* LIVE POSITIONS — NOW FIRST */}
+        {/* Live Positions */}
         <div className="mb-8">
           <h2 className="text-lg font-bold mb-3 text-cyan-400 flex items-center gap-2">
             <Activity className="w-5 h-5" /> Live Positions ({positions.length})
           </h2>
           {positions.length === 0 ? (
             <div className="p-8 text-center text-gray-500 bg-gray-900/50 rounded-xl">
-              No open positions — waiting for next rocket
+              No open positions
             </div>
           ) : (
             <div className="grid gap-3">
@@ -138,7 +147,7 @@ export default function Dashboard() {
                 <div key={i} className="p-4 rounded-xl bg-gray-900/50 border border-gray-700 flex justify-between items-center">
                   <div>
                     <div className="font-bold text-lg">{p.symbol}</div>
-                    <div className="text-sm text-gray-400">Qty: {p.qty} @ Entry ${p.entry}</div>
+                    <div className="text-sm text-gray-400">Qty: {p.qty} @ ${p.entry}</div>
                   </div>
                   <div className="text-right">
                     <div className="font-bold text-lg">${p.current}</div>
@@ -154,7 +163,7 @@ export default function Dashboard() {
 
         {/* Watchlist */}
         <div className="mb-6">
-          <h2 className="text-lg font-bold mb-2 text-cyan-400">Watchlist ({watchlist.length} tickers)</h2>
+          <h2 className="text-lg font-bold mb-2 text-cyan-400">Watchlist ({watchlist.length})</h2>
           <div className="p-4 bg-gray-900/50 rounded-xl text-sm overflow-x-auto">
             <div className="flex flex-wrap gap-2">
               {watchlist.map((t: string) => (
@@ -169,11 +178,11 @@ export default function Dashboard() {
         {/* Trade Log */}
         <div className="mb-8">
           <h2 className="text-lg font-bold mb-3 text-cyan-400 flex items-center gap-2">
-            <FileText className="w-5 h-5" /> Live Trade Log
+            <FileText className="w-5 h-5" /> Trade Log
           </h2>
           <div className="p-4 bg-gray-900/50 rounded-xl text-sm font-mono max-h-96 overflow-y-auto">
             {logs.length === 0 ? (
-              <p className="text-gray-500 text-center">No activity yet</p>
+              <p className="text-gray-500 text-center">No activity</p>
             ) : (
               logs.map((l: any, i: number) => (
                 <div key={i} className="py-1 border-b border-gray-800 last:border-0">
