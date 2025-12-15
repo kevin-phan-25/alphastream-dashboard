@@ -123,7 +123,36 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Watchlist with hover */}
+        {/* LIVE POSITIONS — NOW FIRST */}
+        <div className="mb-8">
+          <h2 className="text-lg font-bold mb-3 text-cyan-400 flex items-center gap-2">
+            <Activity className="w-5 h-5" /> Live Positions ({positions.length})
+          </h2>
+          {positions.length === 0 ? (
+            <div className="p-8 text-center text-gray-500 bg-gray-900/50 rounded-xl">
+              No open positions — waiting for next rocket
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {positions.map((p: any, i: number) => (
+                <div key={i} className="p-4 rounded-xl bg-gray-900/50 border border-gray-700 flex justify-between items-center">
+                  <div>
+                    <div className="font-bold text-lg">{p.symbol}</div>
+                    <div className="text-sm text-gray-400">Qty: {p.qty} @ Entry ${p.entry}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-lg">${p.current}</div>
+                    <div className={`${parseFloat(p.unrealized_plpc) >= 0 ? 'text-green-400' : 'text-red-400'} font-bold`}>
+                      {p.unrealized_plpc}% P&L
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Watchlist */}
         <div className="mb-6">
           <h2 className="text-lg font-bold mb-2 text-cyan-400">Watchlist ({watchlist.length} tickers)</h2>
           <div className="p-4 bg-gray-900/50 rounded-xl text-sm overflow-x-auto">
@@ -137,7 +166,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Live Trade Log */}
+        {/* Trade Log */}
         <div className="mb-8">
           <h2 className="text-lg font-bold mb-3 text-cyan-400 flex items-center gap-2">
             <FileText className="w-5 h-5" /> Live Trade Log
