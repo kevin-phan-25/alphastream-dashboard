@@ -12,7 +12,7 @@ import {
   Tooltip,
   Filler
 } from 'chart.js';
-import { RefreshCw, Zap, Brain, Shield, Activity, Loader2, Sun, Moon, AlertCircle } from 'lucide-react';
+import { RefreshCw, Zap, Brain, Shield, Activity, Loader2, Sun, Moon, AlertCircle, TrendingUp, XCircle } from 'lucide-react';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
 
@@ -27,7 +27,6 @@ export default function Dashboard() {
   const [message, setMessage] = useState("");
   const [darkMode, setDarkMode] = useState(true);
 
-  // FIXED URLs BASED ON YOUR PROVIDED SERVICES
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
   const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
 
@@ -48,7 +47,7 @@ export default function Dashboard() {
       setError(null);
     } catch (e: any) {
       console.error("Fetch error:", e);
-      setError("Connection issue — check service status");
+      setError("Connection issue — check core service (needs GET / endpoint)");
     } finally {
       setLoading(false);
     }
@@ -65,7 +64,7 @@ export default function Dashboard() {
       setTimeout(() => setMessage(""), 3000);
       fetchData();
     } catch {
-      setMessage("Scan failed — core may not support /scan yet");
+      setMessage("Scan failed");
       setTimeout(() => setMessage(""), 4000);
     } finally {
       setScanning(false);
@@ -98,11 +97,11 @@ export default function Dashboard() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: { legend: { display: false } },
-    scales: { x: { grid: { display: false } }, y: { grid: { color: darkMode ? '#374151' : '#e5e7eb' } } }
+    scales: { x: { grid: { display: false } } }
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-black text-cyan-400 flex flex-col items-center justify-center gap-4">
+    <div className="min-h-screen bg-black text-cyan-400 flex items-center justify-center gap-4">
       <Activity className="w-12 h-12 animate-pulse" />
       <p className="text-xl">Connecting to AlphaStream AI...</p>
     </div>
@@ -113,7 +112,7 @@ export default function Dashboard() {
       <AlertCircle className="w-16 h-16" />
       <p className="text-lg">{error || "Core service not responding"}</p>
       <p className="text-sm text-gray-400 max-w-md">
-        Note: If core shows "Cannot GET /", it means the root endpoint isn't set up yet. Deploy the full core code with app.get("/", ...) to fix.
+        Ensure your core service has app.get("/") returning JSON with equity, positions, rockets.
       </p>
       <button onClick={fetchData} className="bg-cyan-600 hover:bg-cyan-500 text-black font-bold py-3 px-8 rounded-full">
         Retry
@@ -121,9 +120,8 @@ export default function Dashboard() {
     </div>
   );
 
-  const positions = Object.keys(core.positions || {}).length;
-  const rockets = core.rockets?.length || 0;
-  const watchlistSize = Object.keys(core.learnedSymbols || {}).length;
+  const positions = core.positions || [];
+  const rockets = core.rockets || [];
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-200' : 'bg-gray-50 text-gray-800'} transition-colors`}>
@@ -143,17 +141,18 @@ export default function Dashboard() {
 
         {/* Equity Chart */}
         <div className="mb-6 p-4 rounded-xl bg-gray-900/50 border border-gray-700 h-64">
+          <h2 className="text-sm font-bold mb-2 text-cyan-400">Live Equity</h2>
           <Line data={chartData} options={chartOptions} />
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-8">
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-6">
           {[
-            { icon: Shield, label: "Equity", value: `$${Number(core.equity || 0).toLocaleString()}` },
-            { icon: Activity, label: "Positions", value: `${positions}/5` },
-            { icon: Zap, label: "Rockets", value: rockets },
+            { icon: Shield, label: "Equity", value: `$${Number(core.equity).toLocaleString()}` },
+            { icon: Activity, label: "Positions", value: positions.length },
+            { icon: Zap, label: "Rockets", value: rockets.length },
             { icon: Brain, label: "DQN Steps", value: ml?.steps ? `${(ml.steps / 1000).toFixed(1)}k` : "0" },
-            { icon: Activity, label: "Watchlist", value: watchlistSize },
+            { icon: TrendingUp, label: "Watchlist", value: core.watchlistSize || 13 },
           ].map((stat, i) => (
             <div key={i} className="p-3 rounded-lg bg-gray-900/50 text-center">
               <stat.icon className="w-5 h-5 mx-auto mb-1 text-cyan-400" />
@@ -162,6 +161,52 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
+
+        {/* Live Positions Section */}
+        <div className="mb-8">
+          <h2 className="text-lg font-bold mb-3 text-cyan-400 flex items-center gap-2">
+            <Activity className="w-5 h-5" /> Live Positions ({positions.length})
+          </h2>
+          {positions.length === 0 ? (
+            <div className="p-8 text-center text-gray-500 bg-gray-900/50 rounded-xl">
+              No open positions — waiting for next rocket
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {positions.map((p: any, i: number) => (
+                <div key={i} className="p-4 rounded-xl bg-gray-900/50 border border-gray-700 flex justify-between items-center">
+                  <div>
+                    <div className="font-bold text-lg">{p.symbol}</div>
+                    <div className="text-sm text-gray-400">Qty: {p.qty} @ Entry ${p.entry}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-lg">Current: ${p.current}</div>
+                    <div className={`${parseFloat(p.unrealized_plpc) >= 0 ? 'text-green-400' : 'text-red-400'} font-bold`}>
+                      {p.unrealized_plpc}% P&L
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Rockets Detected */}
+        {rockets.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-bold mb-3 text-cyan-400 flex items-center gap-2">
+              <Zap className="w-5 h-5" /> Rockets Detected ({rockets.length})
+            </h2>
+            <div className="grid gap-2">
+              {rockets.map((r: any, i: number) => (
+                <div key={i} className="p-3 rounded-lg bg-gray-900/50 flex justify-between">
+                  <span className="font-bold">{r.symbol}</span>
+                  <span className="text-green-400">+{r.gap}% gap @ ${r.price}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Force Scan Button */}
         <button
@@ -175,7 +220,6 @@ export default function Dashboard() {
           {scanning ? "Scanning..." : "Force Scan"}
         </button>
 
-        {/* Message Toast */}
         {message && (
           <div className="fixed bottom-24 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full bg-green-600 text-white shadow-lg text-sm z-40">
             {message}
