@@ -14,12 +14,10 @@ import {
   DollarSign,
   Wallet,
   Globe,
-  Bot,
-  TrendingUp,
-  Brain
+  Bot
 } from 'lucide-react';
 
-// Register Chart.js
+// Chart.js registration
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -37,18 +35,39 @@ const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
   loading: () => <div className="h-40 flex items-center justify-center text-gray-500 text-xs">Loading...</div>
 });
 
+// Types
+interface EquityData {
+  time: string;
+  equity: number;
+}
+interface Rocket {
+  symbol: string;
+  gap: number;
+  rvol: number;
+  price: number;
+  mlAction?: number;
+  mlPriority?: boolean;
+}
+interface Position {
+  symbol: string;
+  qty: string;
+  entry: number;
+  unrealized_plpc: number;
+}
+
 export default function Dashboard() {
   const [core, setCore] = useState<any>({});
-  const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
+  const [equityHistory, setEquityHistory] = useState<EquityData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdate, setLastUpdate] = useState("");
+  const [lastUpdate, setLastUpdate] = useState('');
   const [scanning, setScanning] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState('');
   const [darkMode, setDarkMode] = useState(true);
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
 
+  // Fetch core data
   const fetchData = async () => {
     try {
       const res = await axios.get(CORE_URL, { timeout: 12000 });
@@ -68,6 +87,7 @@ export default function Dashboard() {
     }
   };
 
+  // Force scan
   const forceScan = async () => {
     if (scanning) return;
     setScanning(true);
@@ -85,12 +105,14 @@ export default function Dashboard() {
     }
   };
 
+  // Initial fetch + interval
   useEffect(() => {
     fetchData();
     const id = setInterval(fetchData, 15000);
     return () => clearInterval(id);
   }, []);
 
+  // Dark mode
   useEffect(() => {
     if (typeof window !== 'undefined') {
       document.documentElement.classList.toggle('dark', darkMode);
@@ -118,8 +140,8 @@ export default function Dashboard() {
     );
   }
 
-  const positions = Array.isArray(core.positions) ? core.positions : [];
-  const rockets = Array.isArray(core.rockets) ? core.rockets : [];
+  const positions: Position[] = Array.isArray(core.positions) ? core.positions : [];
+  const rockets: Rocket[] = Array.isArray(core.rockets) ? core.rockets : [];
   const logs = Array.isArray(core.tradeLog) ? core.tradeLog : [];
 
   const equityChartData = {
@@ -196,19 +218,27 @@ export default function Dashboard() {
           <h2 className="text-sm font-bold text-cyan-400 mb-2">Equity Curve</h2>
           <div className="h-40">
             <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500 text-xs">Loading...</div>}>
-              <Line data={equityChartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false } } }} />
+              <Line
+                data={equityChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: { legend: { display: false } },
+                  scales: { x: { display: false } }
+                }}
+              />
             </Suspense>
           </div>
         </div>
 
-        {/* Rainbow DQN Predictions */}
+        {/* Rockets */}
         {rockets.length > 0 && (
           <div className="mb-5">
             <h2 className="text-sm font-bold text-purple-400 mb-3 flex items-center gap-2">
               <Bot className="w-5 h-5" /> Rainbow DQN Predictions
             </h2>
             <div className="space-y-4">
-              {rockets.map((r: any, i: number) => {
+              {rockets.map((r: Rocket, i: number) => {
                 const ml = getActionDetails(r.mlAction, r.mlPriority);
                 return (
                   <div key={i} className="bg-gray-900/60 p-4 rounded-lg border border-purple-800 shadow-sm">
@@ -226,9 +256,7 @@ export default function Dashboard() {
                       )}
                     </div>
                     <div className="flex items-center justify-between">
-                      <div className={`text-2xl font-bold ${ml.color}`}>
-                        {ml.label}
-                      </div>
+                      <div className={`text-2xl font-bold ${ml.color}`}>{ml.label}</div>
                       <div className="flex flex-col items-end gap-2">
                         <div className="text-xs text-gray-400">AI Confidence</div>
                         <div className="w-36 bg-gray-800 rounded-full h-3 overflow-hidden">
@@ -247,35 +275,17 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Rockets Grid */}
-        <div className="mb-5">
-          <h2 className="text-sm font-bold text-yellow-400 mb-2">Today's Rockets ({rockets.length})</h2>
-          <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
-            {rockets.length > 0 ? rockets.map((r: any, i: number) => (
-              <div key={i} className="bg-gray-900/50 p-3 rounded border border-yellow-600 text-center hover:border-yellow-400 transition">
-                <div className="font-medium text-sm">{r.symbol}</div>
-                <div className="text-xl text-yellow-400 font-bold mt-1">+{r.gap}%</div>
-                <div className="text-xs text-green-400 mt-1">RVOL {r.rvol}</div>
-              </div>
-            )) : (
-              <div className="col-span-full text-center text-gray-500 py-10 text-sm">
-                No gappers with surge yet — waiting for momentum
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Positions */}
         <div className="mb-5">
           <h2 className="text-sm font-bold text-green-400 mb-2">Live Positions ({positions.length})</h2>
           <div className="space-y-2">
-            {positions.length > 0 ? positions.map((p: any, i: number) => {
+            {positions.length > 0 ? positions.map((p: Position, i: number) => {
               const pnl = Number(p.unrealized_plpc || 0);
               return (
                 <div key={i} className="bg-gray-900/50 p-3 rounded border border-green-700 flex justify-between items-center">
                   <div>
                     <div className="font-bold text-base">{p.symbol} ×{p.qty}</div>
-                    <div className="text-xs text-gray-400">Entry: ${Number(p.entry || p.avg_entry_price || 0).toFixed(2)}</div>
+                    <div className="text-xs text-gray-400">Entry: ${Number(p.entry).toFixed(2)}</div>
                   </div>
                   <div className={`text-2xl font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {pnl >= 0 ? '+' : ''}{pnl.toFixed(1)}%
