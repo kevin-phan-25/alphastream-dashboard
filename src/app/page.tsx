@@ -14,7 +14,8 @@ import {
   DollarSign,
   Wallet,
   Brain,
-  Globe
+  Globe,
+  Bot
 } from 'lucide-react';
 
 // Register Chart.js
@@ -131,6 +132,29 @@ export default function Dashboard() {
     }]
   };
 
+  // Map action to readable label
+  const getActionLabel = (action: number) => {
+    switch (action) {
+      case 0: return "BUY STRONG";
+      case 1: return "BUY";
+      case 2: return "HOLD";
+      case 3: return "SKIP";
+      case 4: return "SELL";
+      default: return "UNKNOWN";
+    }
+  };
+
+  const getActionColor = (action: number) => {
+    switch (action) {
+      case 0: return "text-green-400";
+      case 1: return "text-green-300";
+      case 2: return "text-yellow-400";
+      case 3: return "text-gray-400";
+      case 4: return "text-red-400";
+      default: return "text-gray-500";
+    }
+  };
+
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-200' : 'bg-gray-50 text-gray-800'} transition-colors`}>
       <div className="max-w-5xl mx-auto p-3">
@@ -171,7 +195,7 @@ export default function Dashboard() {
           <div className="bg-gray-900/50 p-3 rounded border border-yellow-700 text-center">
             <Globe className="w-5 h-5 mx-auto mb-1 text-yellow-400" />
             <div className="text-xs text-gray-400">Universe</div>
-            <div className="text-base font-bold text-yellow-400">{core.universeSize || KNOWN_UNIVERSE?.size || 0}</div>
+            <div className="text-base font-bold text-yellow-400">{core.universeSize || 0}</div>
           </div>
         </div>
 
@@ -185,7 +209,34 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Rockets with RVOL */}
+        {/* ML Predictions */}
+        {rockets.length > 0 && (
+          <div className="mb-5">
+            <h2 className="text-sm font-bold text-purple-400 mb-2 flex items-center gap-2">
+              <Bot className="w-5 h-5" /> ML Predictions
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {rockets.map((r: any, i: number) => {
+                const priority = r.mlPriority || false;
+                const action = r.mlAction || 2;
+                return (
+                  <div key={i} className="bg-gray-900/50 p-3 rounded border border-purple-700 text-center">
+                    <div className="font-medium text-xs">{r.symbol}</div>
+                    <div className={`text-base font-bold ${getActionColor(action)}`}>
+                      {getActionLabel(action)}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {priority ? "HIGH PRIORITY" : "Normal"}
+                    </div>
+                    <div className="text-xs text-gray-500">Gap +{r.gap}%</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Rockets */}
         <div className="mb-5">
           <h2 className="text-sm font-bold text-yellow-400 mb-2">Today's Rockets ({rockets.length})</h2>
           <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
