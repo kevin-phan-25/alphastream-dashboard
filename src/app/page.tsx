@@ -27,42 +27,52 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
-
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
-const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
-  ssr: false,
-  loading: () => <div className="h-40 flex items-center justify-center text-gray-500 text-xs">Loading...</div>
-});
+const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), { ssr: false });
 
-// Types
-interface EquityData {
-  time: string;
-  equity: number;
-}
-interface Rocket {
+type Rocket = {
   symbol: string;
-  gap: number;
-  rvol: number;
-  price: number;
-  mlAction?: number;
+  gap: string;
+  price: string;
+  rvol: string;
   mlPriority?: boolean;
-}
-interface Position {
+  mlAction?: number;
+};
+
+type Position = {
   symbol: string;
   qty: string;
-  entry: number;
-  unrealized_plpc: number;
-}
+  avg_entry_price: string;
+  unrealized_plpc?: string;
+};
+
+type CoreData = {
+  equity: number;
+  buyingPower: number;
+  rockets: Rocket[];
+  positions: Position[];
+  universeSize: number;
+  tradeLog: { time?: string; message?: string }[];
+  mlConnected: boolean;
+};
 
 export default function Dashboard() {
-  const [core, setCore] = useState<any>({});
-  const [equityHistory, setEquityHistory] = useState<EquityData[]>([]);
+  const [core, setCore] = useState<CoreData>({
+    equity: 0,
+    buyingPower: 0,
+    rockets: [],
+    positions: [],
+    universeSize: 0,
+    tradeLog: [],
+    mlConnected: false
+  });
+  const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdate, setLastUpdate] = useState('');
+  const [lastUpdate, setLastUpdate] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [darkMode, setDarkMode] = useState(true);
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
@@ -71,7 +81,7 @@ export default function Dashboard() {
   const fetchData = async () => {
     try {
       const res = await axios.get(CORE_URL, { timeout: 12000 });
-      const data = res.data || {};
+      const data: CoreData = res.data || {};
       const equity = Number(data.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -105,19 +115,19 @@ export default function Dashboard() {
     }
   };
 
-  // Initial fetch + interval
-  useEffect(() => {
-    fetchData();
-    const id = setInterval(fetchData, 15000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Dark mode
+  // Dark mode toggle
   useEffect(() => {
     if (typeof window !== 'undefined') {
       document.documentElement.classList.toggle('dark', darkMode);
     }
   }, [darkMode]);
+
+  // Auto fetch data
+  useEffect(() => {
+    fetchData();
+    const id = setInterval(fetchData, 15000);
+    return () => clearInterval(id);
+  }, []);
 
   if (loading) {
     return (
@@ -133,16 +143,10 @@ export default function Dashboard() {
       <div className="min-h-screen bg-black text-red-400 flex flex-col items-center justify-center gap-4 p-6 text-center">
         <AlertCircle className="w-10 h-10" />
         <p className="text-base">{error}</p>
-        <button onClick={fetchData} className="px-4 py-2 bg-cyan-600 rounded text-sm">
-          Retry
-        </button>
+        <button onClick={fetchData} className="px-4 py-2 bg-cyan-600 rounded text-sm">Retry</button>
       </div>
     );
   }
-
-  const positions: Position[] = Array.isArray(core.positions) ? core.positions : [];
-  const rockets: Rocket[] = Array.isArray(core.rockets) ? core.rockets : [];
-  const logs = Array.isArray(core.tradeLog) ? core.tradeLog : [];
 
   const equityChartData = {
     labels: equityHistory.map(d => d.time),
@@ -155,23 +159,17 @@ export default function Dashboard() {
     }]
   };
 
-  // ML Action Mapping
   const getActionDetails = (action: number = 2, priority: boolean = false) => {
     const labels = ["BUY STRONG", "BUY", "HOLD", "SKIP", "SELL"];
     const colors = ["text-green-400", "text-green-300", "text-yellow-400", "text-gray-400", "text-red-400"];
     const confidence = action === 0 || action === 4 ? 98 : action === 1 || action === 3 ? 82 : 55;
-
-    return {
-      label: labels[action] || "HOLD",
-      color: colors[action] || "text-gray-400",
-      confidence,
-      isPriority: priority
-    };
+    return { label: labels[action] || "HOLD", color: colors[action] || "text-gray-400", confidence, isPriority: priority };
   };
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-200' : 'bg-gray-50 text-gray-800'} transition-colors`}>
       <div className="max-w-5xl mx-auto p-3">
+
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-xl font-bold text-cyan-400">AlphaStream AI</h1>
@@ -204,7 +202,7 @@ export default function Dashboard() {
           <div className="bg-gray-900/50 p-3 rounded border border-green-700 text-center">
             <Zap className="w-5 h-5 mx-auto mb-1 text-green-400" />
             <div className="text-xs text-gray-400">Rockets</div>
-            <div className="text-base font-bold text-green-400">{rockets.length}</div>
+            <div className="text-base font-bold text-green-400">{core.rockets.length}</div>
           </div>
           <div className="bg-gray-900/50 p-3 rounded border border-yellow-700 text-center">
             <Globe className="w-5 h-5 mx-auto mb-1 text-yellow-400" />
@@ -218,27 +216,19 @@ export default function Dashboard() {
           <h2 className="text-sm font-bold text-cyan-400 mb-2">Equity Curve</h2>
           <div className="h-40">
             <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500 text-xs">Loading...</div>}>
-              <Line
-                data={equityChartData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: { legend: { display: false } },
-                  scales: { x: { display: false } }
-                }}
-              />
+              <Line data={equityChartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false } } }} />
             </Suspense>
           </div>
         </div>
 
         {/* Rockets */}
-        {rockets.length > 0 && (
+        {core.rockets.length > 0 && (
           <div className="mb-5">
             <h2 className="text-sm font-bold text-purple-400 mb-3 flex items-center gap-2">
               <Bot className="w-5 h-5" /> Rainbow DQN Predictions
             </h2>
             <div className="space-y-4">
-              {rockets.map((r: Rocket, i: number) => {
+              {core.rockets.map((r, i) => {
                 const ml = getActionDetails(r.mlAction, r.mlPriority);
                 return (
                   <div key={i} className="bg-gray-900/60 p-4 rounded-lg border border-purple-800 shadow-sm">
@@ -260,10 +250,7 @@ export default function Dashboard() {
                       <div className="flex flex-col items-end gap-2">
                         <div className="text-xs text-gray-400">AI Confidence</div>
                         <div className="w-36 bg-gray-800 rounded-full h-3 overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-purple-600 to-cyan-500 rounded-full transition-all duration-1000"
-                            style={{ width: `${ml.confidence}%` }}
-                          />
+                          <div className="h-full bg-gradient-to-r from-purple-600 to-cyan-500 rounded-full transition-all duration-1000" style={{ width: `${ml.confidence}%` }} />
                         </div>
                         <div className="text-sm font-medium text-cyan-300">{ml.confidence}%</div>
                       </div>
@@ -277,15 +264,15 @@ export default function Dashboard() {
 
         {/* Positions */}
         <div className="mb-5">
-          <h2 className="text-sm font-bold text-green-400 mb-2">Live Positions ({positions.length})</h2>
+          <h2 className="text-sm font-bold text-green-400 mb-2">Live Positions ({core.positions.length})</h2>
           <div className="space-y-2">
-            {positions.length > 0 ? positions.map((p: Position, i: number) => {
+            {core.positions.length > 0 ? core.positions.map((p, i) => {
               const pnl = Number(p.unrealized_plpc || 0);
               return (
                 <div key={i} className="bg-gray-900/50 p-3 rounded border border-green-700 flex justify-between items-center">
                   <div>
                     <div className="font-bold text-base">{p.symbol} ×{p.qty}</div>
-                    <div className="text-xs text-gray-400">Entry: ${Number(p.entry).toFixed(2)}</div>
+                    <div className="text-xs text-gray-400">Entry: ${Number(p.avg_entry_price || 0).toFixed(2)}</div>
                   </div>
                   <div className={`text-2xl font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {pnl >= 0 ? '+' : ''}{pnl.toFixed(1)}%
@@ -293,9 +280,7 @@ export default function Dashboard() {
                 </div>
               );
             }) : (
-              <div className="text-center text-gray-500 py-10 text-sm">
-                No open positions — ready for the next rocket
-              </div>
+              <div className="text-center text-gray-500 py-10 text-sm">No open positions — ready for the next rocket</div>
             )}
           </div>
         </div>
@@ -304,12 +289,12 @@ export default function Dashboard() {
         <div className="mb-14">
           <h2 className="text-sm font-bold text-cyan-400 mb-2">Execution Log</h2>
           <div className="bg-gray-900/50 p-3 rounded text-xs font-mono max-h-64 overflow-y-auto border border-gray-800">
-            {logs.length === 0 ? (
+            {core.tradeLog.length === 0 ? (
               <p className="text-center text-gray-500 py-8">No activity yet</p>
             ) : (
-              logs.slice(-15).reverse().map((l: any, i: number) => (
+              core.tradeLog.slice(-15).reverse().map((l, i) => (
                 <div key={i} className="py-1.5 border-b border-gray-800 last:border-0 text-gray-300">
-                  {typeof l === 'string' ? l : `${l.time || ''} ${l.message || ''}`}
+                  {`${l.time || ''} ${l.message || ''}`}
                 </div>
               ))
             )}
