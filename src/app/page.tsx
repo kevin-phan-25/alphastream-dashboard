@@ -5,11 +5,11 @@ import axios from 'axios';
 import dynamic from 'next/dynamic';
 import { RefreshCw, Zap, Brain, Activity, Loader2, Sun, Moon, AlertCircle, DollarSign, TrendingUp } from 'lucide-react';
 
-// Dynamic import Line with ssr: false to avoid window error during build
-const Line = dynamic(
-  () => import('react-chartjs-2').then((mod) => mod.Line),
-  { ssr: false, loading: () => <p className="text-center py-8 text-gray-500">Loading chart...</p> }
-);
+// Safe dynamic import for chart
+const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
+  ssr: false,
+  loading: () => <div className="h-64 flex items-center justify-center text-gray-500">Loading chart...</div>
+});
 
 export default function Dashboard() {
   const [core, setCore] = useState<any>(null);
@@ -32,16 +32,17 @@ export default function Dashboard() {
         axios.get(ML_URL, { timeout: 8000 }).catch(() => ({ data: null }))
       ]);
 
-      const equity = Number(coreRes.data.equity || 0);
+      const equity = Number(coreRes.data?.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      setCore(coreRes.data);
-      setML(mlRes.data);
+      setCore(coreRes.data || {});
+      setML(mlRes.data || {});
       setEquityHistory(prev => [...prev, { time, equity }].slice(-50));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
       setError(null);
     } catch (e) {
-      setError("Connection issue — retrying");
+      console.error("Fetch error:", e);
+      setError("Failed to connect — retrying...");
     } finally {
       setLoading(false);
     }
@@ -53,7 +54,7 @@ export default function Dashboard() {
     setMessage("Scanning market...");
     try {
       await axios.post(`${CORE_URL}/scan`, {});
-      setMessage("Scan triggered successfully!");
+      setMessage("Scan triggered!");
       setTimeout(() => setMessage(""), 3000);
       fetchData();
     } catch {
@@ -71,29 +72,36 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode);
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('dark', darkMode);
+    }
   }, [darkMode]);
 
-  if (loading) return (
-    <div className="min-h-screen bg-black text-cyan-400 flex items-center justify-center gap-4">
-      <Activity className="w-12 h-12 animate-pulse" />
-      <p className="text-xl">Connecting to AlphaStream AI...</p>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-cyan-400 flex items-center justify-center gap-4">
+        <Activity className="w-12 h-12 animate-pulse" />
+        <p className="text-xl">Connecting to AlphaStream AI...</p>
+      </div>
+    );
+  }
 
-  if (error || !core) return (
-    <div className="min-h-screen bg-black text-red-400 flex flex-col items-center justify-center gap-6 p-8 text-center">
-      <AlertCircle className="w-16 h-16" />
-      <p className="text-lg">{error || "Services offline"}</p>
-      <button onClick={fetchData} className="bg-cyan-600 hover:bg-cyan-500 text-black font-bold py-3 px-8 rounded-full">
-        Retry Connection
-      </button>
-    </div>
-  );
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black text-red-400 flex flex-col items-center justify-center gap-6 p-8 text-center">
+        <AlertCircle className="w-16 h-16" />
+        <p className="text-lg">{error}</p>
+        <button onClick={fetchData} className="bg-cyan-600 hover:bg-cyan-500 text-black font-bold py-3 px-8 rounded-full">
+          Retry Connection
+        </button>
+      </div>
+    );
+  }
 
-  const positions = core.positions || [];
-  const rockets = core.rockets || [];
-  const logs = core.logs || [];
+  // Safe defaults
+  const positions = core?.positions || [];
+  const rockets = core?.rockets || [];
+  const logs = core?.logs || [];
 
   const equityChartData = {
     labels: equityHistory.map(d => d.time),
@@ -116,7 +124,6 @@ export default function Dashboard() {
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-200' : 'bg-gray-50 text-gray-800'} transition-colors`}>
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
           <h1 className={`text-3xl sm:text-4xl font-bold ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>
             AlphaStream AI Trader
@@ -129,19 +136,17 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Message */}
         {message && (
           <div className="mb-6 p-4 bg-cyan-900/50 border border-cyan-600 rounded-lg text-center text-cyan-300">
             {message}
           </div>
         )}
 
-        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-gray-900/50 p-6 rounded-lg border border-cyan-700 text-center">
             <DollarSign className="w-8 h-8 mx-auto mb-2 text-cyan-400" />
             <div className="text-sm text-gray-400">Equity</div>
-            <div className="text-3xl font-bold">${Number(core.equity).toLocaleString()}</div>
+            <div className="text-3xl font-bold">${Number(core?.equity || 0).toLocaleString()}</div>
           </div>
           <div className="bg-gray-900/50 p-6 rounded-lg border border-purple-700 text-center">
             <TrendingUp className="w-8 h-8 mx-auto mb-2 text-purple-400" />
@@ -160,7 +165,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Equity Chart */}
         <div className="mb-8 bg-gray-900/50 p-4 rounded-lg border border-gray-700">
           <h2 className="text-xl font-bold text-cyan-400 mb-4">Equity Performance</h2>
           <div className="h-64">
@@ -170,7 +174,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Rockets */}
         <div className="mb-8">
           <h2 className="text-xl font-bold text-yellow-400 mb-4 flex items-center gap-2">
             <Zap className="w-6 h-6" /> Today's Rockets ({rockets.length})
@@ -187,7 +190,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Positions */}
         <div className="mb-8">
           <h2 className="text-xl font-bold text-green-400 mb-4">Live Positions</h2>
           <div className="space-y-4">
@@ -195,10 +197,10 @@ export default function Dashboard() {
               <div key={i} className="bg-gray-900/50 p-4 rounded border border-green-700 flex justify-between items-center">
                 <div>
                   <div className="font-bold text-xl">{p.symbol} ×{p.qty}</div>
-                  <div className="text-sm text-gray-400">Entry: ${p.entry?.toFixed(2)}</div>
+                  <div className="text-sm text-gray-400">Entry: ${p.entry?.toFixed(2) || 'N/A'}</div>
                 </div>
                 <div className={`text-3xl font-bold ${p.pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {p.pnlPct >= 0 ? '+' : ''}{p.pnlPct?.toFixed(1)}%
+                  {p.pnlPct >= 0 ? '+' : ''}{p.pnlPct?.toFixed(1) || '0.0'}%
                 </div>
               </div>
             )) : (
@@ -207,7 +209,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Logs */}
         <div className="mb-20">
           <h2 className="text-xl font-bold text-cyan-400 mb-4">Execution Log</h2>
           <div className="bg-gray-900/50 p-4 rounded-lg text-xs font-mono max-h-96 overflow-y-auto border border-gray-800">
