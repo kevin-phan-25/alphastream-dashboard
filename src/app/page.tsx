@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
-import { RefreshCw, Zap, Activity, Loader2, Sun, Moon, AlertCircle, DollarSign, Wallet } from 'lucide-react';
+import { RefreshCw, Zap, Brain, Activity, Loader2, Sun, Moon, AlertCircle, DollarSign, Wallet } from 'lucide-react';
 
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
   ssr: false,
@@ -49,12 +49,12 @@ export default function Dashboard() {
       await axios.post(`${CORE_URL}/scan`);
       setMessage("Scan triggered!");
       setTimeout(() => setMessage(""), 3000);
-    } catch (err) {
+    } catch {
       setMessage("Scan failed");
       setTimeout(() => setMessage(""), 3000);
     } finally {
       setScanning(false);
-      fetchData(); // Refresh data after scan
+      fetchData();
     }
   };
 
@@ -74,7 +74,7 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen bg-black text-cyan-400 flex items-center justify-center gap-3">
         <Activity className="w-8 h-8 animate-pulse" />
-        <p className="text-lg">Connecting to AlphaStream...</p>
+        <p className="text-lg">Connecting...</p>
       </div>
     );
   }
