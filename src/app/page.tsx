@@ -12,28 +12,14 @@ import {
   Tooltip,
   Filler
 } from 'chart.js';
-import { RefreshCw, Zap, Brain, Activity, Loader2, Sun, Moon, AlertCircle, FileText, Cpu } from 'lucide-react';
+import { RefreshCw, Zap, Brain, Activity, Loader2, Sun, Moon, AlertCircle } from 'lucide-react';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
-
-const PATTERN_NAMES = [
-  "Bull Flag",
-  "Bear Flag",
-  "Flat Top Breakout",
-  "Flat Bottom Breakdown",
-  "Inverted Head and Shoulders",
-  "Ascending Support",
-  "Descending Resistance",
-  "Bull Flag Trap"
-];
 
 export default function Dashboard() {
   const [core, setCore] = useState<any>(null);
   const [ml, setML] = useState<any>(null);
   const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
-  const [mlStepsHistory, setMLStepsHistory] = useState<{ time: string; steps: number }[]>([]);
-  const [mlRewardHistory, setMLRewardHistory] = useState<{ time: string; reward: number }[]>([]);
-  const [mlWinRateHistory, setMLWinRateHistory] = useState<{ time: string; winRate: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState("");
@@ -52,17 +38,11 @@ export default function Dashboard() {
       ]);
 
       const equity = Number(coreRes.data.equity || 0);
-      const mlSteps = Number(mlRes.data.steps || 0);
-      const mlAverageReward = Number(mlRes.data.averageReward || 0);
-      const mlWinRate = Number(mlRes.data.winRate || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       setCore(coreRes.data);
       setML(mlRes.data);
       setEquityHistory(prev => [...prev, { time, equity }].slice(-30));
-      setMLStepsHistory(prev => [...prev, { time, steps: mlSteps }].slice(-30));
-      setMLRewardHistory(prev => [...prev, { time, reward: mlAverageReward }].slice(-30));
-      setMLWinRateHistory(prev => [...prev, { time, winRate: mlWinRate }].slice(-30));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
       setError(null);
     } catch (e) {
@@ -78,7 +58,7 @@ export default function Dashboard() {
     setMessage("Scanning market...");
     try {
       await axios.post(`${CORE_URL}/scan`, {});
-      setMessage("Scan triggered successfully!");
+      setMessage("Scan triggered!");
       setTimeout(() => setMessage(""), 3000);
       fetchData();
     } catch {
@@ -118,56 +98,14 @@ export default function Dashboard() {
 
   const positions = core.positions || [];
   const rockets = core.rockets || [];
-  const logs = core.tradeLog || [];
-  const watchlist = core.watchlist || [];
-  const mlSteps = ml?.steps || 0;
-  const modelReady = ml?.modelReady || false;
-  const memorySize = ml?.memorySize || 0;
-  const averageReward = ml?.averageReward || 0;
-  const winRate = ml?.winRate || 0;
+  const logs = core.logs || [];
 
-  const chartData = {
+  const equityChartData = {
     labels: equityHistory.map(d => d.time),
     datasets: [{
       data: equityHistory.map(d => d.equity),
       borderColor: '#06b6d4',
       backgroundColor: 'rgba(6,182,212,0.15)',
-      fill: true,
-      tension: 0.4
-    }]
-  };
-
-  const mlStepsChartData = {
-    labels: mlStepsHistory.map(d => d.time),
-    datasets: [{
-      label: 'ML Training Steps',
-      data: mlStepsHistory.map(d => d.steps),
-      borderColor: '#a855f7',
-      backgroundColor: 'rgba(168,85,247,0.15)',
-      fill: true,
-      tension: 0.4
-    }]
-  };
-
-  const mlRewardChartData = {
-    labels: mlRewardHistory.map(d => d.time),
-    datasets: [{
-      label: 'Average Reward',
-      data: mlRewardHistory.map(d => d.reward),
-      borderColor: '#22c55e',
-      backgroundColor: 'rgba(34,197,94,0.15)',
-      fill: true,
-      tension: 0.4
-    }]
-  };
-
-  const mlWinRateChartData = {
-    labels: mlWinRateHistory.map(d => d.time),
-    datasets: [{
-      label: 'Win Rate %',
-      data: mlWinRateHistory.map(d => d.winRate),
-      borderColor: '#eab308',
-      backgroundColor: 'rgba(234,179,8,0.15)',
       fill: true,
       tension: 0.4
     }]
@@ -180,11 +118,105 @@ export default function Dashboard() {
           <h1 className={`text-3xl font-bold ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>
             AlphaStream AI
           </h1>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="text-gray-500">Updated: {lastUpdate} ET</span>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-500">Last update: {lastUpdate} ET</span>
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className="p-2 rounded-full bg-gray-800 dark:bg-gray-200 transition"
+              className="p-2 rounded-full bg-gray-800 dark:bg-gray-200"
             >
-              {darkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5" />}
+              {darkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-gray-800" />}
             </button>
+          </div>
+        </div>
+
+        {message && (
+          <div className="mb-4 p-4 bg-cyan-900/50 border border-cyan-600 rounded text-center text-cyan-300">
+            {message}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-gray-900 dark:bg-gray-100 p-6 rounded-lg border border-cyan-700">
+            <div className="text-sm text-gray-400">Live Equity</div>
+            <div className="text-4xl font-bold text-white dark:text-gray-900">
+              ${Number(core.equity).toLocaleString()}
+            </div>
+          </div>
+
+          <div className="bg-gray-900 dark:bg-gray-100 p-6 rounded-lg border border-purple-700">
+            <div className="text-sm text-gray-400">Open Positions</div>
+            <div className="text-4xl font-bold text-purple-400">{positions.length}/5</div>
+          </div>
+
+          <div className="bg-gray-900 dark:bg-gray-100 p-6 rounded-lg border border-green-700">
+            <div className="text-sm text-gray-400">Rockets Today</div>
+            <div className="text-4xl font-bold text-green-400">{rockets.length}</div>
+          </div>
+        </div>
+
+        <div className="mb-8">
+          <h2 className="text-xl font-bold text-cyan-400 mb-4">Equity Curve</h2>
+          <div className="bg-gray-900 dark:bg-gray-100 p-4 rounded-lg">
+            <Line data={equityChartData} options={{ responsive: true, plugins: { legend: { display: false } } }} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div>
+            <h2 className="text-xl font-bold text-yellow-400 mb-4 flex items-center gap-2">
+              <Zap className="w-6 h-6" /> Today's Rockets
+            </h2>
+            <div className="space-y-3">
+              {rockets.length > 0 ? rockets.map((r: any, i: number) => (
+                <div key={i} className="bg-gray-900 dark:bg-gray-100 p-4 rounded border border-yellow-600 flex justify-between">
+                  <span className="font-bold">{r.symbol}</span>
+                  <span className="text-2xl text-yellow-400">+{r.gap}%</span>
+                </div>
+              )) : (
+                <div className="text-gray-500 text-center py-8">No gappers detected yet</div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-xl font-bold text-green-400 mb-4">Live Positions</h2>
+            <div className="space-y-3">
+              {positions.length > 0 ? positions.map((p: any, i: number) => (
+                <div key={i} className="bg-gray-900 dark:bg-gray-100 p-4 rounded border border-green-700 flex justify-between items-center">
+                  <div>
+                    <div className="font-bold">{p.symbol} ×{p.qty}</div>
+                    <div className="text-sm text-gray-400">Entry: ${p.entry?.toFixed(2)}</div>
+                  </div>
+                  <div className={`text-2xl font-bold ${p.pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {p.pnlPct >= 0 ? '+' : ''}{p.pnlPct?.toFixed(1)}%
+                  </div>
+                </div>
+              )) : (
+                <div className="text-gray-500 text-center py-8">No open positions</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h2 className="text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
+            <Brain className="w-6 h-6" /> ML Memory Status
+          </h2>
+          <div className="bg-gray-900 dark:bg-gray-100 p-6 rounded-lg border border-purple-700 text-center">
+            <div className="text-3xl font-bold">{ml?.trackedSymbols || 0}</div>
+            <div className="text-sm text-gray-400">Symbols Tracked</div>
+          </div>
+        </div>
+
+        <button
+          onClick={forceScan}
+          disabled={scanning}
+          className="fixed bottom-8 right-8 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-black font-bold py-4 px-8 rounded-full flex items-center gap-3 shadow-2xl text-lg"
+        >
+          {scanning ? <Loader2 className="w-8 h-8 animate-spin" /> : <RefreshCw className="w-8 h-8" />}
+          {scanning ? "SCANNING..." : "FORCE SCAN"}
+        </button>
+      </div>
+    </div>
+  );
+}
