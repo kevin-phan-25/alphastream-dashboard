@@ -16,11 +16,24 @@ import { RefreshCw, Zap, Brain, Activity, Loader2, Sun, Moon, AlertCircle, FileT
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
 
+const PATTERN_NAMES = [
+  "Bull Flag",
+  "Bear Flag",
+  "Flat Top Breakout",
+  "Flat Bottom Breakdown",
+  "Inverted Head and Shoulders",
+  "Ascending Support",
+  "Descending Resistance",
+  "Bull Flag Trap"
+];
+
 export default function Dashboard() {
   const [core, setCore] = useState<any>(null);
   const [ml, setML] = useState<any>(null);
   const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
   const [mlStepsHistory, setMLStepsHistory] = useState<{ time: string; steps: number }[]>([]);
+  const [mlRewardHistory, setMLRewardHistory] = useState<{ time: string; reward: number }[]>([]);
+  const [mlWinRateHistory, setMLWinRateHistory] = useState<{ time: string; winRate: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState("");
@@ -40,12 +53,16 @@ export default function Dashboard() {
 
       const equity = Number(coreRes.data.equity || 0);
       const mlSteps = Number(mlRes.data.steps || 0);
+      const mlAverageReward = Number(mlRes.data.averageReward || 0);
+      const mlWinRate = Number(mlRes.data.winRate || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       setCore(coreRes.data);
       setML(mlRes.data);
       setEquityHistory(prev => [...prev, { time, equity }].slice(-30));
       setMLStepsHistory(prev => [...prev, { time, steps: mlSteps }].slice(-30));
+      setMLRewardHistory(prev => [...prev, { time, reward: mlAverageReward }].slice(-30));
+      setMLWinRateHistory(prev => [...prev, { time, winRate: mlWinRate }].slice(-30));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
       setError(null);
     } catch (e) {
@@ -106,6 +123,8 @@ export default function Dashboard() {
   const mlSteps = ml?.steps || 0;
   const modelReady = ml?.modelReady || false;
   const memorySize = ml?.memorySize || 0;
+  const averageReward = ml?.averageReward || 0;
+  const winRate = ml?.winRate || 0;
 
   const chartData = {
     labels: equityHistory.map(d => d.time),
@@ -118,13 +137,37 @@ export default function Dashboard() {
     }]
   };
 
-  const mlChartData = {
+  const mlStepsChartData = {
     labels: mlStepsHistory.map(d => d.time),
     datasets: [{
       label: 'ML Training Steps',
       data: mlStepsHistory.map(d => d.steps),
       borderColor: '#a855f7',
       backgroundColor: 'rgba(168,85,247,0.15)',
+      fill: true,
+      tension: 0.4
+    }]
+  };
+
+  const mlRewardChartData = {
+    labels: mlRewardHistory.map(d => d.time),
+    datasets: [{
+      label: 'Average Reward',
+      data: mlRewardHistory.map(d => d.reward),
+      borderColor: '#22c55e',
+      backgroundColor: 'rgba(34,197,94,0.15)',
+      fill: true,
+      tension: 0.4
+    }]
+  };
+
+  const mlWinRateChartData = {
+    labels: mlWinRateHistory.map(d => d.time),
+    datasets: [{
+      label: 'Win Rate %',
+      data: mlWinRateHistory.map(d => d.winRate),
+      borderColor: '#eab308',
+      backgroundColor: 'rgba(234,179,8,0.15)',
       fill: true,
       tension: 0.4
     }]
@@ -145,157 +188,3 @@ export default function Dashboard() {
             >
               {darkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5" />}
             </button>
-          </div>
-        </div>
-        {/* Equity Chart */}
-        <div className="mb-6 p-4 rounded-xl bg-gray-900/50 border border-gray-700 h-64">
-          <Line
-            data={chartData}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: { legend: { display: false } },
-              scales: { x: { display: false }, y: { display: false } }
-            }}
-          />
-        </div>
-        {/* Stats Grid */}
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-6">
-          {[
-            { icon: Cpu, label: "Equity", value: `$${Number(core.equity).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
-            { icon: Activity, label: "Positions", value: positions.length },
-            { icon: Zap, label: "Rockets", value: rockets.length },
-            { icon: Brain, label: "Watchlist", value: watchlist.length },
-            { icon: Activity, label: "Buying Power", value: `$${Number(core.buyingPower).toLocaleString()}` },
-          ].map((s, i) => (
-            <div key={i} className="p-4 rounded-lg bg-gray-900/50 text-center border border-gray-800">
-              <s.icon className="w-6 h-6 mx-auto mb-2 text-cyan-400" />
-              <div className="text-xs text-gray-400">{s.label}</div>
-              <div className="font-bold text-lg">{s.value}</div>
-            </div>
-          ))}
-        </div>
-        {/* DQN Learning Status */}
-        <div className="mb-6 p-5 rounded-xl bg-gradient-to-r from-purple-900/30 to-cyan-900/30 border border-purple-700">
-          <div className="flex items-center gap-3 mb-2">
-            <Brain className="w-7 h-7 text-purple-400 animate-pulse" />
-            <h2 className="text-xl font-bold text-purple-300">Rainbow DQN Agent</h2>
-            <span className={`px-3 py-1 rounded-full text-xs font-medium ${modelReady ? 'bg-green-600/30 text-green-300' : 'bg-yellow-600/30 text-yellow-300'}`}>
-              {modelReady ? "Model Ready" : "Training"}
-            </span>
-          </div>
-          <p className="text-sm text-gray-300 mb-3">
-            The AI agent is continuously learning from market patterns and trade outcomes via deep reinforcement learning.
-          </p>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <div className="text-2xl font-bold text-cyan-300">
-                {mlSteps.toLocaleString()} Steps
-              </div>
-              <div className="text-xs text-gray-400">Training iterations</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-cyan-300">
-                {memorySize.toLocaleString()} Memories
-              </div>
-              <div className="text-xs text-gray-400">Experience buffer size</div>
-            </div>
-          </div>
-          {/* ML Steps Chart */}
-          <div className="h-32 bg-gray-800/50 rounded-lg p-2">
-            <Line
-              data={mlChartData}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { x: { display: false }, y: { display: false } }
-              }}
-            />
-          </div>
-        </div>
-        {/* Live Positions */}
-        <div className="mb-8">
-          <h2 className="text-lg font-bold mb-3 text-cyan-400 flex items-center gap-2">
-            <Activity className="w-5 h-5" /> Live Positions ({positions.length})
-          </h2>
-          {positions.length === 0 ? (
-            <div className="p-10 text-center text-gray-500 bg-gray-900/50 rounded-xl border border-gray-800">
-              No open positions — waiting for high-conviction signals
-            </div>
-          ) : (
-            <div className="grid gap-3">
-              {positions.map((p: any, i: number) => (
-                <div key={i} className="p-5 rounded-xl bg-gray-900/50 border border-gray-700 flex justify-between items-center">
-                  <div>
-                    <div className="font-bold text-2xl">{p.symbol}</div>
-                    <div className="text-sm text-gray-400">Qty: {p.qty} @ ${p.entry}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-bold text-2xl">${p.current}</div>
-                    <div className={`text-lg font-bold ${parseFloat(p.unrealized_plpc) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {parseFloat(p.unrealized_plpc) >= 0 ? '+' : ''}{p.unrealized_plpc}%
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        {/* Watchlist */}
-        <div className="mb-6">
-          <h2 className="text-lg font-bold mb-3 text-cyan-400">AI Watchlist ({watchlist.length})</h2>
-          <div className="p-4 bg-gray-900/50 rounded-xl text-sm overflow-x-auto border border-gray-800">
-            <div className="flex flex-wrap gap-2">
-              {watchlist.map((t: string) => (
-                <span
-                  key={t}
-                  className="px-4 py-2 bg-gray-800 rounded-full hover:bg-cyan-600 transition cursor-default font-medium"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-        {/* Trade Log */}
-        <div className="mb-20">
-          <h2 className="text-lg font-bold mb-3 text-cyan-400 flex items-center gap-2">
-            <FileText className="w-5 h-5" /> Execution Log
-          </h2>
-          <div className="p-4 bg-gray-900/50 rounded-xl text-sm font-mono max-h-96 overflow-y-auto border border-gray-800">
-            {logs.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No recent activity</p>
-            ) : (
-              logs.slice().reverse().map((l: any, i: number) => (
-                <div key={i} className="py-2 border-b border-gray-800 last:border-0 flex">
-                  <span className="text-gray-500 w-24">{l.time}</span>
-                  <span className="text-gray-300">{l.message}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-        {/* Force Scan Button */}
-        <button
-          onClick={forceScan}
-          disabled={scanning}
-          className={`fixed bottom-6 left-1/2 -translate-x-1/2 w-11/12 max-w-sm py-5 rounded-full font-bold text-xl shadow-2xl flex items-center justify-center gap-3 z-50 transition-all ${
-            scanning
-              ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-              : 'bg-cyan-500 hover:bg-cyan-400 text-black'
-          }`}
-        >
-          {scanning ? <Loader2 className="w-7 h-7 animate-spin" /> : <RefreshCw className="w-7 h-7" />}
-          {scanning ? "Scanning Market..." : "Force Market Scan"}
-        </button>
-        {/* Toast Message */}
-        {message && (
-          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 px-8 py-4 rounded-full bg-green-600 text-white shadow-2xl text-lg font-medium z-40 animate-pulse">
-            {message}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
