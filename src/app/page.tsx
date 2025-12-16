@@ -17,7 +17,7 @@ import {
   Bot
 } from 'lucide-react';
 
-// Register Chart.js
+// Chart.js registration
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -27,7 +27,6 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
-
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
@@ -35,80 +34,52 @@ const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
   loading: () => <div className="h-40 flex items-center justify-center text-gray-500 text-xs">Loading...</div>
 });
 
-// --- TypeScript interfaces ---
-interface Position {
+type Rocket = {
   symbol: string;
-  qty: number;
-  avg_entry_price: number;
-  unrealized_plpc: number;
-}
-
-interface Rocket {
-  symbol: string;
-  price: number;
-  gap: number;
-  rvol: number;
+  gap: string;
+  price: string;
+  rvol: string;
   mlAction: number;
   mlPriority: boolean;
-}
-
-interface CoreData {
-  equity: number;
-  buyingPower: number;
-  universeSize: number;
-  mlConnected: boolean;
-  positions: Position[];
-  rockets: Rocket[];
-  tradeLog: any[];
-}
-
-interface EquityPoint {
-  time: string;
-  equity: number;
-}
+  mlConfidence: number;
+};
 
 export default function Dashboard() {
-  const [core, setCore] = useState<CoreData>({
-    equity: 0,
-    buyingPower: 0,
-    universeSize: 0,
-    mlConnected: false,
-    positions: [],
-    rockets: [],
-    tradeLog: []
-  });
-  const [equityHistory, setEquityHistory] = useState<EquityPoint[]>([]);
+  const [core, setCore] = useState<any>({});
+  const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState("");
   const [scanning, setScanning] = useState(false);
   const [message, setMessage] = useState("");
   const [darkMode, setDarkMode] = useState(true);
+  const [liveRockets, setLiveRockets] = useState<Rocket[]>([]);
   const [flashRockets, setFlashRockets] = useState<Set<string>>(new Set());
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
 
-  // --- Fetch Core Data ---
+  // Fetch data from backend
   const fetchData = async () => {
     try {
       const res = await axios.get(CORE_URL, { timeout: 12000 });
-      const data: CoreData = res.data || core;
+      const data = res.data || {};
       const equity = Number(data.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       setCore({
         ...data,
         mlConnected: data.mlConnected ?? false,
-        universeSize: data.universeSize ?? (data.rockets?.length || 0)
+        universeSize: data.universeSize ?? (data.watchlist?.length || 0)
       });
 
       setEquityHistory(prev => [...prev, { time, equity }].slice(-30));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
-      setError(null);
 
       if (Array.isArray(data.rockets)) {
-        setFlashRockets(new Set()); // Clear previous flashes
+        setLiveRockets(data.rockets);
       }
+
+      setError(null);
     } catch (e) {
       console.error(e);
       setError("Cannot reach core service");
@@ -117,7 +88,7 @@ export default function Dashboard() {
     }
   };
 
-  // --- Force Scan ---
+  // Force scan API
   const forceScan = async () => {
     if (scanning) return;
     setScanning(true);
@@ -129,7 +100,7 @@ export default function Dashboard() {
       if (res.data?.rockets && Array.isArray(res.data.rockets)) {
         const newSymbols = res.data.rockets.map((r: Rocket) => r.symbol);
         setFlashRockets(new Set(newSymbols));
-        setCore(prev => ({ ...prev, rockets: res.data.rockets }));
+        setLiveRockets(res.data.rockets);
         setTimeout(() => setFlashRockets(new Set()), 2000); // Flash highlight lasts 2s
       }
 
@@ -139,7 +110,7 @@ export default function Dashboard() {
       setTimeout(() => setMessage(""), 2500);
     } finally {
       setScanning(false);
-      fetchData(); // Refresh stats
+      fetchData();
     }
   };
 
@@ -154,32 +125,6 @@ export default function Dashboard() {
       document.documentElement.classList.toggle('dark', darkMode);
     }
   }, [darkMode]);
-
-  // --- Equity Chart Data ---
-  const equityChartData = {
-    labels: equityHistory.map(d => d.time),
-    datasets: [{
-      data: equityHistory.map(d => d.equity),
-      borderColor: '#06b6d4',
-      backgroundColor: 'rgba(6,182,212,0.1)',
-      fill: true,
-      tension: 0.4
-    }]
-  };
-
-  // --- ML / Rainbow DQN Helper ---
-  const getActionDetails = (action: number = 2, priority: boolean = false) => {
-    const labels = ["BUY STRONG", "BUY", "HOLD", "SKIP", "SELL"];
-    const colors = ["text-green-400", "text-green-300", "text-yellow-400", "text-gray-400", "text-red-400"];
-    const confidence = action === 0 || action === 4 ? 98 : action === 1 || action === 3 ? 82 : 55;
-
-    return {
-      label: labels[action] || "HOLD",
-      color: colors[action] || "text-gray-400",
-      confidence,
-      isPriority: priority
-    };
-  };
 
   if (loading) {
     return (
@@ -202,13 +147,35 @@ export default function Dashboard() {
     );
   }
 
-  const positions = core.positions || [];
-  const rockets = core.rockets || [];
-  const logs = core.tradeLog || [];
+  const positions = Array.isArray(core.positions) ? core.positions : [];
+  const rockets = liveRockets || [];
+  const logs = Array.isArray(core.tradeLog) ? core.tradeLog : [];
+
+  const equityChartData = {
+    labels: equityHistory.map(d => d.time),
+    datasets: [{
+      data: equityHistory.map(d => d.equity),
+      borderColor: '#06b6d4',
+      backgroundColor: 'rgba(6,182,212,0.1)',
+      fill: true,
+      tension: 0.4
+    }]
+  };
+
+  const getActionDetails = (action: number = 2, priority: boolean = false, confidence: number = 50) => {
+    const labels = ["BUY STRONG", "BUY", "HOLD", "SKIP", "SELL"];
+    const colors = ["text-green-400", "text-green-300", "text-yellow-400", "text-gray-400", "text-red-400"];
+    return {
+      label: labels[action] || "HOLD",
+      color: colors[action] || "text-gray-400",
+      confidence,
+      isPriority: priority
+    };
+  };
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-200' : 'bg-gray-50 text-gray-800'} transition-colors`}>
-      <div className="max-w-5xl mx-auto p-3">
+      <div className="max-w-6xl mx-auto p-3">
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-xl font-bold text-cyan-400">AlphaStream AI</h1>
@@ -263,35 +230,28 @@ export default function Dashboard() {
           <h2 className="text-sm font-bold text-cyan-400 mb-2">Equity Curve</h2>
           <div className="h-40">
             <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500 text-xs">Loading...</div>}>
-              <Line data={equityChartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false } } }} />
+              <Line
+                data={equityChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: { legend: { display: false } },
+                  scales: { x: { display: false } }
+                }}
+              />
             </Suspense>
           </div>
         </div>
 
-        {/* PnL Attribution Heatmap */}
-        <div className="mb-5">
-          <h2 className="text-sm font-bold text-cyan-400 mb-2">PnL Attribution (Last 10)</h2>
-          <div className="grid grid-cols-5 gap-1">
-            {positions.slice(-10).map((p, i) => {
-              const pnl = Number(p.unrealized_plpc || 0);
-              return (
-                <div key={i} className="text-gray-200 truncate">
-                  <span className="font-bold">{p.symbol}</span>: <span className={pnl >= 0 ? 'text-green-400' : 'text-red-400'}>{pnl.toFixed(2)}%</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Rainbow DQN Predictions */}
+        {/* Rainbow DQN / ML Heatmap */}
         {rockets.length > 0 && (
           <div className="mb-5">
             <h2 className="text-sm font-bold text-purple-400 mb-3 flex items-center gap-2">
               <Bot className="w-5 h-5" /> Rainbow DQN Predictions
             </h2>
             <div className="space-y-4">
-              {rockets.map((r, i) => {
-                const ml = getActionDetails(r.mlAction, r.mlPriority);
+              {rockets.map((r: Rocket, i: number) => {
+                const ml = getActionDetails(r.mlAction, r.mlPriority, r.mlConfidence);
                 const flash = flashRockets.has(r.symbol);
                 return (
                   <div
@@ -333,11 +293,32 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Positions */}
+        {/* Rockets Grid */}
+        <div className="mb-5">
+          <h2 className="text-sm font-bold text-yellow-400 mb-2">Today's Rockets ({rockets.length})</h2>
+          <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+            {rockets.length > 0 ? rockets.map((r: Rocket, i: number) => (
+              <div key={i} className="bg-gray-900/50 p-3 rounded border border-yellow-600 text-center hover:border-yellow-400 transition">
+                <div className="font-medium text-sm">{r.symbol}</div>
+                <div className="text-xl text-yellow-400 font-bold mt-1">+{r.gap}%</div>
+                <div className="text-xs text-green-400 mt-1">RVOL {r.rvol}</div>
+                <div className="w-full h-2 bg-gray-800 rounded-full mt-1 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-purple-600 to-cyan-500 transition-all" style={{ width: `${r.mlConfidence}%` }} />
+                </div>
+              </div>
+            )) : (
+              <div className="col-span-full text-center text-gray-500 py-10 text-sm">
+                No gappers with surge yet — waiting for momentum
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Live Positions */}
         <div className="mb-5">
           <h2 className="text-sm font-bold text-green-400 mb-2">Live Positions ({positions.length})</h2>
           <div className="space-y-2">
-            {positions.length > 0 ? positions.map((p, i) => {
+            {positions.length > 0 ? positions.map((p: any, i: number) => {
               const pnl = Number(p.unrealized_plpc || 0);
               return (
                 <div key={i} className="bg-gray-900/50 p-3 rounded border border-green-700 flex justify-between items-center">
@@ -358,14 +339,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Execution Logs */}
+        {/* Logs */}
         <div className="mb-14">
           <h2 className="text-sm font-bold text-cyan-400 mb-2">Execution Log</h2>
           <div className="bg-gray-900/50 p-3 rounded text-xs font-mono max-h-64 overflow-y-auto border border-gray-800">
             {logs.length === 0 ? (
               <p className="text-center text-gray-500 py-8">No activity yet</p>
             ) : (
-              logs.slice(-15).reverse().map((l, i) => (
+              logs.slice(-15).reverse().map((l: any, i: number) => (
                 <div key={i} className="py-1.5 border-b border-gray-800 last:border-0 text-gray-300">
                   {typeof l === 'string' ? l : `${l.time || ''} ${l.message || ''}`}
                 </div>
