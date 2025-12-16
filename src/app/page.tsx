@@ -5,15 +5,10 @@ import axios from 'axios';
 import dynamic from 'next/dynamic';
 import { RefreshCw, Zap, Brain, Activity, Loader2, Sun, Moon, AlertCircle, DollarSign, TrendingUp } from 'lucide-react';
 
-// Dynamic import of charts — disables SSR
+// Dynamic import Line with ssr: false to avoid window error during build
 const Line = dynamic(
   () => import('react-chartjs-2').then((mod) => mod.Line),
-  { ssr: false }
-);
-
-const ChartContainer = dynamic(
-  () => import('./ChartContainer'), // We'll create this small wrapper
-  { ssr: false }
+  { ssr: false, loading: () => <p className="text-center py-8 text-gray-500">Loading chart...</p> }
 );
 
 export default function Dashboard() {
@@ -58,7 +53,7 @@ export default function Dashboard() {
     setMessage("Scanning market...");
     try {
       await axios.post(`${CORE_URL}/scan`, {});
-      setMessage("Scan triggered!");
+      setMessage("Scan triggered successfully!");
       setTimeout(() => setMessage(""), 3000);
       fetchData();
     } catch {
@@ -112,6 +107,19 @@ export default function Dashboard() {
     }]
   };
 
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { mode: 'index' as const, intersect: false },
+      zoom: {
+        pan: { enabled: true, mode: 'xy' as const },
+        zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' as const }
+      }
+    }
+  };
+
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-200' : 'bg-gray-50 text-gray-800'} transition-colors`}>
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
@@ -143,7 +151,7 @@ export default function Dashboard() {
             <div className="text-3xl font-bold">${Number(core.equity).toLocaleString()}</div>
           </div>
           <div className="bg-gray-900/50 p-6 rounded-lg border border-purple-700 text-center">
-            <TrendingUp className="w-8 h-8 mx-auto mb-2 text-purple-400" />
+            <Trending fins className="w-8 h-8 mx-auto mb-2 text-purple-400" />
             <div className="text-sm text-gray-400">Positions</div>
             <div className="text-3xl font-bold text-purple-400">{positions.length}/5</div>
           </div>
@@ -162,16 +170,11 @@ export default function Dashboard() {
         {/* Equity Chart */}
         <div className="mb-8 bg-gray-900/50 p-4 rounded-lg border border-gray-700">
           <h2 className="text-xl font-bold text-cyan-400 mb-4">Equity Performance</h2>
-          <Suspense fallback={<div className="h-64 flex items-center justify-center text-gray-500">Loading chart...</div>}>
-            <div className="h-64">
-              <Line data={equityChartData} options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { x: { display: false } }
-              }} />
-            </div>
-          </Suspense>
+          <div className="h-64">
+            <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500">Loading chart...</div>}>
+              <Line data={equityChartData} options={chartOptions} />
+            </Suspense>
+          </div>
         </div>
 
         {/* Rockets */}
