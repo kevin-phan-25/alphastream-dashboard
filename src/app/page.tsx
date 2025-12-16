@@ -44,6 +44,7 @@ export default function Dashboard() {
   const [scanning, setScanning] = useState(false);
   const [message, setMessage] = useState("");
   const [darkMode, setDarkMode] = useState(true);
+  const [liveRockets, setLiveRockets] = useState<any[]>([]);
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
 
@@ -63,6 +64,10 @@ export default function Dashboard() {
       setEquityHistory(prev => [...prev, { time, equity }].slice(-30));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
       setError(null);
+
+      if (Array.isArray(data.rockets)) {
+        setLiveRockets(data.rockets);
+      }
     } catch (e) {
       console.error(e);
       setError("Cannot reach core service");
@@ -76,15 +81,21 @@ export default function Dashboard() {
     setScanning(true);
     setMessage("Scanning...");
     try {
-      await axios.post(`${CORE_URL}/scan`);
+      const res = await axios.post(`${CORE_URL}/scan`);
       setMessage("Triggered!");
+      
+      // Immediately update rockets from ML scan response if available
+      if (res.data?.rockets && Array.isArray(res.data.rockets)) {
+        setLiveRockets(res.data.rockets);
+      }
+
       setTimeout(() => setMessage(""), 2500);
     } catch {
       setMessage("Failed");
       setTimeout(() => setMessage(""), 2500);
     } finally {
       setScanning(false);
-      fetchData();
+      fetchData(); // Refresh stats
     }
   };
 
@@ -122,7 +133,7 @@ export default function Dashboard() {
   }
 
   const positions = Array.isArray(core.positions) ? core.positions : [];
-  const rockets = Array.isArray(core.rockets) ? core.rockets : [];
+  const rockets = liveRockets || [];
   const logs = Array.isArray(core.tradeLog) ? core.tradeLog : [];
 
   const equityChartData = {
