@@ -58,7 +58,7 @@ export default function Dashboard() {
     setMessage("Scanning market...");
     try {
       await axios.post(`${CORE_URL}/scan`, {});
-      setMessage("Scan triggered!");
+      setMessage("Scan triggered successfully!");
       setTimeout(() => setMessage(""), 3000);
       fetchData();
     } catch {
@@ -156,8 +156,16 @@ export default function Dashboard() {
 
         <div className="mb-8">
           <h2 className="text-xl font-bold text-cyan-400 mb-4">Equity Curve</h2>
-          <div className="bg-gray-900 dark:bg-gray-100 p-4 rounded-lg">
-            <Line data={equityChartData} options={{ responsive: true, plugins: { legend: { display: false } } }} />
+          <div className="bg-gray-900 dark:bg-gray-100 p-4 rounded-lg h-64">
+            <Line
+              data={equityChartData}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { x: { display: false }, y: { display: false } }
+              }}
+            />
           </div>
         </div>
 
@@ -211,7 +219,7 @@ export default function Dashboard() {
         <button
           onClick={forceScan}
           disabled={scanning}
-          className="fixed bottom-8 right-8 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-black font-bold py-4 px-8 rounded-full flex items-center gap-3 shadow-2xl text-lg"
+          className={`fixed bottom-8 right-8 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-black font-bold py-4 px-8 rounded-full flex items-center gap-3 shadow-2xl text-lg`}
         >
           {scanning ? <Loader2 className="w-8 h-8 animate-spin" /> : <RefreshCw className="w-8 h-8" />}
           {scanning ? "SCANNING..." : "FORCE SCAN"}
