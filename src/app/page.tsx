@@ -58,6 +58,7 @@ export default function Dashboard() {
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
 
+  // Fetch core data
   const fetchData = async () => {
     try {
       const res = await axios.get(CORE_URL, { timeout: 12000 });
@@ -65,7 +66,12 @@ export default function Dashboard() {
       const equity = Number(data.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      setCore({ ...data, mlConnected: data.mlConnected ?? false, universeSize: data.universeSize ?? (data.watchlist?.length || 0) });
+      setCore({
+        ...data,
+        mlConnected: data.mlConnected ?? false,
+        universeSize: data.universeSize ?? (data.watchlist?.length || 0)
+      });
+
       setEquityHistory(prev => [...prev, { time, equity }].slice(-30));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
 
@@ -74,35 +80,55 @@ export default function Dashboard() {
     } catch (e) {
       console.error(e);
       setError("Cannot reach core service");
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Force scan
   const forceScan = async () => {
     if (scanning) return;
     setScanning(true); setMessage("Scanning...");
     try {
       const res = await axios.post(`${CORE_URL}/scan`);
       setMessage("Triggered!");
+
       if (res.data?.rockets && Array.isArray(res.data.rockets)) {
         const newSymbols = res.data.rockets.map((r: Rocket) => r.symbol);
         setFlashRockets(new Set(newSymbols));
         setLiveRockets(res.data.rockets);
         setTimeout(() => setFlashRockets(new Set()), 2000);
       }
+
       setTimeout(() => setMessage(""), 2500);
     } catch {
       setMessage("Failed"); setTimeout(() => setMessage(""), 2500);
-    } finally { setScanning(false); fetchData(); }
+    } finally {
+      setScanning(false); 
+      fetchData();
+    }
   };
 
-  useEffect(() => { fetchData(); const id = setInterval(fetchData, 15000); return () => clearInterval(id); }, []);
-  useEffect(() => { if (typeof window !== 'undefined') document.documentElement.classList.toggle('dark', darkMode); }, [darkMode]);
+  // Dark mode toggle
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.documentElement.classList.toggle('dark', darkMode);
+    }
+  }, [darkMode]);
+
+  // Auto-refresh core data
+  useEffect(() => {
+    fetchData();
+    const intervalId = setInterval(fetchData, 15000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   if (loading) return (
     <div className="min-h-screen bg-black text-cyan-400 flex items-center justify-center gap-2 text-sm">
       <Activity className="w-6 h-6 animate-pulse" /> Connecting...
     </div>
   );
+
   if (error) return (
     <div className="min-h-screen bg-black text-red-400 flex flex-col items-center justify-center gap-2 p-3 text-center text-sm">
       <AlertCircle className="w-8 h-8" /> {error}
@@ -113,7 +139,17 @@ export default function Dashboard() {
   const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = liveRockets || [];
   const logs = Array.isArray(core.tradeLog) ? core.tradeLog : [];
-  const equityChartData = { labels: equityHistory.map(d => d.time), datasets: [{ data: equityHistory.map(d => d.equity), borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.1)', fill: true, tension: 0.3 }] };
+
+  const equityChartData = {
+    labels: equityHistory.map(d => d.time),
+    datasets: [{
+      data: equityHistory.map(d => d.equity),
+      borderColor: '#06b6d4',
+      backgroundColor: 'rgba(6,182,212,0.1)',
+      fill: true,
+      tension: 0.3
+    }]
+  };
 
   const getActionDetails = (action: number = 2, priority: boolean = false, confidence: number = 50) => {
     const labels = ["BUY STRONG","BUY","HOLD","SKIP","SELL"];
@@ -130,7 +166,9 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 text-xs">
             <span className={`${core.mlConnected ? 'text-green-400' : 'text-red-400'}`}>ML {core.mlConnected ? 'ONLINE' : 'OFFLINE'}</span>
             <span className="text-gray-500">{lastUpdate}</span>
-            <button onClick={() => setDarkMode(!darkMode)} className="p-1 rounded bg-gray-800">{darkMode ? <Sun className="w-3 h-3 text-yellow-400"/> : <Moon className="w-3 h-3"/>}</button>
+            <button onClick={() => setDarkMode(!darkMode)} className="p-1 rounded bg-gray-800">
+              {darkMode ? <Sun className="w-3 h-3 text-yellow-400"/> : <Moon className="w-3 h-3"/>}
+            </button>
           </div>
         </div>
 
@@ -166,42 +204,54 @@ export default function Dashboard() {
           <h2 className="text-xs font-bold text-cyan-400 mb-1">Equity Curve</h2>
           <div className="h-24">
             <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500 text-xs">Loading...</div>}>
-              <Line data={equityChartData} options={{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{display:false}} }}/>
+              <Line
+                data={equityChartData}
+                options={{
+                  responsive:true,
+                  maintainAspectRatio:false,
+                  plugins:{legend:{display:false}},
+                  scales:{x:{display:false}}
+                }}
+              />
             </Suspense>
           </div>
         </div>
 
         {/* Rainbow DQN */}
-        {rockets.length>0 && <div className="mb-3">
-          <h2 className="text-xs font-bold text-purple-400 mb-1 flex items-center gap-1"><Bot className="w-4 h-4"/> Rainbow DQN</h2>
-          <div className="space-y-2">
-            {rockets.map((r: Rocket, i: number)=>{
-              const ml=getActionDetails(r.mlAction,r.mlPriority,r.mlConfidence);
-              const flash=flashRockets.has(r.symbol);
-              return (
-                <div key={i} className={`bg-gray-900/60 p-2 rounded border border-purple-800 shadow-sm transition-all ${flash?'animate-pulse border-purple-400':''}`}>
-                  <div className="flex justify-between items-start mb-1">
-                    <div>
-                      <div className="font-bold text-sm">{r.symbol}</div>
-                      <div className="text-[10px] text-gray-400">Gap +{r.gap}% • RVOL {r.rvol} • ${r.price}</div>
-                    </div>
-                    {ml.isPriority && <div className="bg-green-900 text-green-300 text-[9px] font-bold px-2 py-0.5 rounded-full">HIGH</div>}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className={`text-sm font-bold ${ml.color}`}>{ml.label}</div>
-                    <div className="flex flex-col items-end gap-1">
-                      <div className="text-[10px] text-gray-400">AI Confidence</div>
-                      <div className="w-28 bg-gray-800 rounded-full h-2 overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-purple-600 to-cyan-500 transition-all" style={{width:`${ml.confidence}%`}}/>
+        {rockets.length>0 && (
+          <div className="mb-3">
+            <h2 className="text-xs font-bold text-purple-400 mb-1 flex items-center gap-1">
+              <Bot className="w-4 h-4"/> Rainbow DQN
+            </h2>
+            <div className="space-y-2">
+              {rockets.map((r: Rocket, i: number)=>{
+                const ml=getActionDetails(r.mlAction,r.mlPriority,r.mlConfidence);
+                const flash=flashRockets.has(r.symbol);
+                return (
+                  <div key={i} className={`bg-gray-900/60 p-2 rounded border border-purple-800 shadow-sm transition-all ${flash?'animate-pulse border-purple-400':''}`}>
+                    <div className="flex justify-between items-start mb-1">
+                      <div>
+                        <div className="font-bold text-sm">{r.symbol}</div>
+                        <div className="text-[10px] text-gray-400">Gap +{r.gap}% • RVOL {r.rvol} • ${r.price}</div>
                       </div>
-                      <div className="text-[9px] text-cyan-300">{ml.confidence}%</div>
+                      {ml.isPriority && <div className="bg-green-900 text-green-300 text-[9px] font-bold px-2 py-0.5 rounded-full">HIGH</div>}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className={`text-sm font-bold ${ml.color}`}>{ml.label}</div>
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="text-[10px] text-gray-400">AI Confidence</div>
+                        <div className="w-28 bg-gray-800 rounded-full h-2 overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-purple-600 to-cyan-500 transition-all" style={{width:`${ml.confidence}%`}}/>
+                        </div>
+                        <div className="text-[9px] text-cyan-300">{ml.confidence}%</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
-        </div>}
+        )}
 
         {/* Rockets Grid */}
         <div className="mb-3">
@@ -253,5 +303,5 @@ export default function Dashboard() {
         </button>
       </div>
     </div>
-  )
+  );
 }
