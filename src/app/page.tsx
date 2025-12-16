@@ -45,6 +45,7 @@ export default function Dashboard() {
   const [message, setMessage] = useState("");
   const [darkMode, setDarkMode] = useState(true);
   const [liveRockets, setLiveRockets] = useState<any[]>([]);
+  const [flashRockets, setFlashRockets] = useState<Set<string>>(new Set());
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
 
@@ -83,10 +84,12 @@ export default function Dashboard() {
     try {
       const res = await axios.post(`${CORE_URL}/scan`);
       setMessage("Triggered!");
-      
-      // Immediately update rockets from ML scan response if available
+
       if (res.data?.rockets && Array.isArray(res.data.rockets)) {
+        const newSymbols = res.data.rockets.map((r: any) => r.symbol);
+        setFlashRockets(new Set(newSymbols));
         setLiveRockets(res.data.rockets);
+        setTimeout(() => setFlashRockets(new Set()), 2000); // Flash highlight lasts 2s
       }
 
       setTimeout(() => setMessage(""), 2500);
@@ -147,7 +150,6 @@ export default function Dashboard() {
     }]
   };
 
-  // ML Action Mapping
   const getActionDetails = (action: number = 2, priority: boolean = false) => {
     const labels = ["BUY STRONG", "BUY", "HOLD", "SKIP", "SELL"];
     const colors = ["text-green-400", "text-green-300", "text-yellow-400", "text-gray-400", "text-red-400"];
@@ -232,8 +234,12 @@ export default function Dashboard() {
             <div className="space-y-4">
               {rockets.map((r: any, i: number) => {
                 const ml = getActionDetails(r.mlAction, r.mlPriority);
+                const flash = flashRockets.has(r.symbol);
                 return (
-                  <div key={i} className="bg-gray-900/60 p-4 rounded-lg border border-purple-800 shadow-sm">
+                  <div
+                    key={i}
+                    className={`bg-gray-900/60 p-4 rounded-lg border border-purple-800 shadow-sm transition-all ${flash ? 'animate-pulse border-purple-400' : ''}`}
+                  >
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <div className="font-bold text-xl">{r.symbol}</div>
