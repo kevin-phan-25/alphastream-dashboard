@@ -1,28 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import axios from 'axios';
-import { Line } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Tooltip,
-  Filler,
-  Legend
-} from 'chart.js';
-import zoomPlugin from 'chartjs-plugin-zoom';
-import { RefreshCw, Zap, Brain, Activity, Loader2, Sun, Moon, AlertCircle, TrendingUp, DollarSign, Target } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { RefreshCw, Zap, Brain, Activity, Loader2, Sun, Moon, AlertCircle, DollarSign, TrendingUp } from 'lucide-react';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler, Legend, zoomPlugin);
+// Dynamic import of charts — disables SSR
+const Line = dynamic(
+  () => import('react-chartjs-2').then((mod) => mod.Line),
+  { ssr: false }
+);
+
+const ChartContainer = dynamic(
+  () => import('./ChartContainer'), // We'll create this small wrapper
+  { ssr: false }
+);
 
 export default function Dashboard() {
   const [core, setCore] = useState<any>(null);
   const [ml, setML] = useState<any>(null);
   const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
-  const [positionCharts, setPositionCharts] = useState<{ [symbol: string]: any }>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState("");
@@ -32,7 +29,6 @@ export default function Dashboard() {
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
   const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
-  const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY; // Add to .env
 
   const fetchData = async () => {
     try {
@@ -49,34 +45,6 @@ export default function Dashboard() {
       setEquityHistory(prev => [...prev, { time, equity }].slice(-50));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
       setError(null);
-
-      // Fetch real-time price charts for positions
-      const charts: { [symbol: string]: any } = {};
-      for (const p of coreRes.data.positions || []) {
-        if (p.symbol && FINNHUB_KEY) {
-          try {
-            const to = Math.floor(Date.now() / 1000);
-            const from = to - 86400; // 1 day
-            const res = await axios.get(`https://finnhub.io/api/v1/stock/candle?symbol=${p.symbol}&resolution=5&from=${from}&to=${to}&token=${FINNHUB_KEY}`);
-            if (res.data.s === 'ok') {
-              const labels = res.data.t.map((t: number) => new Date(t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-              charts[p.symbol] = {
-                labels,
-                datasets: [{
-                  label: 'Price',
-                  data: res.data.c,
-                  borderColor: '#06b6d4',
-                  backgroundColor: 'rgba(6,182,212,0.1)',
-                  fill: true,
-                  tension: 0.3
-                }]
-              };
-            }
-          } catch {}
-        }
-      }
-      setPositionCharts(charts);
-
     } catch (e) {
       setError("Connection issue — retrying");
     } finally {
@@ -131,20 +99,17 @@ export default function Dashboard() {
   const positions = core.positions || [];
   const rockets = core.rockets || [];
   const logs = core.logs || [];
-  const peakEquity = core.peakEquity || core.equity;
-  const dailyPnL = core.dailyPnL || 0;
 
-  const interactiveOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top' as const },
-      tooltip: { mode: 'index' as const, intersect: false },
-      zoom: {
-        pan: { enabled: true, mode: 'xy' as const },
-        zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' as const }
-      }
-    }
+  const equityChartData = {
+    labels: equityHistory.map(d => d.time),
+    datasets: [{
+      label: 'Equity',
+      data: equityHistory.map(d => d.equity),
+      borderColor: '#06b6d4',
+      backgroundColor: 'rgba(6,182,212,0.15)',
+      fill: true,
+      tension: 0.4
+    }]
   };
 
   return (
@@ -163,95 +128,50 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Message */}
         {message && (
           <div className="mb-6 p-4 bg-cyan-900/50 border border-cyan-600 rounded-lg text-center text-cyan-300">
             {message}
           </div>
         )}
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
-          <div className="bg-gray-900/50 p-4 rounded-lg border border-cyan-700 text-center">
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="bg-gray-900/50 p-6 rounded-lg border border-cyan-700 text-center">
             <DollarSign className="w-8 h-8 mx-auto mb-2 text-cyan-400" />
-            <div className="text-xs text-gray-400">Equity</div>
-            <div className="text-xl font-bold">${Number(core.equity).toLocaleString()}</div>
+            <div className="text-sm text-gray-400">Equity</div>
+            <div className="text-3xl font-bold">${Number(core.equity).toLocaleString()}</div>
           </div>
-          <div className="bg-gray-900/50 p-4 rounded-lg border border-green-700 text-center">
-            <TrendingUp className="w-8 h-8 mx-auto mb-2 text-green-400" />
-            <div className="text-xs text-gray-400">Peak Equity</div>
-            <div className="text-xl font-bold">${Number(peakEquity).toLocaleString()}</div>
+          <div className="bg-gray-900/50 p-6 rounded-lg border border-purple-700 text-center">
+            <TrendingUp className="w-8 h-8 mx-auto mb-2 text-purple-400" />
+            <div className="text-sm text-gray-400">Positions</div>
+            <div className="text-3xl font-bold text-purple-400">{positions.length}/5</div>
           </div>
-          <div className="bg-gray-900/50 p-4 rounded-lg border border-purple-700 text-center">
-            <Target className="w-8 h-8 mx-auto mb-2 text-purple-400" />
-            <div className="text-xs text-gray-400">Daily PnL</div>
-            <div className={`text-xl font-bold ${dailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {dailyPnL >= 0 ? '+' : ''}{dailyPnL.toFixed(2)}%
-            </div>
+          <div className="bg-gray-900/50 p-6 rounded-lg border border-green-700 text-center">
+            <Zap className="w-8 h-8 mx-auto mb-2 text-green-400" />
+            <div className="text-sm text-gray-400">Rockets</div>
+            <div className="text-3xl font-bold text-green-400">{rockets.length}</div>
           </div>
-          <div className="bg-gray-900/50 p-4 rounded-lg border border-yellow-700 text-center">
-            <Activity className="w-8 h-8 mx-auto mb-2 text-yellow-400" />
-            <div className="text-xs text-gray-400">Positions</div>
-            <div className="text-xl font-bold">{positions.length}/5</div>
-          </div>
-          <div className="bg-gray-900/50 p-4 rounded-lg border border-pink-700 text-center">
-            <Zap className="w-8 h-8 mx-auto mb-2 text-pink-400" />
-            <div className="text-xs text-gray-400">Rockets</div>
-            <div className="text-xl font-bold">{rockets.length}</div>
-          </div>
-          <div className="bg-gray-900/50 p-4 rounded-lg border border-indigo-700 text-center">
-            <Brain className="w-8 h-8 mx-auto mb-2 text-indigo-400" />
-            <div className="text-xs text-gray-400">ML Memory</div>
-            <div className="text-xl font-bold">{ml?.trackedSymbols || 0}</div>
+          <div className="bg-gray-900/50 p-6 rounded-lg border border-yellow-700 text-center">
+            <Brain className="w-8 h-8 mx-auto mb-2 text-yellow-400" />
+            <div className="text-sm text-gray-400">ML Memory</div>
+            <div className="text-3xl font-bold text-yellow-400">{ml?.trackedSymbols || 0}</div>
           </div>
         </div>
 
-        {/* Equity Curve */}
+        {/* Equity Chart */}
         <div className="mb-8 bg-gray-900/50 p-4 rounded-lg border border-gray-700">
           <h2 className="text-xl font-bold text-cyan-400 mb-4">Equity Performance</h2>
-          <div className="h-64">
-            <Line data={{
-              labels: equityHistory.map(d => d.time),
-              datasets: [{
-                label: 'Equity',
-                data: equityHistory.map(d => d.equity),
-                borderColor: '#06b6d4',
-                backgroundColor: 'rgba(6,182,212,0.15)',
-                fill: true,
-                tension: 0.4
-              }]
-            }} options={interactiveOptions} />
-          </div>
-        </div>
-
-        {/* Live Positions with Real-Time Price Charts */}
-        <div className="mb-8">
-          <h2 className="text-xl font-bold text-green-400 mb-4">Live Positions</h2>
-          {positions.length === 0 ? (
-            <div className="text-gray-500 text-center py-12 bg-gray-900/50 rounded-lg border border-gray-800">
-              No open positions
+          <Suspense fallback={<div className="h-64 flex items-center justify-center text-gray-500">Loading chart...</div>}>
+            <div className="h-64">
+              <Line data={equityChartData} options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { x: { display: false } }
+              }} />
             </div>
-          ) : (
-            <div className="space-y-8">
-              {positions.map((p: any, i: number) => (
-                <div key={i} className="bg-gray-900/50 rounded-lg border border-gray-700 overflow-hidden">
-                  <div className="p-4 flex justify-between items-center bg-gray-800/50">
-                    <div>
-                      <div className="font-bold text-2xl">{p.symbol}</div>
-                      <div className="text-sm text-gray-400">Qty: {p.qty} @ ${p.entry?.toFixed(2)}</div>
-                    </div>
-                    <div className={`text-3xl font-bold ${p.pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {p.pnlPct >= 0 ? '+' : ''}{p.pnlPct?.toFixed(1)}%
-                    </div>
-                  </div>
-                  {positionCharts[p.symbol] && (
-                    <div className="p-4 h-64">
-                      <Line data={positionCharts[p.symbol]} options={interactiveOptions} />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+          </Suspense>
         </div>
 
         {/* Rockets */}
@@ -267,6 +187,26 @@ export default function Dashboard() {
               </div>
             )) : (
               <div className="col-span-full text-gray-500 text-center py-12">No gappers detected</div>
+            )}
+          </div>
+        </div>
+
+        {/* Positions */}
+        <div className="mb-8">
+          <h2 className="text-xl font-bold text-green-400 mb-4">Live Positions</h2>
+          <div className="space-y-4">
+            {positions.length > 0 ? positions.map((p: any, i: number) => (
+              <div key={i} className="bg-gray-900/50 p-4 rounded border border-green-700 flex justify-between items-center">
+                <div>
+                  <div className="font-bold text-xl">{p.symbol} ×{p.qty}</div>
+                  <div className="text-sm text-gray-400">Entry: ${p.entry?.toFixed(2)}</div>
+                </div>
+                <div className={`text-3xl font-bold ${p.pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {p.pnlPct >= 0 ? '+' : ''}{p.pnlPct?.toFixed(1)}%
+                </div>
+              </div>
+            )) : (
+              <div className="text-gray-500 text-center py-12">No open positions</div>
             )}
           </div>
         </div>
