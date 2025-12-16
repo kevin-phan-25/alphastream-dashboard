@@ -33,16 +33,58 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), { ssr: false });
 
+// --- Types
+type Position = {
+  symbol: string;
+  qty: string;
+  avg_entry_price: string;
+  current?: string;
+  unrealized_plpc?: string;
+};
+
+type Rocket = {
+  symbol: string;
+  gap: string;
+  price: string;
+  rvol: string;
+  volume?: string;
+  mlPriority: boolean;
+  mlAction: number;
+  mlConfidence: number;
+};
+
+type PnLEntry = {
+  symbol: string;
+  action: number;
+  pnl: number;
+  time: string;
+};
+
+type CoreData = {
+  equity?: number;
+  buyingPower?: number;
+  rockets?: Rocket[];
+  positions?: Position[];
+  watchlist?: string[];
+  tradeLog?: { time: string; message: string }[];
+  mlConnected?: boolean;
+  mlThrottle?: boolean;
+  pnlAttribution?: PnLEntry[];
+  universeSize?: number;
+};
+
+type EquityPoint = { time: string; equity: number };
+
 export default function Dashboard() {
-  const [core, setCore] = useState<any>({});
-  const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
+  const [core, setCore] = useState<CoreData>({});
+  const [equityHistory, setEquityHistory] = useState<EquityPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState("");
   const [scanning, setScanning] = useState(false);
   const [message, setMessage] = useState("");
   const [darkMode, setDarkMode] = useState(true);
-  const [liveRockets, setLiveRockets] = useState<any[]>([]);
+  const [liveRockets, setLiveRockets] = useState<Rocket[]>([]);
   const [flashRockets, setFlashRockets] = useState<Set<string>>(new Set());
   const [confettiRockets, setConfettiRockets] = useState<Set<string>>(new Set());
 
@@ -50,7 +92,7 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      const res = await axios.get(CORE_URL, { timeout: 12000 });
+      const res = await axios.get<CoreData>(CORE_URL, { timeout: 12000 });
       const data = res.data || {};
       const equity = Number(data.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -79,13 +121,13 @@ export default function Dashboard() {
     setScanning(true);
     setMessage("Scanning...");
     try {
-      const res = await axios.post(`${CORE_URL}/scan`);
+      const res = await axios.post<{ rockets?: Rocket[] }>(`${CORE_URL}/scan`);
       setMessage("Triggered!");
       if (res.data?.rockets && Array.isArray(res.data.rockets)) {
-        const newSymbols = res.data.rockets.map((r: any) => r.symbol);
+        const newSymbols = res.data.rockets.map(r => r.symbol);
         setFlashRockets(new Set(newSymbols));
 
-        const buyStrongSymbols = res.data.rockets.filter((r: any) => r.mlAction === 0).map((r: any) => r.symbol);
+        const buyStrongSymbols = res.data.rockets.filter(r => r.mlAction === 0).map(r => r.symbol);
         setConfettiRockets(new Set(buyStrongSymbols));
         setTimeout(() => setConfettiRockets(new Set()), 3000);
 
@@ -133,10 +175,10 @@ export default function Dashboard() {
     );
   }
 
-  const positions = Array.isArray(core.positions) ? core.positions : [];
-  const rockets = liveRockets || [];
+  const positions: Position[] = Array.isArray(core.positions) ? core.positions : [];
+  const rockets: Rocket[] = liveRockets || [];
   const logs = Array.isArray(core.tradeLog) ? core.tradeLog : [];
-  const pnl = Array.isArray(core.pnlAttribution) ? core.pnlAttribution : [];
+  const pnl: PnLEntry[] = Array.isArray(core.pnlAttribution) ? core.pnlAttribution : [];
 
   const equityChartData = {
     labels: equityHistory.map(d => d.time),
@@ -149,9 +191,10 @@ export default function Dashboard() {
     }]
   };
 
-  const getActionDetails = (action: number = 2, priority: boolean = false, confidence: number = 50) => {
+  const getActionDetails = (action: number = 2, priority: boolean = false) => {
     const labels = ["BUY STRONG", "BUY", "HOLD", "SKIP", "SELL"];
     const colors = ["text-green-400", "text-green-300", "text-yellow-400", "text-gray-400", "text-red-400"];
+    const confidence = action === 0 || action === 4 ? 98 : action === 1 || action === 3 ? 82 : 55;
     return { label: labels[action] || "HOLD", color: colors[action] || "text-gray-400", confidence, isPriority: priority };
   };
 
@@ -167,7 +210,6 @@ export default function Dashboard() {
             <span className={`${core.mlConnected ? 'text-green-400' : 'text-red-400'}`}>
               ML {core.mlConnected ? 'ONLINE' : 'OFFLINE'}
             </span>
-            {core.mlThrottle && <span className="text-yellow-400 ml-1 text-xs font-bold">ML THROTTLE ACTIVE</span>}
             <span className="text-gray-400">{lastUpdate}</span>
             <button onClick={() => setDarkMode(!darkMode)} className="p-1 rounded bg-gray-800">
               {darkMode ? <Sun className="w-3 h-3 text-yellow-400" /> : <Moon className="w-3 h-3" />}
@@ -199,42 +241,44 @@ export default function Dashboard() {
           <Line data={equityChartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false } } }} />
         </div>
 
-        {/* Rockets / ML Heatmap */}
-        <div className="mb-3 space-y-1">
-          {rockets.map((r: any, i: number) => {
-            const ml = getActionDetails(r.mlAction, r.mlPriority, r.mlConfidence);
+        {/* Rockets */}
+        <div className="mb-3 space-y-2">
+          {rockets.map((r, i) => {
+            const ml = getActionDetails(r.mlAction, r.mlPriority);
             const flash = flashRockets.has(r.symbol);
             return (
-              <div key={i} className={`bg-gray-900/60 p-1 rounded-lg border shadow-sm flex justify-between items-center ${flash ? 'animate-pulse border-purple-400' : 'border-purple-800'}`}>
-                <div className="flex flex-col w-1/3">
-                  <div className="font-bold">{r.symbol}</div>
-                  <div className="text-gray-400 text-xs">Gap +{r.gap}% • RVOL {r.rvol} • ${r.price}</div>
+              <div key={i} className={`bg-gray-900/60 p-2 rounded-lg border shadow-sm ${flash ? 'animate-pulse border-purple-400' : 'border-purple-800'}`}>
+                <div className="flex justify-between items-start mb-1">
+                  <div>
+                    <div className="font-bold">{r.symbol}</div>
+                    <div className="text-gray-400 text-xs">Gap +{r.gap}% • RVOL {r.rvol} • ${r.price}</div>
+                  </div>
+                  {ml.isPriority && <div className="bg-green-900 text-green-300 text-xs px-2 py-0.5 rounded">HIGH PRIORITY</div>}
                 </div>
-                <div className="flex-1 flex items-center gap-2">
-                  <div className={`font-bold text-xs ${ml.color} w-16 truncate`}>{ml.label}</div>
-                  <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <div className={`font-bold ${ml.color}`}>{ml.label}</div>
+                  <div className="w-28 bg-gray-800 rounded-full h-2 overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-purple-600 to-cyan-500" style={{ width: `${ml.confidence}%` }} />
                   </div>
-                  <div className="text-gray-400 text-xs w-8 text-right">{ml.confidence}%</div>
                 </div>
-                {ml.isPriority && <div className="bg-green-900 text-green-300 text-xs px-2 py-0.5 rounded ml-2">HIGH PRIORITY</div>}
               </div>
             );
           })}
         </div>
 
         {/* PnL Attribution */}
-        {pnl.length>0 && (
-          <div className="mb-3 bg-gray-900/50 p-2 rounded border border-gray-700 text-xs">
+        {pnl.length > 0 && (
+          <>
             <div className="font-bold text-cyan-400 mb-1">PnL Attribution (Last 10)</div>
             <div className="grid grid-cols-5 gap-1">
-              {pnl.slice(-10).map((p,i)=>(
+              {pnl.slice(-10).map((p: PnLEntry, i: number) => (
                 <div key={i} className="text-gray-200 truncate">
-                  <span className="font-bold">{p.symbol}</span>: <span className={p.pnl>=0?'text-green-400':'text-red-400'}>{p.pnl.toFixed(2)}%</span> ({p.action})
+                  <span className="font-bold">{p.symbol}</span>: 
+                  <span className={p.pnl >= 0 ? 'text-green-400' : 'text-red-400'}>{p.pnl.toFixed(2)}%</span> ({p.action})
                 </div>
               ))}
             </div>
-          </div>
+          </>
         )}
 
         {/* Force Scan Button */}
