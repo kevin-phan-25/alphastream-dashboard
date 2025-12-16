@@ -3,9 +3,8 @@
 import { useEffect, useState, Suspense } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
-import { RefreshCw, Zap, Brain, Activity, Loader2, Sun, Moon, AlertCircle, DollarSign, TrendingUp } from 'lucide-react';
+import { RefreshCw, Zap, Brain, Activity, Loader2, Sun, Moon, AlertCircle, DollarSign, TrendingUp, Wallet } from 'lucide-react';
 
-// Safe dynamic import for chart
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
   ssr: false,
   loading: () => <div className="h-64 flex items-center justify-center text-gray-500">Loading chart...</div>
@@ -101,12 +100,9 @@ export default function Dashboard() {
     );
   }
 
-  // Ultra-safe data extraction
-  const equity = Number(core.equity || 0);
-  const buyingPower = Number(core.buyingPower || 0);
   const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = Array.isArray(core.rockets) ? core.rockets : [];
-  const logs = Array.isArray(core.tradeLog) ? core.tradeLog : Array.isArray(core.logs) ? core.logs : [];
+  const logs = Array.isArray(core.tradeLog) ? core.tradeLog : [];
   const watchlist = Array.isArray(core.watchlist) ? core.watchlist : [];
 
   const equityChartData = {
@@ -124,8 +120,7 @@ export default function Dashboard() {
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: { x: { display: false } }
+    plugins: { legend: { display: false } }
   };
 
   return (
@@ -149,17 +144,16 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-gray-900/50 p-6 rounded-lg border border-cyan-700 text-center">
             <DollarSign className="w-8 h-8 mx-auto mb-2 text-cyan-400" />
             <div className="text-sm text-gray-400">Equity</div>
-            <div className="text-3xl font-bold">${equity.toLocaleString()}</div>
+            <div className="text-3xl font-bold">${Number(core.equity || 0).toLocaleString()}</div>
           </div>
           <div className="bg-gray-900/50 p-6 rounded-lg border border-purple-700 text-center">
-            <TrendingUp className="w-8 h-8 mx-auto mb-2 text-purple-400" />
+            <Wallet className="w-8 h-8 mx-auto mb-2 text-purple-400" />
             <div className="text-sm text-gray-400">Buying Power</div>
-            <div className="text-3xl font-bold text-purple-400">${buyingPower.toLocaleString()}</div>
+            <div className="text-3xl font-bold text-purple-400">${Number(core.buyingPower || 0).toLocaleString()}</div>
           </div>
           <div className="bg-gray-900/50 p-6 rounded-lg border border-green-700 text-center">
             <Zap className="w-8 h-8 mx-auto mb-2 text-green-400" />
@@ -173,7 +167,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Equity Chart */}
         <div className="mb-8 bg-gray-900/50 p-4 rounded-lg border border-gray-700">
           <h2 className="text-xl font-bold text-cyan-400 mb-4">Equity Performance</h2>
           <div className="h-64">
@@ -183,7 +176,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Rockets */}
         <div className="mb-8">
           <h2 className="text-xl font-bold text-yellow-400 mb-4 flex items-center gap-2">
             <Zap className="w-6 h-6" /> Today's Rockets ({rockets.length})
@@ -191,8 +183,8 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {rockets.length > 0 ? rockets.map((r: any, i: number) => (
               <div key={i} className="bg-gray-900/50 p-6 rounded-lg border border-yellow-600 text-center">
-                <div className="font-bold text-xl">{r.symbol || 'N/A'}</div>
-                <div className="text-4xl text-yellow-400">+{r.gap || '0'}%</div>
+                <div className="font-bold text-xl">{r.symbol}</div>
+                <div className="text-4xl text-yellow-400">+{r.gap}%</div>
               </div>
             )) : (
               <div className="col-span-full text-gray-500 text-center py-12">No gappers detected</div>
@@ -200,18 +192,17 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Positions */}
         <div className="mb-8">
           <h2 className="text-xl font-bold text-green-400 mb-4">Live Positions</h2>
           <div className="space-y-4">
             {positions.length > 0 ? positions.map((p: any, i: number) => (
               <div key={i} className="bg-gray-900/50 p-4 rounded border border-green-700 flex justify-between items-center">
                 <div>
-                  <div className="font-bold text-xl">{p.symbol || 'Unknown'} ×{p.qty || 0}</div>
-                  <div className="text-sm text-gray-400">Entry: ${Number(p.entry || 0).toFixed(2)}</div>
+                  <div className="font-bold text-xl">{p.symbol} ×{p.qty}</div>
+                  <div className="text-sm text-gray-400">Entry: ${Number(p.entry).toFixed(2)}</div>
                 </div>
-                <div className={`text-3xl font-bold ${Number(p.unrealized_plpc || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {Number(p.unrealized_plpc || 0) >= 0 ? '+' : ''}{Number(p.unrealized_plpc || 0).toFixed(1)}%
+                <div className={`text-3xl font-bold ${p.unrealized_plpc >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {p.unrealized_plpc >= 0 ? '+' : ''}{p.unrealized_plpc}%
                 </div>
               </div>
             )) : (
@@ -220,7 +211,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Execution Log */}
         <div className="mb-20">
           <h2 className="text-xl font-bold text-cyan-400 mb-4">Execution Log</h2>
           <div className="bg-gray-900/50 p-4 rounded-lg text-xs font-mono max-h-96 overflow-y-auto border border-gray-800">
@@ -229,15 +219,14 @@ export default function Dashboard() {
             ) : (
               logs.slice(-20).reverse().map((l: any, i: number) => (
                 <div key={i} className="py-2 border-b border-gray-800 last:border-0 flex">
-                  <span className="text-gray-500 w-20">{l.time || ''}</span>
-                  <span>{l.message || String(l)}</span>
+                  <span className="text-gray-500 w-20">{l.time}</span>
+                  <span>{l.message}</span>
                 </div>
               ))
             )}
           </div>
         </div>
 
-        {/* Force Scan Button */}
         <button
           onClick={forceScan}
           disabled={scanning}
