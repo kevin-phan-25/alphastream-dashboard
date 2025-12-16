@@ -13,7 +13,8 @@ import {
   AlertCircle,
   DollarSign,
   Wallet,
-  Brain
+  Brain,
+  Globe
 } from 'lucide-react';
 
 // Register Chart.js
@@ -168,9 +169,9 @@ export default function Dashboard() {
             <div className="text-base font-bold text-green-400">{rockets.length}</div>
           </div>
           <div className="bg-gray-900/50 p-3 rounded border border-yellow-700 text-center">
-            <Brain className="w-5 h-5 mx-auto mb-1 text-yellow-400" />
-            <div className="text-xs text-gray-400">Positions</div>
-            <div className="text-base font-bold text-yellow-400">{positions.length}</div>
+            <Globe className="w-5 h-5 mx-auto mb-1 text-yellow-400" />
+            <div className="text-xs text-gray-400">Universe</div>
+            <div className="text-base font-bold text-yellow-400">{core.universeSize || KNOWN_UNIVERSE?.size || 0}</div>
           </div>
         </div>
 
@@ -184,16 +185,17 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Rockets */}
+        {/* Rockets with RVOL */}
         <div className="mb-5">
           <h2 className="text-sm font-bold text-yellow-400 mb-2">Today's Rockets ({rockets.length})</h2>
           <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
             {rockets.length > 0 ? rockets.map((r: any, i: number) => (
               <div key={i} className="bg-gray-900/50 p-3 rounded border border-yellow-600 text-center">
                 <div className="font-medium text-xs">{r.symbol}</div>
-                <div className="text-xl text-yellow-400 font-bold">+{r.gap}%</div>
+                <div className="text-lg text-yellow-400 font-bold">+{r.gap}%</div>
+                <div className="text-xs text-green-400">RVOL {r.rvol || 'N/A'}</div>
               </div>
-            )) : <div className="col-span-full text-center text-gray-500 py-6 text-xs">No gappers</div>}
+            )) : <div className="col-span-full text-center text-gray-500 py-6 text-xs">No gappers with surge</div>}
           </div>
         </div>
 
