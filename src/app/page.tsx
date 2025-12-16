@@ -44,13 +44,6 @@ type Rocket = {
   mlConfidence: number;
 };
 
-type PnLAttr = {
-  symbol: string;
-  action: number;
-  pnl: number;
-  time: string;
-};
-
 export default function Dashboard() {
   const [core, setCore] = useState<any>({});
   const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
@@ -72,14 +65,7 @@ export default function Dashboard() {
       const equity = Number(data.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      setCore({ 
-        ...data, 
-        mlConnected: data.mlConnected ?? false, 
-        mlThrottle: data.mlThrottle ?? false,          // ⚡ NEW FEATURE
-        universeSize: data.universeSize ?? (data.watchlist?.length || 0),
-        pnlAttribution: data.pnlAttribution ?? []       // ⚡ NEW FEATURE
-      });
-
+      setCore({ ...data, mlConnected: data.mlConnected ?? false, universeSize: data.universeSize ?? (data.watchlist?.length || 0) });
       setEquityHistory(prev => [...prev, { time, equity }].slice(-30));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
 
@@ -127,7 +113,6 @@ export default function Dashboard() {
   const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = liveRockets || [];
   const logs = Array.isArray(core.tradeLog) ? core.tradeLog : [];
-  const pnlAttribution: PnLAttr[] = Array.isArray(core.pnlAttribution) ? core.pnlAttribution : []; // ⚡ NEW FEATURE
   const equityChartData = { labels: equityHistory.map(d => d.time), datasets: [{ data: equityHistory.map(d => d.equity), borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.1)', fill: true, tension: 0.3 }] };
 
   const getActionDetails = (action: number = 2, priority: boolean = false, confidence: number = 50) => {
@@ -144,7 +129,6 @@ export default function Dashboard() {
           <h1 className="text-lg font-bold text-cyan-400">AlphaStream AI</h1>
           <div className="flex items-center gap-2 text-xs">
             <span className={`${core.mlConnected ? 'text-green-400' : 'text-red-400'}`}>ML {core.mlConnected ? 'ONLINE' : 'OFFLINE'}</span>
-            {core.mlThrottle && <span className="text-yellow-400 text-xs font-bold">ML THROTTLED</span>} {/* ⚡ NEW FEATURE */}
             <span className="text-gray-500">{lastUpdate}</span>
             <button onClick={() => setDarkMode(!darkMode)} className="p-1 rounded bg-gray-800">{darkMode ? <Sun className="w-3 h-3 text-yellow-400"/> : <Moon className="w-3 h-3"/>}</button>
           </div>
@@ -153,7 +137,7 @@ export default function Dashboard() {
         {message && <div className="mb-2 p-1 bg-cyan-900/50 border border-cyan-600 rounded text-center text-cyan-300 text-xs">{message}</div>}
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mb-3 text-xs">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3 text-xs">
           <div className="bg-gray-900/50 p-2 rounded border border-cyan-700 text-center">
             <DollarSign className="w-4 h-4 mx-auto mb-0.5 text-cyan-400" />
             <div>Equity</div>
@@ -175,10 +159,6 @@ export default function Dashboard() {
             <Bot className="w-4 h-4 mx-auto mb-0.5 text-pink-400" /> ML
             <div className="font-bold text-sm text-pink-400">{core.mlConnected ? "Online":"Offline"}</div>
           </div>
-          <div className="bg-gray-900/50 p-2 rounded border border-orange-600 text-center">
-            <Activity className="w-4 h-4 mx-auto mb-0.5 text-orange-400" /> Trades
-            <div className="font-bold text-sm text-orange-400">{pnlAttribution.length}</div>
-          </div>
         </div>
 
         {/* Equity Chart */}
@@ -195,7 +175,7 @@ export default function Dashboard() {
         {rockets.length>0 && <div className="mb-3">
           <h2 className="text-xs font-bold text-purple-400 mb-1 flex items-center gap-1"><Bot className="w-4 h-4"/> Rainbow DQN</h2>
           <div className="space-y-2">
-            {rockets.map((r,i)=>{
+            {rockets.map((r: Rocket, i: number)=>{
               const ml=getActionDetails(r.mlAction,r.mlPriority,r.mlConfidence);
               const flash=flashRockets.has(r.symbol);
               return (
@@ -227,7 +207,7 @@ export default function Dashboard() {
         <div className="mb-3">
           <h2 className="text-xs font-bold text-yellow-400 mb-1">Today's Rockets ({rockets.length})</h2>
           <div className="grid grid-cols-3 md:grid-cols-5 gap-2 text-xs">
-            {rockets.length>0?rockets.map((r,i)=>(
+            {rockets.length>0?rockets.map((r: Rocket, i: number)=>(
               <div key={i} className="bg-gray-900/50 p-2 rounded border border-yellow-600 text-center hover:border-yellow-400 transition">
                 <div className="font-medium">{r.symbol}</div>
                 <div className="text-lg text-yellow-400 font-bold mt-0.5">+{r.gap}%</div>
@@ -244,7 +224,7 @@ export default function Dashboard() {
         <div className="mb-3">
           <h2 className="text-xs font-bold text-green-400 mb-1">Live Positions ({positions.length})</h2>
           <div className="space-y-1">
-            {positions.length>0?positions.map((p:any,i)=>{
+            {positions.length>0?positions.map((p: any, i: number)=>{
               const pnl=Number(p.unrealized_plpc||0);
               return <div key={i} className="bg-gray-900/50 p-2 rounded border border-green-700 flex justify-between items-center text-xs">
                 <div>
@@ -257,23 +237,11 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* PnL Attribution ⚡ NEW FEATURE */}
-        <div className="mb-3">
-          <h2 className="text-xs font-bold text-orange-400 mb-1">PnL Attribution ({pnlAttribution.length})</h2>
-          <div className="bg-gray-900/50 p-2 rounded text-[10px] font-mono max-h-32 overflow-y-auto border border-gray-800">
-            {pnlAttribution.length===0?<p className="text-center text-gray-500 py-4">No trades closed yet</p>:pnlAttribution.slice(-15).reverse().map((p,i)=>(
-              <div key={i} className={`py-1 border-b border-gray-800 last:border-0 ${p.pnl>=0?'text-green-400':'text-red-400'}`}>
-                {p.time} {p.symbol} Action:{p.action} PnL:{p.pnl.toFixed(1)}%
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Logs */}
         <div className="mb-10">
           <h2 className="text-xs font-bold text-cyan-400 mb-1">Execution Log</h2>
           <div className="bg-gray-900/50 p-2 rounded text-[10px] font-mono max-h-40 overflow-y-auto border border-gray-800">
-            {logs.length===0?<p className="text-center text-gray-500 py-4">No activity yet</p>:logs.slice(-15).reverse().map((l:any,i)=>(
+            {logs.length===0?<p className="text-center text-gray-500 py-4">No activity yet</p>:logs.slice(-15).reverse().map((l: any, i: number)=>(
               <div key={i} className="py-1 border-b border-gray-800 last:border-0 text-gray-300">{typeof l==='string'?l:`${l.time||''} ${l.message||''}`}</div>
             ))}
           </div>
