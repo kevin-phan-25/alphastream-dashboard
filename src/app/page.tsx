@@ -1,274 +1,301 @@
-import express from "express";
-import cors from "cors";
-import fs from "fs";
-import path from "path";
+'use client';
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+import { useEffect, useState } from 'react';
+import axios from 'axios';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Tooltip,
+  Filler
+} from 'chart.js';
+import { RefreshCw, Zap, Brain, Activity, Loader2, Sun, Moon, AlertCircle, FileText, Cpu } from 'lucide-react';
 
-const PORT = process.env.PORT || 8080;
-// Model persistence path (Cloud Run writable /tmp)
-const MODEL_DIR = "/tmp/rainbow_model";
-const MODEL_PATH = `file://${path.join(MODEL_DIR, "model.json")}`;
-// Lazy TensorFlow.js load
-let tf = null;
-let agent = null;
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
 
-async function loadTF() {
-  if (!tf) {
-    console.log("Loading TensorFlow.js...");
-    tf = await import("@tensorflow/tfjs-node");
-    console.log("TensorFlow.js loaded");
-  }
-  return tf;
-}
+export default function Dashboard() {
+  const [core, setCore] = useState<any>(null);
+  const [ml, setML] = useState<any>(null);
+  const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
+  const [mlStepsHistory, setMLStepsHistory] = useState<{ time: string; steps: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [message, setMessage] = useState("");
+  const [darkMode, setDarkMode] = useState(true);
 
-class RainbowAgent {
-  constructor() {
-    this.stateSize = 12;
-    this.actionSize = 5; // 0-1: high priority buy, 2: medium, 3-4: skip/no trade
-    this.atoms = 51;
-    this.vMin = -100;
-    this.vMax = 300;
-    this.nStep = 3;
-    this.gamma = 0.99;
-    this.batchSize = 8; // Further reduced for quicker learning
-    this.targetUpdateFreq = 50; // More frequent
-    this.learningSteps = 0;
-    this.memory = []; // Now { ..., priority: number }
-    this.episodeBuffer = new Map();
-    this.policyNet = null;
-    this.targetNet = null;
-    this.support = null;
-    this.priorityAlpha = 0.6; // For prioritized replay
-    this.priorityEpsilon = 0.01;
-  }
+  const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
+  const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
 
-  async init() {
-    if (this.policyNet) return;
-    const tf = await loadTF();
-    class NoisyLinear extends tf.layers.Layer {
-      constructor(units) {
-        super({});
-        this.units = units;
-      }
-      build(inputShape) {
-        const inputDim = inputShape[inputShape.length - 1];
-        const initStd = 0.5 / Math.sqrt(inputDim);
-        this.muW = this.addWeight("muW", [inputDim, this.units], "float32", tf.initializers.randomNormal({ stddev: initStd }));
-        this.sigmaW = this.addWeight("sigmaW", [inputDim, this.units], "float32", tf.initializers.constant(0.017));
-        this.muB = this.addWeight("muB", [this.units], "float32", tf.initializers.constant(0));
-        this.sigmaB = this.addWeight("sigmaB", [this.units], "float32", tf.initializers.constant(0.017));
-      }
-      f(x) {
-        return tf.mul(tf.sign(x), tf.sqrt(tf.abs(x)));
-      }
-      call(inputs) {
-        const epsilonI = this.f(tf.randomNormal([inputs.shape[inputs.shape.length - 1]]));
-        const epsilonJ = this.f(tf.randomNormal([this.units]));
-        const wNoise = tf.outerProduct(epsilonI, epsilonJ);
-        const bNoise = epsilonJ;
-        const w = tf.add(this.muW.read(), tf.mul(this.sigmaW.read(), wNoise));
-        const b = tf.add(this.muB.read(), tf.mul(this.sigmaB.read(), bNoise));
-        return tf.add(tf.matMul(inputs, w), b);
-      }
-      computeOutputShape(inputShape) {
-        return [inputShape[0], this.units];
-      }
-      static className = "NoisyLinear";
-    }
-    tf.serialization.registerClass(NoisyLinear);
-    this.support = tf.linspace(this.vMin, this.vMax, this.atoms);
-    const input = tf.input({ shape: [this.stateSize] });
-    let x = new NoisyLinear(512).apply(input);
-    x = tf.layers.reLU().apply(x);
-    x = new NoisyLinear(512).apply(x);
-    x = tf.layers.reLU().apply(x);
-    const value = new NoisyLinear(this.atoms).apply(x);
-    const advantage = new NoisyLinear(this.actionSize * this.atoms).apply(x);
-    const advantageReshaped = tf.layers.reshape({ targetShape: [this.actionSize, this.atoms] }).apply(advantage);
-    const meanAdv = tf.mean(advantageReshaped, 1, true);
-    const output = tf.add(value.expandDims(1), tf.sub(advantageReshaped, meanAdv));
-    const model = tf.model({ inputs: input, outputs: output });
-    model.compile({
-      optimizer: tf.train.adam(0.00025), // Slightly higher LR for quicker learning
-      loss: "categoricalCrossentropy"
-    });
-    this.policyNet = model;
+  const fetchData = async () => {
     try {
-      if (fs.existsSync(MODEL_DIR)) {
-        this.policyNet = await tf.loadLayersModel(MODEL_PATH);
-        console.log("Loaded saved Rainbow model from disk");
-      }
-    } catch (err) {
-      console.log("No saved model found or failed to load - starting fresh");
-    }
-    const json = this.policyNet.toJSON();
-    this.targetNet = await tf.models.modelFromJSON(json);
-    this.targetNet.setWeights(this.policyNet.getWeights());
-    console.log("Rainbow DQN Agent initialized and ready");
-  }
+      const [coreRes, mlRes] = await Promise.all([
+        axios.get(CORE_URL, { timeout: 12000 }),
+        axios.get(ML_URL, { timeout: 8000 }).catch(() => ({ data: null }))
+      ]);
 
-  async act(state) {
-    await this.init();
-    const stateTensor = tf.tensor2d([state]);
-    const dist = this.policyNet.predict(stateTensor, { batchSize: 1 });
-    const qValues = dist.mul(this.support).sum(2);
-    const action = qValues.argMax(1).dataSync()[0];
-    tf.dispose([stateTensor, dist, qValues]);
-    return action;
-  }
+      const equity = Number(coreRes.data.equity || 0);
+      const mlSteps = Number(mlRes.data.steps || 0);
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  rememberTransition(symbol, state, action, reward, nextState, done) {
-    const transition = { symbol, state, action, reward, nextState, done, priority: Math.pow(Math.abs(reward) + this.priorityEpsilon, this.priorityAlpha) };
-    if (!this.episodeBuffer.has(symbol)) this.episodeBuffer.set(symbol, []);
-    const buffer = this.episodeBuffer.get(symbol);
-    buffer.push(transition);
-    if (done || buffer.length >= this.nStep) {
-      let nStepReward = 0;
-      let gammaPower = 1;
-      for (let i = buffer.length - this.nStep; i < buffer.length; i++) {
-        if (i >= 0) {
-          nStepReward += gammaPower * buffer[i].reward;
-          gammaPower *= this.gamma;
-        }
-      }
-      if (!done) nStepReward += gammaPower * buffer[buffer.length - 1].reward;
-      const nStepTrans = {
-        state: buffer[0].state,
-        action: buffer[0].action,
-        reward: nStepReward,
-        nextState: buffer[buffer.length - 1].nextState,
-        done,
-        priority: Math.pow(Math.abs(nStepReward) + this.priorityEpsilon, this.priorityAlpha)
-      };
-      this.memory.push(nStepTrans);
-      if (buffer.length > this.nStep) buffer.shift();
+      setCore(coreRes.data);
+      setML(mlRes.data);
+      setEquityHistory(prev => [...prev, { time, equity }].slice(-30));
+      setMLStepsHistory(prev => [...prev, { time, steps: mlSteps }].slice(-30));
+      setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
+      setError(null);
+    } catch (e) {
+      setError("Connection issue — retrying");
+    } finally {
+      setLoading(false);
     }
-    if (this.memory.length > 20000) this.memory.shift();
-  }
+  };
 
-  async replay() {
-    if (!this.policyNet || this.memory.length < this.batchSize) return;
-    // Prioritized sampling
-    const priorities = this.memory.map(t => t.priority);
-    const totalPriority = priorities.reduce((a, b) => a + b, 0);
-    const probs = priorities.map(p => p / totalPriority);
-    const batchIndices = [];
-    for (let b = 0; b < this.batchSize; b++) {
-      let rand = Math.random();
-      let idx = 0;
-      while (rand > 0 && idx < this.memory.length) {
-        rand -= probs[idx];
-        idx++;
-      }
-      batchIndices.push(Math.min(idx, this.memory.length - 1));
+  const forceScan = async () => {
+    if (scanning) return;
+    setScanning(true);
+    setMessage("Scanning market...");
+    try {
+      await axios.post(`${CORE_URL}/scan`, {});
+      setMessage("Scan triggered successfully!");
+      setTimeout(() => setMessage(""), 3000);
+      fetchData();
+    } catch {
+      setMessage("Scan failed");
+      setTimeout(() => setMessage(""), 4000);
+    } finally {
+      setScanning(false);
     }
-    const batch = batchIndices.map(i => this.memory[i]);
-    const states = tf.tensor2d(batch.map(t => t.state));
-    const nextStates = tf.tensor2d(batch.map(t => t.nextState));
-    const policyDist = this.policyNet.predict(states);
-    const targetNextDist = this.targetNet.predict(nextStates);
-    const nextQ = targetNextDist.mul(this.support).sum(2);
-    const bestActions = nextQ.argMax(1);
-    const targets = policyDist.arraySync();
-    const bestNextArray = bestActions.dataSync();
-    batch.forEach((t, i) => {
-      let targetReward = t.reward;
-      if (!t.done) {
-        const nextMaxQ = nextQ.arraySync()[i][bestNextArray[i]];
-        targetReward += Math.pow(this.gamma, this.nStep) * nextMaxQ;
-      }
-      targets[i][t.action] = targetReward;
-    });
-    await this.policyNet.fit(states, tf.tensor3d(targets), {
-      batchSize: this.batchSize,
-      epochs: 1,
-      verbose: 0
-    });
-    tf.dispose([states, nextStates, policyDist, targetNextDist, nextQ, bestActions]);
-    this.learningSteps++;
-    if (this.learningSteps % this.targetUpdateFreq === 0) {
-      this.targetNet.setWeights(this.policyNet.getWeights());
-      console.log(`Target network updated at step ${this.learningSteps}`);
-    }
-    if (this.learningSteps % 50 === 0) {
-      try {
-        fs.mkdirSync(MODEL_DIR, { recursive: true });
-        await this.policyNet.save(MODEL_PATH);
-        console.log(`Model saved at step ${this.learningSteps}`);
-      } catch (err) {
-        console.log("Failed to save model:", err.message);
-      }
-    }
-  }
+  };
+
+  useEffect(() => {
+    fetchData();
+    const id = setInterval(fetchData, 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+  }, [darkMode]);
+
+  if (loading) return (
+    <div className="min-h-screen bg-black text-cyan-400 flex items-center justify-center gap-4">
+      <Activity className="w-12 h-12 animate-pulse" />
+      <p className="text-xl">Connecting to AlphaStream AI...</p>
+    </div>
+  );
+
+  if (error || !core) return (
+    <div className="min-h-screen bg-black text-red-400 flex flex-col items-center justify-center gap-6 p-8 text-center">
+      <AlertCircle className="w-16 h-16" />
+      <p className="text-lg">{error || "Services offline"}</p>
+      <button onClick={fetchData} className="bg-cyan-600 hover:bg-cyan-500 text-black font-bold py-3 px-8 rounded-full">
+        Retry Connection
+      </button>
+    </div>
+  );
+
+  const positions = core.positions || [];
+  const rockets = core.rockets || [];
+  const logs = core.tradeLog || [];
+  const watchlist = core.watchlist || [];
+  const mlSteps = ml?.steps || 0;
+  const modelReady = ml?.modelReady || false;
+  const memorySize = ml?.memorySize || 0;
+
+  const chartData = {
+    labels: equityHistory.map(d => d.time),
+    datasets: [{
+      data: equityHistory.map(d => d.equity),
+      borderColor: '#06b6d4',
+      backgroundColor: 'rgba(6,182,212,0.15)',
+      fill: true,
+      tension: 0.4
+    }]
+  };
+
+  const mlChartData = {
+    labels: mlStepsHistory.map(d => d.time),
+    datasets: [{
+      label: 'ML Training Steps',
+      data: mlStepsHistory.map(d => d.steps),
+      borderColor: '#a855f7',
+      backgroundColor: 'rgba(168,85,247,0.15)',
+      fill: true,
+      tension: 0.4
+    }]
+  };
+
+  return (
+    <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-200' : 'bg-gray-50 text-gray-800'} transition-colors`}>
+      <div className="max-w-5xl mx-auto p-4">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className={`text-3xl font-bold ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>
+            AlphaStream AI
+          </h1>
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-gray-500">Updated: {lastUpdate} ET</span>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className="p-2 rounded-full bg-gray-800 dark:bg-gray-200 transition"
+            >
+              {darkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5" />}
+            </button>
+          </div>
+        </div>
+        {/* Equity Chart */}
+        <div className="mb-6 p-4 rounded-xl bg-gray-900/50 border border-gray-700 h-64">
+          <Line
+            data={chartData}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: { x: { display: false }, y: { display: false } }
+            }}
+          />
+        </div>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-6">
+          {[
+            { icon: Cpu, label: "Equity", value: `$${Number(core.equity).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
+            { icon: Activity, label: "Positions", value: positions.length },
+            { icon: Zap, label: "Rockets", value: rockets.length },
+            { icon: Brain, label: "Watchlist", value: watchlist.length },
+            { icon: Activity, label: "Buying Power", value: `$${Number(core.buyingPower).toLocaleString()}` },
+          ].map((s, i) => (
+            <div key={i} className="p-4 rounded-lg bg-gray-900/50 text-center border border-gray-800">
+              <s.icon className="w-6 h-6 mx-auto mb-2 text-cyan-400" />
+              <div className="text-xs text-gray-400">{s.label}</div>
+              <div className="font-bold text-lg">{s.value}</div>
+            </div>
+          ))}
+        </div>
+        {/* DQN Learning Status */}
+        <div className="mb-6 p-5 rounded-xl bg-gradient-to-r from-purple-900/30 to-cyan-900/30 border border-purple-700">
+          <div className="flex items-center gap-3 mb-2">
+            <Brain className="w-7 h-7 text-purple-400 animate-pulse" />
+            <h2 className="text-xl font-bold text-purple-300">Rainbow DQN Agent</h2>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${modelReady ? 'bg-green-600/30 text-green-300' : 'bg-yellow-600/30 text-yellow-300'}`}>
+              {modelReady ? "Model Ready" : "Training"}
+            </span>
+          </div>
+          <p className="text-sm text-gray-300 mb-3">
+            The AI agent is continuously learning from market patterns and trade outcomes via deep reinforcement learning.
+          </p>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <div className="text-2xl font-bold text-cyan-300">
+                {mlSteps.toLocaleString()} Steps
+              </div>
+              <div className="text-xs text-gray-400">Training iterations</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-cyan-300">
+                {memorySize.toLocaleString()} Memories
+              </div>
+              <div className="text-xs text-gray-400">Experience buffer size</div>
+            </div>
+          </div>
+          {/* ML Steps Chart */}
+          <div className="h-32 bg-gray-800/50 rounded-lg p-2">
+            <Line
+              data={mlChartData}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { x: { display: false }, y: { display: false } }
+              }}
+            />
+          </div>
+        </div>
+        {/* Live Positions */}
+        <div className="mb-8">
+          <h2 className="text-lg font-bold mb-3 text-cyan-400 flex items-center gap-2">
+            <Activity className="w-5 h-5" /> Live Positions ({positions.length})
+          </h2>
+          {positions.length === 0 ? (
+            <div className="p-10 text-center text-gray-500 bg-gray-900/50 rounded-xl border border-gray-800">
+              No open positions — waiting for high-conviction signals
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {positions.map((p: any, i: number) => (
+                <div key={i} className="p-5 rounded-xl bg-gray-900/50 border border-gray-700 flex justify-between items-center">
+                  <div>
+                    <div className="font-bold text-2xl">{p.symbol}</div>
+                    <div className="text-sm text-gray-400">Qty: {p.qty} @ ${p.entry}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-2xl">${p.current}</div>
+                    <div className={`text-lg font-bold ${parseFloat(p.unrealized_plpc) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {parseFloat(p.unrealized_plpc) >= 0 ? '+' : ''}{p.unrealized_plpc}%
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {/* Watchlist */}
+        <div className="mb-6">
+          <h2 className="text-lg font-bold mb-3 text-cyan-400">AI Watchlist ({watchlist.length})</h2>
+          <div className="p-4 bg-gray-900/50 rounded-xl text-sm overflow-x-auto border border-gray-800">
+            <div className="flex flex-wrap gap-2">
+              {watchlist.map((t: string) => (
+                <span
+                  key={t}
+                  className="px-4 py-2 bg-gray-800 rounded-full hover:bg-cyan-600 transition cursor-default font-medium"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+        {/* Trade Log */}
+        <div className="mb-20">
+          <h2 className="text-lg font-bold mb-3 text-cyan-400 flex items-center gap-2">
+            <FileText className="w-5 h-5" /> Execution Log
+          </h2>
+          <div className="p-4 bg-gray-900/50 rounded-xl text-sm font-mono max-h-96 overflow-y-auto border border-gray-800">
+            {logs.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">No recent activity</p>
+            ) : (
+              logs.slice().reverse().map((l: any, i: number) => (
+                <div key={i} className="py-2 border-b border-gray-800 last:border-0 flex">
+                  <span className="text-gray-500 w-24">{l.time}</span>
+                  <span className="text-gray-300">{l.message}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+        {/* Force Scan Button */}
+        <button
+          onClick={forceScan}
+          disabled={scanning}
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 w-11/12 max-w-sm py-5 rounded-full font-bold text-xl shadow-2xl flex items-center justify-center gap-3 z-50 transition-all ${
+            scanning
+              ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+              : 'bg-cyan-500 hover:bg-cyan-400 text-black'
+          }`}
+        >
+          {scanning ? <Loader2 className="w-7 h-7 animate-spin" /> : <RefreshCw className="w-7 h-7" />}
+          {scanning ? "Scanning Market..." : "Force Market Scan"}
+        </button>
+        {/* Toast Message */}
+        {message && (
+          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 px-8 py-4 rounded-full bg-green-600 text-white shadow-2xl text-lg font-medium z-40 animate-pulse">
+            {message}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
-
-async function getAgent() {
-  if (!agent) {
-    agent = new RainbowAgent();
-    await agent.init();
-  }
-  return agent;
-}
-
-app.get("/health", (_, res) => res.send("OK"));
-
-app.get("/", async (req, res) => {
-  try {
-    const a = await getAgent();
-    res.json({
-      status: "Rainbow DQN ML Service Live",
-      steps: a.learningSteps,
-      memorySize: a.memory.length,
-      modelReady: !!a.policyNet,
-      saved: fs.existsSync(MODEL_DIR)
-    });
-  } catch (err) {
-    res.status(503).json({ status: "Initializing..." });
-  }
-});
-
-app.post("/observe", async (req, res) => {
-  try {
-    const { symbol, state } = req.body;
-    if (!Array.isArray(state) || state.length !== 12) {
-      return res.status(400).json({ error: "Invalid state: must be array of 12 numbers" });
-    }
-    const a = await getAgent();
-    const action = await a.act(state);
-    const priority = action <= 1;
-    res.json({ success: true, action, priority, symbol });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.post("/outcome", async (req, res) => {
-  try {
-    const { symbol, reward, lastState, lastAction, done = true } = req.body;
-    if (typeof reward !== "number" || !Array.isArray(lastState) || lastState.length !== 12) {
-      return res.status(400).json({ error: "Invalid reward or state" });
-    }
-    const a = await getAgent();
-    const nextState = new Array(12).fill(0.5);
-    a.rememberTransition(symbol || "unknown", lastState, lastAction ?? 0, reward, nextState, done);
-    // Optimized: Always 3 replays, +2 extra if negative reward (learn more from losses/traps)
-    await a.replay();
-    await a.replay();
-    await a.replay();
-    if (reward < 0) {
-      await a.replay();
-      await a.replay();
-    }
-    res.json({ success: true, learned: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.listen(PORT, "0.0.0.0", async () => {
-  console.log(`Rainbow DQN ML Service LIVE on port ${PORT}`);
-  await getAgent();
-});
