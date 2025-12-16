@@ -5,15 +5,13 @@ import axios from 'axios';
 import dynamic from 'next/dynamic';
 import { RefreshCw, Zap, Brain, Activity, Loader2, Sun, Moon, AlertCircle, DollarSign, TrendingUp } from 'lucide-react';
 
-// Dynamic import to avoid SSR issues with charts
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
   ssr: false,
   loading: () => <div className="h-64 flex items-center justify-center text-gray-500">Loading chart...</div>
 });
 
 export default function Dashboard() {
-  const [core, setCore] = useState<any>(null);
-  const [ml, setML] = useState<any>(null);
+  const [data, setData] = useState<any>({ core: {}, ml: {} });
   const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,15 +26,17 @@ export default function Dashboard() {
   const fetchData = async () => {
     try {
       const [coreRes, mlRes] = await Promise.all([
-        axios.get(CORE_URL, { timeout: 12000 }),
-        axios.get(ML_URL, { timeout: 8000 }).catch(() => ({ data: null }))
+        axios.get(CORE_URL, { timeout: 12000 }).catch(() => ({ data: {} })),
+        axios.get(ML_URL, { timeout: 8000 }).catch(() => ({ data: {} }))
       ]);
 
-      const equity = Number(coreRes.data?.equity || 0);
+      const coreData = coreRes.data || {};
+      const mlData = mlRes.data || {};
+
+      const equity = Number(coreData.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      setCore(coreRes.data || {});
-      setML(mlRes.data || {});
+      setData({ core: coreData, ml: mlData });
       setEquityHistory(prev => [...prev, { time, equity }].slice(-50));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
       setError(null);
@@ -98,10 +98,12 @@ export default function Dashboard() {
     );
   }
 
-  const positions = core?.positions || [];
-  const rockets = core?.rockets || [];
-  const logs = core?.tradeLog || [];
-  const watchlist = core?.watchlist || [];
+  const core = data.core || {};
+  const ml = data.ml || {};
+  const positions = core.positions || [];
+  const rockets = core.rockets || [];
+  const logs = core.tradeLog || core.logs || [];
+  const watchlist = core.watchlist || [];
 
   const equityChartData = {
     labels: equityHistory.map(d => d.time),
@@ -142,17 +144,16 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-gray-900/50 p-6 rounded-lg border border-cyan-700 text-center">
             <DollarSign className="w-8 h-8 mx-auto mb-2 text-cyan-400" />
             <div className="text-sm text-gray-400">Equity</div>
-            <div className="text-3xl font-bold">${Number(core?.equity || 0).toLocaleString()}</div>
+            <div className="text-3xl font-bold">${Number(core.equity || 0).toLocaleString()}</div>
           </div>
           <div className="bg-gray-900/50 p-6 rounded-lg border border-purple-700 text-center">
             <TrendingUp className="w-8 h-8 mx-auto mb-2 text-purple-400" />
             <div className="text-sm text-gray-400">Buying Power</div>
-            <div className="text-3xl font-bold text-purple-400">${Number(core?.buyingPower || 0).toLocaleString()}</div>
+            <div className="text-3xl font-bold text-purple-400">${Number(core.buyingPower || 0).toLocaleString()}</div>
           </div>
           <div className="bg-gray-900/50 p-6 rounded-lg border border-green-700 text-center">
             <Zap className="w-8 h-8 mx-auto mb-2 text-green-400" />
@@ -166,7 +167,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Equity Chart */}
         <div className="mb-8 bg-gray-900/50 p-4 rounded-lg border border-gray-700">
           <h2 className="text-xl font-bold text-cyan-400 mb-4">Equity Performance</h2>
           <div className="h-64">
@@ -176,7 +176,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Rockets */}
         <div className="mb-8">
           <h2 className="text-xl font-bold text-yellow-400 mb-4 flex items-center gap-2">
             <Zap className="w-6 h-6" /> Today's Rockets ({rockets.length})
@@ -193,7 +192,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Positions */}
         <div className="mb-8">
           <h2 className="text-xl font-bold text-green-400 mb-4">Live Positions</h2>
           <div className="space-y-4">
@@ -201,10 +199,10 @@ export default function Dashboard() {
               <div key={i} className="bg-gray-900/50 p-4 rounded border border-green-700 flex justify-between items-center">
                 <div>
                   <div className="font-bold text-xl">{p.symbol} ×{p.qty}</div>
-                  <div className="text-sm text-gray-400">Entry: ${Number(p.entry).toFixed(2)}</div>
+                  <div className="text-sm text-gray-400">Entry: ${Number(p.entry || 0).toFixed(2)}</div>
                 </div>
                 <div className={`text-3xl font-bold ${p.unrealized_plpc >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {p.unrealized_plpc >= 0 ? '+' : ''}{p.unrealized_plpc}%
+                  {p.unrealized_plpc >= 0 ? '+' : ''}{Number(p.unrealized_plpc || 0).toFixed(1)}%
                 </div>
               </div>
             )) : (
@@ -213,19 +211,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Watchlist */}
-        <div className="mb-8">
-          <h2 className="text-xl font-bold text-purple-400 mb-4">Current Watchlist ({watchlist.length})</h2>
-          <div className="flex flex-wrap gap-2">
-            {watchlist.map((sym: string, i: number) => (
-              <span key={i} className="px-4 py-2 bg-gray-800 rounded-full text-sm font-medium">
-                {sym}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Execution Log */}
         <div className="mb-20">
           <h2 className="text-xl font-bold text-cyan-400 mb-4">Execution Log</h2>
           <div className="bg-gray-900/50 p-4 rounded-lg text-xs font-mono max-h-96 overflow-y-auto border border-gray-800">
@@ -234,8 +219,8 @@ export default function Dashboard() {
             ) : (
               logs.slice(-20).reverse().map((l: any, i: number) => (
                 <div key={i} className="py-2 border-b border-gray-800 last:border-0 flex">
-                  <span className="text-gray-500 w-20">{l.time}</span>
-                  <span>{l.message}</span>
+                  <span className="text-gray-500 w-20">{l.time || ''}</span>
+                  <span>{l.message || l}</span>
                 </div>
               ))
             )}
