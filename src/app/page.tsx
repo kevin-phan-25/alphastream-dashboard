@@ -15,7 +15,8 @@ import {
   Wallet,
   Brain,
   Globe,
-  Bot
+  Bot,
+  TrendingUp
 } from 'lucide-react';
 
 // Register Chart.js
@@ -132,27 +133,18 @@ export default function Dashboard() {
     }]
   };
 
-  // Map action to readable label
-  const getActionLabel = (action: number) => {
-    switch (action) {
-      case 0: return "BUY STRONG";
-      case 1: return "BUY";
-      case 2: return "HOLD";
-      case 3: return "SKIP";
-      case 4: return "SELL";
-      default: return "UNKNOWN";
-    }
-  };
+  // ML Action Mapping
+  const getActionDetails = (action: number = 2, priority: boolean = false) => {
+    const labels = ["BUY STRONG", "BUY", "HOLD", "SKIP", "SELL"];
+    const colors = ["text-green-400", "text-green-300", "text-yellow-400", "text-gray-400", "text-red-400"];
+    const confidence = action === 0 || action === 4 ? 95 : action === 1 || action === 3 ? 75 : 50;
 
-  const getActionColor = (action: number) => {
-    switch (action) {
-      case 0: return "text-green-400";
-      case 1: return "text-green-300";
-      case 2: return "text-yellow-400";
-      case 3: return "text-gray-400";
-      case 4: return "text-red-400";
-      default: return "text-gray-500";
-    }
+    return {
+      label: labels[action] || "HOLD",
+      color: colors[action] || "text-gray-400",
+      confidence,
+      isPriority: priority
+    };
   };
 
   return (
@@ -209,26 +201,43 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ML Predictions */}
+        {/* Detailed ML Predictions */}
         {rockets.length > 0 && (
           <div className="mb-5">
             <h2 className="text-sm font-bold text-purple-400 mb-2 flex items-center gap-2">
-              <Bot className="w-5 h-5" /> ML Predictions
+              <Bot className="w-5 h-5" /> Rainbow DQN Predictions
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="space-y-3">
               {rockets.map((r: any, i: number) => {
-                const priority = r.mlPriority || false;
-                const action = r.mlAction || 2;
+                const ml = getActionDetails(r.mlAction, r.mlPriority);
                 return (
-                  <div key={i} className="bg-gray-900/50 p-3 rounded border border-purple-700 text-center">
-                    <div className="font-medium text-xs">{r.symbol}</div>
-                    <div className={`text-base font-bold ${getActionColor(action)}`}>
-                      {getActionLabel(action)}
+                  <div key={i} className="bg-gray-900/50 p-3 rounded border border-purple-700">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <div className="font-bold text-base">{r.symbol}</div>
+                        <div className="text-xs text-gray-400">
+                          Gap +{r.gap}% • RVOL {r.rvol} • ${r.price}
+                        </div>
+                      </div>
+                      {ml.isPriority && (
+                        <div className="bg-green-900/50 text-green-400 text-xs px-2 py-1 rounded">HIGH PRIORITY</div>
+                      )}
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      {priority ? "HIGH PRIORITY" : "Normal"}
+                    <div className="flex items-center justify-between">
+                      <div className={`text-lg font-bold ${ml.color}`}>
+                        {ml.label}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <TrendingUp className="w-4 h-4 text-gray-500" />
+                        <div className="w-24 bg-gray-800 rounded-full h-2">
+                          <div
+                            className="bg-gradient-to-r from-gray-600 to-green-500 h-2 rounded-full"
+                            style={{ width: `${ml.confidence}%` }}
+                          />
+                        </div>
+                        <span className="text-gray-400">{ml.confidence}%</span>
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">Gap +{r.gap}%</div>
                   </div>
                 );
               })}
@@ -236,7 +245,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Rockets */}
+        {/* Rockets Grid */}
         <div className="mb-5">
           <h2 className="text-sm font-bold text-yellow-400 mb-2">Today's Rockets ({rockets.length})</h2>
           <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
@@ -244,7 +253,7 @@ export default function Dashboard() {
               <div key={i} className="bg-gray-900/50 p-3 rounded border border-yellow-600 text-center">
                 <div className="font-medium text-xs">{r.symbol}</div>
                 <div className="text-lg text-yellow-400 font-bold">+{r.gap}%</div>
-                <div className="text-xs text-green-400">RVOL {r.rvol || 'N/A'}</div>
+                <div className="text-xs text-green-400">RVOL {r.rvol}</div>
               </div>
             )) : <div className="col-span-full text-center text-gray-500 py-6 text-xs">No gappers with surge</div>}
           </div>
