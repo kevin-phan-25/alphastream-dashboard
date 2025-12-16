@@ -110,14 +110,7 @@ export default function Dashboard() {
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: { mode: 'index' as const, intersect: false },
-      zoom: {
-        pan: { enabled: true, mode: 'xy' as const },
-        zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' as const }
-      }
-    }
+    plugins: { legend: { display: false } }
   };
 
   return (
@@ -151,7 +144,7 @@ export default function Dashboard() {
             <div className="text-3xl font-bold">${Number(core.equity).toLocaleString()}</div>
           </div>
           <div className="bg-gray-900/50 p-6 rounded-lg border border-purple-700 text-center">
-            <Trending fins className="w-8 h-8 mx-auto mb-2 text-purple-400" />
+            <TrendingUp className="w-8 h-8 mx-auto mb-2 text-purple-400" />
             <div className="text-sm text-gray-400">Positions</div>
             <div className="text-3xl font-bold text-purple-400">{positions.length}/5</div>
           </div>
