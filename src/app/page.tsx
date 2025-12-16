@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
-import { RefreshCw, Zap, Activity, Loader2, Sun, Moon, AlertCircle, DollarSign, Wallet } from 'lucide-react';
+import { RefreshCw, Zap, Activity, Loader2, Sun, Moon, AlertCircle, DollarSign, Wallet, Brain } from 'lucide-react';
 
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
   ssr: false,
