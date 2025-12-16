@@ -14,9 +14,7 @@ import {
   DollarSign,
   Wallet,
   Globe,
-  Bot,
-  TrendingUp,
-  Brain
+  Bot
 } from 'lucide-react';
 
 // Register Chart.js
@@ -56,7 +54,12 @@ export default function Dashboard() {
       const equity = Number(data.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      setCore(data);
+      setCore({
+        ...data,
+        mlConnected: data.mlConnected ?? false,
+        universeSize: data.universeSize ?? (data.watchlist?.length || 0)
+      });
+
       setEquityHistory(prev => [...prev, { time, equity }].slice(-30));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
       setError(null);
@@ -153,7 +156,10 @@ export default function Dashboard() {
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-xl font-bold text-cyan-400">AlphaStream AI</h1>
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-3 text-xs">
+            <span className={`text-xs ${core.mlConnected ? 'text-green-400' : 'text-red-400'}`}>
+              ML {core.mlConnected ? 'ONLINE' : 'OFFLINE'}
+            </span>
             <span className="text-gray-500">{lastUpdate}</span>
             <button onClick={() => setDarkMode(!darkMode)} className="p-1 rounded bg-gray-800">
               {darkMode ? <Sun className="w-4 h-4 text-yellow-400" /> : <Moon className="w-4 h-4" />}
@@ -168,7 +174,7 @@ export default function Dashboard() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
           <div className="bg-gray-900/50 p-3 rounded border border-cyan-700 text-center">
             <DollarSign className="w-5 h-5 mx-auto mb-1 text-cyan-400" />
             <div className="text-xs text-gray-400">Equity</div>
@@ -188,6 +194,11 @@ export default function Dashboard() {
             <Globe className="w-5 h-5 mx-auto mb-1 text-yellow-400" />
             <div className="text-xs text-gray-400">Universe</div>
             <div className="text-base font-bold text-yellow-400">{core.universeSize || 0}</div>
+          </div>
+          <div className="bg-gray-900/50 p-3 rounded border border-pink-700 text-center">
+            <Bot className="w-5 h-5 mx-auto mb-1 text-pink-400" />
+            <div className="text-xs text-gray-400">ML Status</div>
+            <div className="text-base font-bold text-pink-400">{core.mlConnected ? "Online" : "Offline"}</div>
           </div>
         </div>
 
@@ -275,7 +286,7 @@ export default function Dashboard() {
                 <div key={i} className="bg-gray-900/50 p-3 rounded border border-green-700 flex justify-between items-center">
                   <div>
                     <div className="font-bold text-base">{p.symbol} ×{p.qty}</div>
-                    <div className="text-xs text-gray-400">Entry: ${Number(p.entry || p.avg_entry_price || 0).toFixed(2)}</div>
+                    <div className="text-xs text-gray-400">Entry: ${Number(p.avg_entry_price || 0).toFixed(2)}</div>
                   </div>
                   <div className={`text-2xl font-bold ${pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {pnl >= 0 ? '+' : ''}{pnl.toFixed(1)}%
