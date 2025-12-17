@@ -18,7 +18,9 @@ import {
   TrendingUp,
   AlertTriangle,
   Clock,
-  Package
+  Package,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 import {
@@ -46,6 +48,18 @@ type Rocket = {
   mlConfidence: number;
 };
 
+type ChartData = {
+  labels: string[];
+  datasets: {
+    data: number[];
+    borderColor: string;
+    backgroundColor: string;
+    fill: boolean;
+    tension: number;
+    pointRadius: number;
+  }[];
+};
+
 export default function Dashboard() {
   const [core, setCore] = useState<any>({});
   const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
@@ -57,6 +71,8 @@ export default function Dashboard() {
   const [darkMode, setDarkMode] = useState(true);
   const [liveRockets, setLiveRockets] = useState<Rocket[]>([]);
   const [flashRockets, setFlashRockets] = useState<Set<string>>(new Set());
+  const [expandedRocket, setExpandedRocket] = useState<string | null>(null);
+  const [rocketCharts, setRocketCharts] = useState<Record<string, ChartData>>({});
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
 
@@ -108,6 +124,48 @@ export default function Dashboard() {
     }
   };
 
+  // Fetch intraday chart for a rocket when expanded
+  const fetchRocketChart = async (symbol: string) => {
+    if (rocketCharts[symbol]) return;
+
+    try {
+      const end = Math.floor(Date.now() / 1000);
+      const start = end - 86400; // last 24 hours
+      const res = await axios.get(`https://finnhub.io/api/v1/stock/candle?symbol=${symbol}&resolution=1&from=${start}&to=${end}&token=${process.env.NEXT_PUBLIC_FINNHUB_KEY}`);
+      const candle = res.data;
+
+      if (candle.s === 'ok') {
+        const labels = candle.t.map((t: number) => new Date(t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        const prices = candle.c;
+
+        const chartData: ChartData = {
+          labels,
+          datasets: [{
+            data: prices,
+            borderColor: '#06b6d4',
+            backgroundColor: 'rgba(6,182,212,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0
+          }]
+        };
+
+        setRocketCharts(prev => ({ ...prev, [symbol]: chartData }));
+      }
+    } catch (e) {
+      console.error(`Chart fetch failed for ${symbol}`);
+    }
+  };
+
+  const toggleRocketChart = (symbol: string) => {
+    if (expandedRocket === symbol) {
+      setExpandedRocket(null);
+    } else {
+      setExpandedRocket(symbol);
+      fetchRocketChart(symbol);
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       document.documentElement.classList.toggle('dark', darkMode);
@@ -120,7 +178,7 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fixed: get numeric ET hour
+  // Fixed numeric ET hour
   const etHour = Number(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: 'numeric', hour12: false }));
   const isAfterHours = etHour >= 16 && etHour < 20;
 
@@ -357,38 +415,64 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Rockets */}
+        {/* Rockets with Expandable Charts */}
         <div className="lg:col-span-2 bg-gray-900/50 border border-cyan-900/30 rounded-xl p-5">
           <h2 className="text-lg font-semibold mb-3 flex items-center justify-between text-cyan-300">
             <span>Hot Rockets ({rockets.length})</span>
             {rockets.length > 0 && <Zap className="w-6 h-6 text-yellow-400 animate-pulse" />}
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto text-xs">
+          <div className="space-y-3 max-h-96 overflow-y-auto">
             {rockets.length === 0 ? (
-              <p className="col-span-2 text-gray-500 text-center py-10">Waiting for spike...</p>
+              <p className="text-gray-500 text-center py-10">Waiting for spike...</p>
             ) : (
               rockets.map((rocket: Rocket, i: number) => {
                 const action = getActionDetails(rocket.mlAction, rocket.mlPriority, rocket.mlConfidence);
                 const flashing = flashRockets.has(rocket.symbol);
+                const isExpanded = expandedRocket === rocket.symbol;
+                const chartData = rocketCharts[rocket.symbol];
+
                 return (
                   <div
                     key={i}
-                    className={`p-4 rounded border transition-all ${flashing ? 'border-yellow-400 bg-yellow-900/30 scale-105' : 'border-gray-700 bg-gray-800/50'}`}
+                    className={`rounded border transition-all ${flashing ? 'border-yellow-400 bg-yellow-900/30' : 'border-gray-700 bg-gray-800/50'}`}
                   >
-                    <div className="flex justify-between mb-2">
-                      <div className="font-bold text-lg">{rocket.symbol}</div>
-                      <div className={`px-3 py-1 rounded font-bold ${action.color}`}>
-                        {action.label}
+                    <div className="p-4 cursor-pointer flex justify-between items-start" onClick={() => toggleRocketChart(rocket.symbol)}>
+                      <div>
+                        <div className="font-bold text-lg">{rocket.symbol}</div>
+                        <div className="text-xs grid grid-cols-2 gap-2 mt-1">
+                          <span>Price: <span className="font-medium">${Number(rocket.price).toFixed(2)}</span></span>
+                          <span>Gap: <span className="font-medium text-green-400">+{rocket.gap}%</span></span>
+                          {rocket.rvol && <span>RVOL: <span className="font-medium">{rocket.rvol}x</span></span>}
+                          <span>Conf: <span className="font-medium text-yellow-400">{rocket.mlConfidence}%</span></span>
+                        </div>
+                        {rocket.mlPriority && <div className="text-yellow-400 font-bold text-sm mt-1">⚡ PRIORITY ⚡</div>}
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <div className={`px-3 py-1 rounded font-bold text-xs ${action.color}`}>
+                          {action.label}
+                        </div>
+                        {isExpanded ? <ChevronUp className="w-5 h-5 mt-2" /> : <ChevronDown className="w-5 h-5 mt-2" />}
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>Price: <span className="font-medium">${Number(rocket.price).toFixed(2)}</span></div>
-                      <div>Gap: <span className="font-medium text-green-400">+{rocket.gap}%</span></div>
-                      {rocket.rvol && <div>RVOL: <span className="font-medium">{rocket.rvol}x</span></div>}
-                      <div>Conf: <span className="font-medium text-yellow-400">{rocket.mlConfidence}%</span></div>
-                    </div>
-                    {rocket.mlPriority && (
-                      <div className="mt-2 text-yellow-400 font-bold text-center">⚡ PRIORITY ⚡</div>
+                    {isExpanded && (
+                      <div className="px-4 pb-4 border-t border-gray-700">
+                        {chartData ? (
+                          <div className="h-48 mt-3">
+                            <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500 text-xs">Loading chart...</div>}>
+                              <Line data={chartData} options={{
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { legend: { display: false } },
+                                scales: { x: { display: false }, y: { grid: { color: '#1f2937' } } }
+                              }} />
+                            </Suspense>
+                          </div>
+                        ) : (
+                          <div className="h-48 flex items-center justify-center text-gray-500 text-sm">
+                            Loading real-time chart...
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 );
@@ -415,4 +499,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-              }
+}
