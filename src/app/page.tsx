@@ -120,8 +120,8 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Helper: current ET hour
-  const etHour = new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: 'numeric', hour12: false });
+  // Fixed: get numeric ET hour
+  const etHour = Number(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: 'numeric', hour12: false }));
   const isAfterHours = etHour >= 16 && etHour < 20;
 
   if (loading) return (
@@ -177,7 +177,7 @@ export default function Dashboard() {
       "text-gray-400 bg-gray-800/30",
       "text-red-400 bg-red-900/30"
     ];
-    return { label: labels[action] || "HOLD", color: colors[action], conf, priority };
+    return { label: labels[action], color: colors[action], conf, priority };
   };
 
   return (
@@ -415,4 +415,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-}
+              }
