@@ -16,7 +16,9 @@ import {
   Globe,
   Bot,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Clock,
+  Package
 } from 'lucide-react';
 
 // Chart.js registration
@@ -144,10 +146,13 @@ export default function Dashboard() {
   const equity = Number(core.equity || 0);
   const buyingPower = Number(core.buyingPower || 0);
   const dailyDrawdown = Number(core.dailyDrawdown || 0);
-  const dailyDrawdownPct = ((dailyDrawdown / (equity + dailyDrawdown)) * 100).toFixed(2);
+  const dailyDrawdownPct = dailyDrawdown !== 0 
+    ? ((Math.abs(dailyDrawdown) / (equity - dailyDrawdown)) * 100).toFixed(2)
+    : "0.00";
   const lossLimitHit = Math.abs(dailyDrawdown) >= 2000;
   const mlConnected = core.mlHealthy === true;
   const universeSize = core.universeSize || 0;
+  const afterHoursQueue = Array.isArray(core.afterHoursQueue) ? core.afterHoursQueue : [];
 
   const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
@@ -180,6 +185,7 @@ export default function Dashboard() {
 
   return (
     <div className={`min-h-screen transition-colors duration-500 ${darkMode ? 'bg-black text-gray-200' : 'bg-gray-50 text-gray-800'}`}>
+      {/* Header */}
       <header className="border-b border-cyan-900/30 bg-black/70 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -212,12 +218,90 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {/* Message Banner */}
       {message && (
         <div className="bg-cyan-900/70 border-y border-cyan-600 py-3 text-center text-cyan-200 font-semibold text-lg">
           {message}
         </div>
       )}
 
+      {/* Quick Watch Checklist */}
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="bg-gradient-to-r from-cyan-900/40 to-purple-900/40 border border-cyan-700 rounded-2xl p-6 shadow-2xl">
+          <h2 className="text-xl font-bold mb-5 text-cyan-300 flex items-center gap-3">
+            <Activity className="w-6 h-6 animate-pulse" />
+            Dashboard Watch Checklist — Glance Every 2–3 Minutes
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className={`p-5 rounded-xl border-2 ${mlConnected ? 'border-green-600 bg-green-900/20' : 'border-red-600 bg-red-900/20'}`}>
+              <div className="flex items-center gap-3 mb-2">
+                <Zap className={`w-6 h-6 ${mlConnected ? 'text-green-400 animate-pulse' : 'text-red-400'}`} />
+                <span className="font-bold text-lg">ML Brain</span>
+              </div>
+              <div className={`text-2xl font-bold ${mlConnected ? 'text-green-400' : 'text-red-400'}`}>
+                {mlConnected ? 'ONLINE' : 'OFFLINE'}
+              </div>
+              <p className="text-sm text-gray-400 mt-2">Must be ONLINE for smart entries</p>
+            </div>
+
+            <div className={`p-5 rounded-xl border-2 ${lossLimitHit ? 'border-red-600 bg-red-900/20' : 'border-green-600 bg-green-900/20'}`}>
+              <div className="flex items-center gap-3 mb-2">
+                <AlertTriangle className={`w-6 h-6 ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`} />
+                <span className="font-bold text-lg">Daily Safety</span>
+              </div>
+              <div className={`text-2xl font-bold ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`}>
+                {lossLimitHit ? 'LIMIT HIT' : 'SAFE'}
+              </div>
+              <p className="text-sm text-gray-400 mt-2">Drawdown: {dailyDrawdownPct}% (${Math.abs(dailyDrawdown).toLocaleString()})</p>
+            </div>
+
+            <div className="p-5 rounded-xl border-2 border-cyan-600 bg-cyan-900/20">
+              <div className="flex items-center gap-3 mb-2">
+                <Clock className="w-6 h-6 text-cyan-400" />
+                <span className="font-bold text-lg">Market Time</span>
+              </div>
+              <div className="text-2xl font-bold text-cyan-300">
+                {new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: '2-digit', minute: '2-digit' })} ET
+              </div>
+              <p className="text-sm text-gray-400 mt-2">
+                {isAfterHoursET() ? 'After-hours: Queue active' : 
+                 new Date().getHours() >= 9 && new Date().getHours() < 16 ? 'Regular hours: Full trading' :
+                 'Premarket: Scanning only'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* After-Hours Queue Section */}
+      {afterHoursQueue.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 my-6">
+          <div className="bg-purple-900/40 border border-purple-600 rounded-2xl p-6 shadow-2xl">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-3 text-purple-300">
+              <Package className="w-6 h-6" />
+              After-Hours Queue ({afterHoursQueue.length}) — Ready for Tomorrow's Open
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {afterHoursQueue.map((rocket: Rocket, i: number) => {
+                const action = getActionDetails(rocket.mlAction, rocket.mlPriority, rocket.mlConfidence);
+                return (
+                  <div key={i} className="bg-purple-800/50 rounded-lg p-4 border border-purple-700">
+                    <div className="font-bold text-lg text-white">{rocket.symbol}</div>
+                    <div className="text-sm text-purple-300 mt-1">
+                      Gap: +{rocket.gap}% | RVOL: {rocket.rvol}x | Conf: {rocket.mlConfidence}%
+                    </div>
+                    <div className={`mt-2 px-3 py-1 rounded text-xs font-bold inline-block ${action.color}`}>
+                      {action.label} (Queued)
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Bar */}
       <div className="border-b border-cyan-900/30 bg-gradient-to-r from-black via-cyan-950/20 to-black py-4">
         <div className="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-6 text-sm">
           <div className="flex flex-wrap items-center gap-8">
@@ -269,6 +353,7 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Main Grid */}
       <div className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Equity Chart */}
         <div className="lg:col-span-2 bg-gray-900/60 border border-cyan-900/40 rounded-2xl p-6 shadow-2xl">
