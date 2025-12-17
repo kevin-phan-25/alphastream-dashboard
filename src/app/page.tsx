@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect, useState, Suspense } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
@@ -22,7 +21,6 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -31,6 +29,7 @@ import {
   LineElement,
   Tooltip,
 } from 'chart.js';
+
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip);
 
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
@@ -40,7 +39,7 @@ const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
 
 type Rocket = {
   symbol: string;
-  gap: string;
+  gap: string;           // ← Now string (e.g., "12.45")
   price: number | string;
   rvol?: string;
   mlAction: number;
@@ -75,27 +74,26 @@ export default function Dashboard() {
   const [rocketCharts, setRocketCharts] = useState<Record<string, ChartData>>({});
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
+  const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY; // Ensure this is set in .env
 
   const fetchData = async () => {
     try {
       const res = await axios.get(CORE_URL, { timeout: 20000 });
       const data = res.data || {};
-
       const equityValue = Number(data.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
       setCore(data);
-
       setEquityHistory(prev => [...prev, { time, equity: equityValue }].slice(-30));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
-
-      if (Array.isArray(data.rockets)) {
+      
+      // Handle rockets (live update + flash effect)
+      if (Array.isArray(data.rockets) && data.rockets.length > 0) {
         const newSymbols = data.rockets.map((r: Rocket) => r.symbol);
-        if (newSymbols.length > 0) {
-          setFlashRockets(new Set(newSymbols));
-          setTimeout(() => setFlashRockets(new Set()), 3000);
-        }
+        setFlashRockets(new Set(newSymbols));
+        setTimeout(() => setFlashRockets(new Set()), 3000);
         setLiveRockets(data.rockets);
+      } else {
+        setLiveRockets([]);
       }
 
       setError(null);
@@ -126,18 +124,20 @@ export default function Dashboard() {
 
   // Fetch intraday chart for a rocket when expanded
   const fetchRocketChart = async (symbol: string) => {
-    if (rocketCharts[symbol]) return;
+    if (rocketCharts[symbol] || !FINNHUB_KEY) return;
 
     try {
       const end = Math.floor(Date.now() / 1000);
       const start = end - 86400; // last 24 hours
-      const res = await axios.get(`https://finnhub.io/api/v1/stock/candle?symbol=${symbol}&resolution=1&from=${start}&to=${end}&token=${process.env.NEXT_PUBLIC_FINNHUB_KEY}`);
+      const res = await axios.get(
+        `https://finnhub.io/api/v1/stock/candle?symbol=${symbol}&resolution=1&from=${start}&to=${end}&token=${FINNHUB_KEY}`
+      );
       const candle = res.data;
-
-      if (candle.s === 'ok') {
-        const labels = candle.t.map((t: number) => new Date(t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      if (candle.s === 'ok' && candle.t?.length > 0) {
+        const labels = candle.t.map((t: number) => 
+          new Date(t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        );
         const prices = candle.c;
-
         const chartData: ChartData = {
           labels,
           datasets: [{
@@ -149,11 +149,10 @@ export default function Dashboard() {
             pointRadius: 0
           }]
         };
-
         setRocketCharts(prev => ({ ...prev, [symbol]: chartData }));
       }
     } catch (e) {
-      console.error(`Chart fetch failed for ${symbol}`);
+      console.error(`Chart fetch failed for ${symbol}:`, e);
     }
   };
 
@@ -202,17 +201,16 @@ export default function Dashboard() {
   const equity = Number(core.equity || 0);
   const buyingPower = Number(core.buyingPower || 0);
   const dailyDrawdown = Number(core.dailyDrawdown || 0);
-  const dailyDrawdownPct = dailyDrawdown !== 0 
+  const dailyDrawdownPct = dailyDrawdown !== 0
     ? ((Math.abs(dailyDrawdown) / (equity - dailyDrawdown)) * 100).toFixed(1)
     : "0.0";
   const lossLimitHit = Math.abs(dailyDrawdown) >= 2000;
   const mlConnected = core.mlHealthy === true;
   const universeSize = core.universeSize || 0;
   const afterHoursQueue = Array.isArray(core.afterHoursQueue) ? core.afterHoursQueue : [];
-
   const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
-  const logs = Array.isArray(core.tradeLog) ? core.tradeLog : [];
+  const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse() : []; // Latest first
 
   const equityChartData = {
     labels: equityHistory.map(d => d.time),
@@ -235,7 +233,7 @@ export default function Dashboard() {
       "text-gray-400 bg-gray-800/30",
       "text-red-400 bg-red-900/30"
     ];
-    return { label: labels[action], color: colors[action], conf, priority };
+    return { label: labels[action] || "HOLD", color: colors[action] || colors[2], conf, priority };
   };
 
   return (
@@ -292,7 +290,6 @@ export default function Dashboard() {
                 {mlConnected ? 'ONLINE' : 'OFFLINE'}
               </div>
             </div>
-
             <div className={`p-4 rounded border ${lossLimitHit ? 'border-red-600 bg-red-900/20' : 'border-green-600 bg-green-900/20'}`}>
               <div className="flex items-center gap-2 mb-1">
                 <AlertTriangle className={`w-5 h-5 ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`} />
@@ -303,7 +300,6 @@ export default function Dashboard() {
               </div>
               <div className="text-xs text-gray-400">DD: {dailyDrawdownPct}%</div>
             </div>
-
             <div className="p-4 rounded border border-cyan-600 bg-cyan-900/20">
               <div className="flex items-center gap-2 mb-1">
                 <Clock className="w-5 h-5 text-cyan-400" />
@@ -434,9 +430,14 @@ export default function Dashboard() {
                 return (
                   <div
                     key={i}
-                    className={`rounded border transition-all ${flashing ? 'border-yellow-400 bg-yellow-900/30' : 'border-gray-700 bg-gray-800/50'}`}
+                    className={`rounded border transition-all duration-300 ${
+                      flashing ? 'border-yellow-400 bg-yellow-900/30 shadow-lg shadow-yellow-900/20' : 'border-gray-700 bg-gray-800/50'
+                    }`}
                   >
-                    <div className="p-4 cursor-pointer flex justify-between items-start" onClick={() => toggleRocketChart(rocket.symbol)}>
+                    <div 
+                      className="p-4 cursor-pointer flex justify-between items-start" 
+                      onClick={() => toggleRocketChart(rocket.symbol)}
+                    >
                       <div>
                         <div className="font-bold text-lg">{rocket.symbol}</div>
                         <div className="text-xs grid grid-cols-2 gap-2 mt-1">
@@ -454,17 +455,24 @@ export default function Dashboard() {
                         {isExpanded ? <ChevronUp className="w-5 h-5 mt-2" /> : <ChevronDown className="w-5 h-5 mt-2" />}
                       </div>
                     </div>
+
                     {isExpanded && (
                       <div className="px-4 pb-4 border-t border-gray-700">
                         {chartData ? (
                           <div className="h-48 mt-3">
                             <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500 text-xs">Loading chart...</div>}>
-                              <Line data={chartData} options={{
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: { legend: { display: false } },
-                                scales: { x: { display: false }, y: { grid: { color: '#1f2937' } } }
-                              }} />
+                              <Line 
+                                data={chartData} 
+                                options={{
+                                  responsive: true,
+                                  maintainAspectRatio: false,
+                                  plugins: { legend: { display: false } },
+                                  scales: { 
+                                    x: { display: false }, 
+                                    y: { grid: { color: '#1f2937' } } 
+                                  }
+                                }} 
+                              />
                             </Suspense>
                           </div>
                         ) : (
@@ -499,4 +507,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-}
+      }
