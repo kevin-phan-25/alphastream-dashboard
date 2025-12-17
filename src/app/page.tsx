@@ -34,12 +34,12 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip)
 
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
   ssr: false,
-  loading: () => <div className="h-20 flex items-center justify-center text-gray-500 text-xs">Loading chart...</div>
+  loading: () => <div className="h-16 flex items-center justify-center text-gray-500 text-xs">Chart...</div>
 });
 
 type Rocket = {
   symbol: string;
-  gap: string;           // ← Now string (e.g., "12.45")
+  gap: string;
   price: number | string;
   rvol?: string;
   mlAction: number;
@@ -74,7 +74,7 @@ export default function Dashboard() {
   const [rocketCharts, setRocketCharts] = useState<Record<string, ChartData>>({});
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
-  const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY; // Ensure this is set in .env
+  const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
 
   const fetchData = async () => {
     try {
@@ -82,11 +82,11 @@ export default function Dashboard() {
       const data = res.data || {};
       const equityValue = Number(data.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
       setCore(data);
       setEquityHistory(prev => [...prev, { time, equity: equityValue }].slice(-30));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
-      
-      // Handle rockets (live update + flash effect)
+
       if (Array.isArray(data.rockets) && data.rockets.length > 0) {
         const newSymbols = data.rockets.map((r: Rocket) => r.symbol);
         setFlashRockets(new Set(newSymbols));
@@ -95,7 +95,6 @@ export default function Dashboard() {
       } else {
         setLiveRockets([]);
       }
-
       setError(null);
     } catch (e: any) {
       console.error("Dashboard fetch error:", e);
@@ -122,13 +121,11 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch intraday chart for a rocket when expanded
   const fetchRocketChart = async (symbol: string) => {
     if (rocketCharts[symbol] || !FINNHUB_KEY) return;
-
     try {
       const end = Math.floor(Date.now() / 1000);
-      const start = end - 86400; // last 24 hours
+      const start = end - 86400;
       const res = await axios.get(
         `https://finnhub.io/api/v1/stock/candle?symbol=${symbol}&resolution=1&from=${start}&to=${end}&token=${FINNHUB_KEY}`
       );
@@ -152,7 +149,7 @@ export default function Dashboard() {
         setRocketCharts(prev => ({ ...prev, [symbol]: chartData }));
       }
     } catch (e) {
-      console.error(`Chart fetch failed for ${symbol}:`, e);
+      console.error(`Chart fetch failed for ${symbol}`);
     }
   };
 
@@ -177,22 +174,21 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fixed numeric ET hour
   const etHour = Number(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: 'numeric', hour12: false }));
   const isAfterHours = etHour >= 16 && etHour < 20;
 
   if (loading) return (
     <div className="min-h-screen bg-black text-cyan-400 flex flex-col items-center justify-center gap-3">
       <Activity className="w-8 h-8 animate-pulse" />
-      <p>Connecting to AlphaStream Core...</p>
+      <p className="text-sm">Connecting to AlphaStream Core...</p>
     </div>
   );
 
   if (error) return (
     <div className="min-h-screen bg-black text-red-400 flex flex-col items-center justify-center gap-3 p-4 text-center">
       <AlertCircle className="w-10 h-10" />
-      <p className="text-lg max-w-md">{error}</p>
-      <button onClick={fetchData} className="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-sm font-medium">
+      <p className="text-sm max-w-xs">{error}</p>
+      <button onClick={fetchData} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded text-xs font-medium">
         Retry
       </button>
     </div>
@@ -210,7 +206,7 @@ export default function Dashboard() {
   const afterHoursQueue = Array.isArray(core.afterHoursQueue) ? core.afterHoursQueue : [];
   const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
-  const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse() : []; // Latest first
+  const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse() : [];
 
   const equityChartData = {
     labels: equityHistory.map(d => d.time),
@@ -220,11 +216,11 @@ export default function Dashboard() {
       backgroundColor: dailyDrawdown < 0 ? 'rgba(239,68,68,0.1)' : 'rgba(6,182,212,0.1)',
       fill: true,
       tension: 0.4,
-      pointRadius: 2
+      pointRadius: 1
     }]
   };
 
-  const getActionDetails = (action: number = 2, priority = false, conf = 50) => {
+  const getActionDetails = (action: number = 2) => {
     const labels = ["STRONG BUY", "BUY", "HOLD", "NEUTRAL", "SELL"];
     const colors = [
       "text-green-300 bg-green-900/40",
@@ -233,177 +229,118 @@ export default function Dashboard() {
       "text-gray-400 bg-gray-800/30",
       "text-red-400 bg-red-900/30"
     ];
-    return { label: labels[action] || "HOLD", color: colors[action] || colors[2], conf, priority };
+    return { label: labels[action] || "HOLD", color: colors[action] || colors[2] };
   };
 
   return (
-    <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-200' : 'bg-gray-50 text-gray-800'}`}>
-      {/* Header */}
-      <header className="border-b border-cyan-900/30 bg-black/70 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Bot className="w-7 h-7 text-cyan-400" />
-            <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-              AlphaStream Scalp
-            </h1>
-            <div className="text-xs opacity-80 flex items-center gap-1">
+    <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-200' : 'bg-gray-50 text-gray-800'} pb-20`}>
+      {/* Compact Header */}
+      <header className="border-b border-cyan-900/30 bg-black/80 backdrop-blur sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-3 py-2 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <Bot className="w-5 h-5 text-cyan-400" />
+            <h1 className="font-bold text-cyan-400">AlphaStream</h1>
+            <div className="flex items-center gap-1 opacity-70">
               <Globe className="w-3 h-3" />
               {universeSize}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded hover:bg-gray-800">
-              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          <div className="flex items-center gap-2">
+            <button onClick={() => setDarkMode(!darkMode)} className="p-1.5 rounded hover:bg-gray-800">
+              {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
             </button>
             <button
               onClick={forceScan}
               disabled={scanning}
-              className="px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-60 rounded font-medium text-sm flex items-center gap-1.5"
+              className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-60 rounded text-xs flex items-center gap-1"
             >
-              {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              {scanning ? "Scanning" : "Scan"}
+              {scanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              Scan
             </button>
           </div>
         </div>
       </header>
 
       {message && (
-        <div className="bg-cyan-900/70 py-2 text-center text-cyan-200 font-medium">
+        <div className="bg-cyan-900/70 py-1.5 text-center text-cyan-200 text-xs font-medium">
           {message}
         </div>
       )}
 
-      {/* Watch Checklist */}
-      <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="bg-gradient-to-r from-cyan-900/30 to-purple-900/30 border border-cyan-700 rounded-xl p-4">
-          <h2 className="text-lg font-bold mb-3 text-cyan-300 flex items-center gap-2">
-            <Activity className="w-5 h-5 animate-pulse" />
-            Quick Watch
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div className={`p-4 rounded border ${mlConnected ? 'border-green-600 bg-green-900/20' : 'border-red-600 bg-red-900/20'}`}>
-              <div className="flex items-center gap-2 mb-1">
-                <Zap className={`w-5 h-5 ${mlConnected ? 'text-green-400 animate-pulse' : 'text-red-400'}`} />
-                <span>ML Brain</span>
-              </div>
-              <div className={`text-xl font-bold ${mlConnected ? 'text-green-400' : 'text-red-400'}`}>
-                {mlConnected ? 'ONLINE' : 'OFFLINE'}
-              </div>
-            </div>
-            <div className={`p-4 rounded border ${lossLimitHit ? 'border-red-600 bg-red-900/20' : 'border-green-600 bg-green-900/20'}`}>
-              <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle className={`w-5 h-5 ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`} />
-                <span>Daily Safety</span>
-              </div>
-              <div className={`text-xl font-bold ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`}>
-                {lossLimitHit ? 'LIMIT HIT' : 'SAFE'}
-              </div>
-              <div className="text-xs text-gray-400">DD: {dailyDrawdownPct}%</div>
-            </div>
-            <div className="p-4 rounded border border-cyan-600 bg-cyan-900/20">
-              <div className="flex items-center gap-2 mb-1">
-                <Clock className="w-5 h-5 text-cyan-400" />
-                <span>Market Time</span>
-              </div>
-              <div className="text-xl font-bold text-cyan-300">
-                {new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: '2-digit', minute: '2-digit' })} ET
-              </div>
-              <div className="text-xs text-gray-400">
-                {isAfterHours ? 'After-hours (queue)' : etHour >= 9 && etHour < 16 ? 'Regular trading' : 'Premarket'}
-              </div>
+      {/* Compact Quick Watch */}
+      <div className="px-3 py-2">
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className={`p-2 rounded border text-center ${mlConnected ? 'border-green-600 bg-green-900/20' : 'border-red-600 bg-red-900/20'}`}>
+            <Zap className={`w-4 h-4 mx-auto mb-1 ${mlConnected ? 'text-green-400' : 'text-red-400'}`} />
+            <div className="font-bold text-[10px]">{mlConnected ? 'ML ON' : 'ML OFF'}</div>
+          </div>
+          <div className={`p-2 rounded border text-center ${lossLimitHit ? 'border-red-600 bg-red-900/20' : 'border-green-600 bg-green-900/20'}`}>
+            <AlertTriangle className={`w-4 h-4 mx-auto mb-1 ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`} />
+            <div className="font-bold text-[10px]">{lossLimitHit ? 'LIMIT' : 'SAFE'}</div>
+            <div className="text-[9px] opacity-70">{dailyDrawdownPct}%</div>
+          </div>
+          <div className="p-2 rounded border border-cyan-600 bg-cyan-900/20 text-center">
+            <Clock className="w-4 h-4 mx-auto mb-1 text-cyan-400" />
+            <div className="font-bold text-[10px]">
+              {new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: '2-digit', minute: '2-digit' })} ET
             </div>
           </div>
         </div>
       </div>
 
-      {/* After-Hours Queue */}
-      {afterHoursQueue.length > 0 && (
-        <div className="max-w-7xl mx-auto px-4 my-4">
-          <div className="bg-purple-900/30 border border-purple-600 rounded-xl p-4">
-            <h2 className="text-lg font-bold mb-3 text-purple-300 flex items-center gap-2">
-              <Package className="w-5 h-5" />
-              After-Hours Queue ({afterHoursQueue.length})
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              {afterHoursQueue.map((r: Rocket, i: number) => (
-                <div key={i} className="bg-purple-800/50 rounded p-3 border border-purple-700">
-                  <div className="font-bold">{r.symbol}</div>
-                  <div>Gap: +{r.gap}% | Conf: {r.mlConfidence}%</div>
-                </div>
-              ))}
+      {/* Compact Status Bar */}
+      <div className="px-3 py-1.5 border-b border-cyan-900/30 bg-gradient-to-r from-black via-cyan-950/10 to-black text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <Wallet className="w-4 h-4 text-cyan-400" />
+              <span className="font-bold">${equity.toFixed(0)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <DollarSign className="w-4 h-4 text-green-400" />
+              <span className="font-bold">${buyingPower.toFixed(0)}</span>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Status Bar */}
-      <div className="border-b border-cyan-900/30 bg-gradient-to-r from-black via-cyan-950/10 to-black py-3">
-        <div className="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-4 text-xs">
-          <div className="flex flex-wrap items-center gap-6">
-            <div className="flex items-center gap-2">
-              <Wallet className="w-5 h-5 text-cyan-400" />
-              <span>Equity: <span className="font-bold text-cyan-400">${equity.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></span>
-            </div>
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-green-400" />
-              <span>BP: <span className="font-bold text-green-400">${buyingPower.toLocaleString(undefined, {minimumFractionDigits: 2})}</span></span>
-            </div>
-            <div className={`flex items-center gap-2 ${lossLimitHit ? 'text-red-400' : ''}`}>
-              <AlertTriangle className="w-5 h-5" />
-              <span>DD: <span className="font-bold">{dailyDrawdownPct}%</span></span>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Zap className={`w-5 h-5 ${mlConnected ? 'text-green-400 animate-pulse' : 'text-gray-600'}`} />
-              <span className={`font-bold ${mlConnected ? 'text-green-400' : 'text-red-400'}`}>
-                {mlConnected ? 'ONLINE' : 'OFFLINE'}
-              </span>
-            </div>
-            <div className="text-gray-500">Update: {lastUpdate} ET</div>
+          <div className="flex items-center gap-2 text-[10px] opacity-70">
+            <Zap className={`w-3 h-3 ${mlConnected ? 'text-green-400' : 'text-gray-600'}`} />
+            {mlConnected ? 'ON' : 'OFF'} • {lastUpdate.split(' ')[0]}
           </div>
         </div>
       </div>
 
-      {/* Main Grid */}
-      <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Equity Chart */}
-        <div className="lg:col-span-2 bg-gray-900/50 border border-cyan-900/30 rounded-xl p-5">
-          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2 text-cyan-300">
-            <TrendingUp className="w-5 h-5" />
-            Equity Curve
+      {/* Compact Equity Chart */}
+      <div className="px-3 py-3">
+        <div className="bg-gray-900/50 border border-cyan-900/30 rounded-lg p-3">
+          <h2 className="text-xs font-semibold text-cyan-300 mb-2 flex items-center gap-1">
+            <TrendingUp className="w-4 h-4" /> Equity
           </h2>
-          <div className="h-64">
-            <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500">Loading...</div>}>
+          <div className="h-32">
+            <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500 text-xs">Loading...</div>}>
               <Line data={equityChartData} options={{
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { x: { grid: { color: '#1f2937' } }, y: { grid: { color: '#1f2937' } } }
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                scales: { x: { display: false }, y: { display: false } }
               }} />
             </Suspense>
           </div>
         </div>
+      </div>
 
+      {/* Main Grid - Mobile Stacked */}
+      <div className="px-3 space-y-3 pb-4">
         {/* Positions */}
-        <div className="bg-gray-900/50 border border-cyan-900/30 rounded-xl p-5">
-          <h2 className="text-lg font-semibold mb-3 text-cyan-300">
-            Positions ({positions.length}/6)
-          </h2>
-          <div className="space-y-2 max-h-80 overflow-y-auto text-sm">
+        <div className="bg-gray-900/50 border border-cyan-900/30 rounded-lg p-3">
+          <h2 className="text-xs font-semibold text-cyan-300 mb-2">Positions ({positions.length})</h2>
+          <div className="max-h-32 overflow-y-auto text-xs space-y-1.5">
             {positions.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No positions</p>
+              <p className="text-gray-500 text-center text-[10px] py-4">No positions</p>
             ) : (
               positions.map((pos: any, i: number) => (
-                <div key={i} className="bg-gray-800/50 rounded p-3 border border-gray-700">
+                <div key={i} className="bg-gray-800/50 rounded p-2 text-[11px]">
                   <div className="flex justify-between">
-                    <div>
-                      <div className="font-bold">{pos.symbol}</div>
-                      <div className="text-xs text-gray-400">{pos.qty} @ ${Number(pos.avg_entry_price).toFixed(2)}</div>
-                    </div>
-                    <div className="text-green-400 font-bold">
-                      ${(pos.qty * pos.avg_entry_price).toFixed(0)}
-                    </div>
+                    <span className="font-bold">{pos.symbol}</span>
+                    <span className="text-green-400">{pos.qty} @ ${Number(pos.avg_entry_price).toFixed(2)}</span>
                   </div>
                 </div>
               ))
@@ -411,18 +348,18 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Rockets with Expandable Charts */}
-        <div className="lg:col-span-2 bg-gray-900/50 border border-cyan-900/30 rounded-xl p-5">
-          <h2 className="text-lg font-semibold mb-3 flex items-center justify-between text-cyan-300">
+        {/* Rockets */}
+        <div className="bg-gray-900/50 border border-cyan-900/30 rounded-lg p-3">
+          <h2 className="text-xs font-semibold text-cyan-300 mb-2 flex items-center justify-between">
             <span>Hot Rockets ({rockets.length})</span>
-            {rockets.length > 0 && <Zap className="w-6 h-6 text-yellow-400 animate-pulse" />}
+            {rockets.length > 0 && <Zap className="w-5 h-5 text-yellow-400 animate-pulse" />}
           </h2>
-          <div className="space-y-3 max-h-96 overflow-y-auto">
+          <div className="max-h-48 overflow-y-auto space-y-2">
             {rockets.length === 0 ? (
-              <p className="text-gray-500 text-center py-10">Waiting for spike...</p>
+              <p className="text-gray-500 text-center text-[11px] py-6">Waiting for spike...</p>
             ) : (
               rockets.map((rocket: Rocket, i: number) => {
-                const action = getActionDetails(rocket.mlAction, rocket.mlPriority, rocket.mlConfidence);
+                const action = getActionDetails(rocket.mlAction);
                 const flashing = flashRockets.has(rocket.symbol);
                 const isExpanded = expandedRocket === rocket.symbol;
                 const chartData = rocketCharts[rocket.symbol];
@@ -430,56 +367,29 @@ export default function Dashboard() {
                 return (
                   <div
                     key={i}
-                    className={`rounded border transition-all duration-300 ${
-                      flashing ? 'border-yellow-400 bg-yellow-900/30 shadow-lg shadow-yellow-900/20' : 'border-gray-700 bg-gray-800/50'
+                    className={`rounded border text-xs p-2 transition-all ${
+                      flashing ? 'border-yellow-400 bg-yellow-900/30' : 'border-gray-700 bg-gray-800/50'
                     }`}
                   >
-                    <div 
-                      className="p-4 cursor-pointer flex justify-between items-start" 
-                      onClick={() => toggleRocketChart(rocket.symbol)}
-                    >
+                    <div className="flex justify-between items-start cursor-pointer" onClick={() => toggleRocketChart(rocket.symbol)}>
                       <div>
-                        <div className="font-bold text-lg">{rocket.symbol}</div>
-                        <div className="text-xs grid grid-cols-2 gap-2 mt-1">
-                          <span>Price: <span className="font-medium">${Number(rocket.price).toFixed(2)}</span></span>
-                          <span>Gap: <span className="font-medium text-green-400">+{rocket.gap}%</span></span>
-                          {rocket.rvol && <span>RVOL: <span className="font-medium">{rocket.rvol}x</span></span>}
-                          <span>Conf: <span className="font-medium text-yellow-400">{rocket.mlConfidence}%</span></span>
+                        <div className="font-bold text-sm">{rocket.symbol}</div>
+                        <div className="text-[10px] opacity-80">
+                          ${Number(rocket.price).toFixed(2)} • +{rocket.gap}% • Conf: {rocket.mlConfidence}%
+                          {rocket.mlPriority && <span className="text-yellow-400 ml-1">⚡</span>}
                         </div>
-                        {rocket.mlPriority && <div className="text-yellow-400 font-bold text-sm mt-1">⚡ PRIORITY ⚡</div>}
                       </div>
-                      <div className="flex flex-col items-end">
-                        <div className={`px-3 py-1 rounded font-bold text-xs ${action.color}`}>
-                          {action.label}
-                        </div>
-                        {isExpanded ? <ChevronUp className="w-5 h-5 mt-2" /> : <ChevronDown className="w-5 h-5 mt-2" />}
+                      <div className={`px-2 py-0.5 rounded text-[10px] font-bold ${action.color}`}>
+                        {action.label}
                       </div>
                     </div>
-
-                    {isExpanded && (
-                      <div className="px-4 pb-4 border-t border-gray-700">
-                        {chartData ? (
-                          <div className="h-48 mt-3">
-                            <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500 text-xs">Loading chart...</div>}>
-                              <Line 
-                                data={chartData} 
-                                options={{
-                                  responsive: true,
-                                  maintainAspectRatio: false,
-                                  plugins: { legend: { display: false } },
-                                  scales: { 
-                                    x: { display: false }, 
-                                    y: { grid: { color: '#1f2937' } } 
-                                  }
-                                }} 
-                              />
-                            </Suspense>
-                          </div>
-                        ) : (
-                          <div className="h-48 flex items-center justify-center text-gray-500 text-sm">
-                            Loading real-time chart...
-                          </div>
-                        )}
+                    {isExpanded && chartData && (
+                      <div className="mt-2 h-24 border-t border-gray-700 pt-2">
+                        <Line data={chartData} options={{
+                          responsive: true,
+                          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                          scales: { x: { display: false }, y: { display: false } }
+                        }} />
                       </div>
                     )}
                   </div>
@@ -490,15 +400,15 @@ export default function Dashboard() {
         </div>
 
         {/* Trade Log */}
-        <div className="bg-gray-900/50 border border-cyan-900/30 rounded-xl p-5">
-          <h2 className="text-lg font-semibold mb-3 text-cyan-300">Trade Log</h2>
-          <div className="text-xs space-y-1 max-h-80 overflow-y-auto font-mono bg-black/30 rounded p-3">
+        <div className="bg-gray-900/50 border border-cyan-900/30 rounded-lg p-3">
+          <h2 className="text-xs font-semibold text-cyan-300 mb-2">Recent Activity</h2>
+          <div className="max-h-32 overflow-y-auto text-[10px] font-mono space-y-1">
             {logs.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No activity</p>
+              <p className="text-gray-500 text-center py-4">No activity</p>
             ) : (
-              logs.map((log: any, i: number) => (
-                <div key={i} className="py-1 border-b border-gray-800 last:border-0">
-                  <span className="text-gray-500">{log.time}</span> <span className="text-gray-300">{log.message}</span>
+              logs.slice(0, 10).map((log: any, i: number) => (
+                <div key={i} className="opacity-80">
+                  <span className="text-gray-500">{log.time}</span> {log.message}
                 </div>
               ))
             )}
@@ -507,4 +417,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-      }
+}
