@@ -39,7 +39,7 @@ const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
 type Rocket = {
   symbol: string;
   gap: string;
-  price: string | number;
+  price: number | string;
   rvol?: string;
   mlAction: number;
   mlPriority: boolean;
@@ -60,58 +60,49 @@ export default function Dashboard() {
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
 
-  // Fetch core data — updated to match new backend response format
   const fetchData = async () => {
     try {
-      const res = await axios.get(CORE_URL, { timeout: 15000 });
+      const res = await axios.get(CORE_URL, { timeout: 20000 });
       const data = res.data || {};
 
-      const equity = Number(data.equity || 20000);
+      const equityValue = Number(data.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      setCore({
-        equity: equity,
-        buyingPower: Number(data.buyingPower || data.buying_power || 20000),
-        dailyDrawdownPct: data.dailyDrawdownPct || data.daily_drawdown_pct || "0.00",
-        lossLimitHit: data.lossLimitHit || false,
-        mlConnected: data.mlConnected ?? data.mlHealthy ?? false,
-        universeSize: data.universeSize || 0,
-        rockets: Array.isArray(data.rockets) ? data.rockets : [],
-        positions: Array.isArray(data.positions) ? data.positions : [],
-        tradeLog: Array.isArray(data.tradeLog) ? data.tradeLog.slice(-20) : []
+      setCore(data);
+
+      setEquityHistory(prev => {
+        const updated = [...prev, { time, equity: equityValue }];
+        return updated.slice(-30);
       });
 
-      setEquityHistory(prev => [...prev, { time, equity }].slice(-30));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
 
       if (Array.isArray(data.rockets)) {
+        const newSymbols = data.rockets.map((r: Rocket) => r.symbol);
+        if (newSymbols.length > 0) {
+          setFlashRockets(new Set(newSymbols));
+          setTimeout(() => setFlashRockets(new Set()), 3000);
+        }
         setLiveRockets(data.rockets);
       }
 
       setError(null);
     } catch (e: any) {
-      console.error("Fetch error:", e);
-      setError(e.response?.data?.message || "Cannot reach AlphaStream Core");
+      console.error("Dashboard fetch error:", e);
+      setError("Cannot reach AlphaStream Core — retrying...");
     } finally {
       setLoading(false);
     }
   };
 
-  // Force scan
   const forceScan = async () => {
     if (scanning) return;
     setScanning(true);
-    setMessage("Triggering scan...");
+    setMessage("Forcing scan...");
     try {
-      await axios.post(`${CORE_URL}/scan`, {}, { timeout: 20000 });
+      await axios.post(`${CORE_URL}/scan`, {}, { timeout: 30000 });
       setMessage("Scan triggered!");
-
-      // Flash new rockets
-      setTimeout(() => {
-        fetchData(); // refresh full data
-        setMessage("");
-      }, 1500);
-
+      setTimeout(() => fetchData(), 1000);
       setTimeout(() => setMessage(""), 3000);
     } catch (e) {
       setMessage("Scan failed");
@@ -121,18 +112,16 @@ export default function Dashboard() {
     }
   };
 
-  // Dark mode toggle
   useEffect(() => {
     if (typeof window !== 'undefined') {
       document.documentElement.classList.toggle('dark', darkMode);
     }
   }, [darkMode]);
 
-  // Auto-refresh
   useEffect(() => {
     fetchData();
-    const intervalId = setInterval(fetchData, 15000);
-    return () => clearInterval(intervalId);
+    const interval = setInterval(fetchData, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) return (
@@ -152,7 +141,14 @@ export default function Dashboard() {
     </div>
   );
 
-  const { equity = 20000, buyingPower = 20000, dailyDrawdownPct = "0.00", lossLimitHit = false, mlConnected = false, universeSize = 0 } = core;
+  const equity = Number(core.equity || 0);
+  const buyingPower = Number(core.buyingPower || 0);
+  const dailyDrawdown = Number(core.dailyDrawdown || 0);
+  const dailyDrawdownPct = ((dailyDrawdown / (equity + dailyDrawdown)) * 100).toFixed(2);
+  const lossLimitHit = Math.abs(dailyDrawdown) >= 2000;
+  const mlConnected = core.mlHealthy === true;
+  const universeSize = core.universeSize || 0;
+
   const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
   const logs = Array.isArray(core.tradeLog) ? core.tradeLog : [];
@@ -162,109 +158,133 @@ export default function Dashboard() {
     datasets: [{
       label: 'Equity',
       data: equityHistory.map(d => d.equity),
-      borderColor: '#06b6d4',
-      backgroundColor: 'rgba(6, 182, 212, 0.1)',
+      borderColor: dailyDrawdown < 0 ? '#ef4444' : '#06b6d4',
+      backgroundColor: dailyDrawdown < 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(6, 182, 212, 0.1)',
       fill: true,
       tension: 0.4,
-      pointRadius: 2
+      pointRadius: 3
     }]
   };
 
   const getActionDetails = (action: number = 2, priority: boolean = false, confidence: number = 50) => {
     const labels = ["STRONG BUY", "BUY", "HOLD", "NEUTRAL", "SELL"];
-    const colors = ["text-green-300 bg-green-900/30", "text-green-400 bg-green-900/20", "text-yellow-400 bg-yellow-900/20", "text-gray-400 bg-gray-800/30", "text-red-400 bg-red-900/30"];
+    const colors = [
+      "text-green-300 bg-green-900/40 border-green-600",
+      "text-green-400 bg-green-900/30 border-green-500",
+      "text-yellow-400 bg-yellow-900/20 border-yellow-600",
+      "text-gray-400 bg-gray-800/30 border-gray-600",
+      "text-red-400 bg-red-900/30 border-red-600"
+    ];
     return { label: labels[action] || "HOLD", color: colors[action] || "text-gray-400 bg-gray-800/30", confidence, isPriority: priority };
   };
 
   return (
     <div className={`min-h-screen transition-colors duration-500 ${darkMode ? 'bg-black text-gray-200' : 'bg-gray-50 text-gray-800'}`}>
-      {/* Header */}
-      <header className="border-b border-cyan-900/30 bg-black/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-cyan-900/30 bg-black/70 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Bot className="w-8 h-8 text-cyan-400" />
+            <Bot className="w-9 h-9 text-cyan-400" />
             <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
               AlphaStream Scalp Core
             </h1>
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-2 text-sm opacity-80">
               <Globe className="w-4 h-4" />
-              <span>{universeSize} symbols</span>
+              <span>{universeSize} symbols in universe</span>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className="p-2 rounded-lg hover:bg-gray-800 transition"
+              className="p-2.5 rounded-lg hover:bg-gray-800 transition"
             >
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
             <button
               onClick={forceScan}
               disabled={scanning}
-              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-lg font-medium flex items-center gap-2 transition"
+              className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-60 rounded-lg font-medium flex items-center gap-2 transition shadow-lg"
             >
-              {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              {scanning ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
               {scanning ? "Scanning..." : "Force Scan"}
             </button>
           </div>
         </div>
       </header>
 
-      {/* Status Bar */}
-      <div className="border-b border-cyan-900/30 bg-gradient-to-r from-black via-cyan-900/10 to-black py-3">
-        <div className="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-4 text-sm">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <Wallet className="w-5 h-5 text-cyan-400" />
-              <span>Equity: <span className="font-bold text-cyan-400">${Number(equity).toLocaleString(undefined, {minimumFractionDigits: 2})}</span></span>
+      {message && (
+        <div className="bg-cyan-900/70 border-y border-cyan-600 py-3 text-center text-cyan-200 font-semibold text-lg">
+          {message}
+        </div>
+      )}
+
+      <div className="border-b border-cyan-900/30 bg-gradient-to-r from-black via-cyan-950/20 to-black py-4">
+        <div className="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-6 text-sm">
+          <div className="flex flex-wrap items-center gap-8">
+            <div className="flex items-center gap-3">
+              <Wallet className="w-6 h-6 text-cyan-400" />
+              <div>
+                <div className="text-gray-400">Equity</div>
+                <div className="font-bold text-xl text-cyan-400">
+                  ${equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-green-400" />
-              <span>BP: <span className="font-bold text-green-400">${Number(buyingPower).toLocaleString(undefined, {minimumFractionDigits: 2})}</span></span>
+
+            <div className="flex items-center gap-3">
+              <DollarSign className="w-6 h-6 text-green-400" />
+              <div>
+                <div className="text-gray-400">Buying Power</div>
+                <div className="font-bold text-xl text-green-400">
+                  ${buyingPower.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
             </div>
-            <div className={`flex items-center gap-2 ${lossLimitHit ? 'text-red-400' : 'text-yellow-400'}`}>
-              <AlertTriangle className="w-5 h-5" />
-              <span>Daily DD: <span className={`font-bold ${lossLimitHit ? 'text-red-400' : ''}`}>{dailyDrawdownPct}%</span></span>
+
+            <div className={`flex items-center gap-3 ${lossLimitHit ? 'text-red-400' : 'text-orange-400'}`}>
+              <AlertTriangle className="w-6 h-6" />
+              <div>
+                <div className="text-gray-400">Daily Drawdown</div>
+                <div className={`font-bold text-xl ${lossLimitHit ? 'text-red-400' : 'text-orange-400'}`}>
+                  {dailyDrawdownPct}%
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <Zap className={`w-5 h-5 ${mlConnected ? 'text-green-400 animate-pulse' : 'text-gray-600'}`} />
-              <span>ML: <span className={`font-bold ${mlConnected ? 'text-green-400' : 'text-red-400'}`}>{mlConnected ? 'ONLINE' : 'OFFLINE'}</span></span>
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-3">
+              <Zap className={`w-6 h-6 ${mlConnected ? 'text-green-400 animate-pulse' : 'text-gray-600'}`} />
+              <div>
+                <div className="text-gray-400">ML Brain</div>
+                <div className={`font-bold text-lg ${mlConnected ? 'text-green-400' : 'text-red-400'}`}>
+                  {mlConnected ? 'ONLINE' : 'OFFLINE'}
+                </div>
+              </div>
             </div>
-            <div className="text-xs text-gray-500">
+            <div className="text-sm text-gray-500">
               Last update: {lastUpdate} ET
             </div>
           </div>
         </div>
       </div>
 
-      {/* Message Banner */}
-      {message && (
-        <div className="bg-cyan-900/50 border-y border-cyan-700 py-2 text-center text-cyan-300 font-medium">
-          {message}
-        </div>
-      )}
-
-      {/* Main Grid */}
       <div className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Equity Chart */}
-        <div className="lg:col-span-2 bg-gray-900/50 border border-cyan-900/30 rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-cyan-400" />
+        <div className="lg:col-span-2 bg-gray-900/60 border border-cyan-900/40 rounded-2xl p-6 shadow-2xl">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-3 text-cyan-300">
+            <TrendingUp className="w-6 h-6" />
             Equity Curve
           </h2>
-          <div className="h-64">
+          <div className="h-80">
             <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500">Loading chart...</div>}>
               <Line data={equityChartData} options={{
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: { legend: { display: false }, tooltip: { mode: 'index' } },
                 scales: {
-                  x: { grid: { color: '#1f2937' } },
-                  y: { grid: { color: '#1f2937' } }
+                  x: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af' } },
+                  y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af' } }
                 }
               }} />
             </Suspense>
@@ -272,22 +292,26 @@ export default function Dashboard() {
         </div>
 
         {/* Positions */}
-        <div className="bg-gray-900/50 border border-cyan-900/30 rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Positions ({positions.length}/6)</h2>
+        <div className="bg-gray-900/60 border border-cyan-900/40 rounded-2xl p-6 shadow-2xl">
+          <h2 className="text-xl font-bold mb-4 text-cyan-300">
+            Positions ({positions.length}/6)
+          </h2>
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {positions.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No open positions</p>
+              <p className="text-gray-500 text-center py-12 text-lg">No open positions</p>
             ) : (
               positions.map((pos: any, i: number) => (
-                <div key={i} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                <div key={i} className="bg-gray-800/70 rounded-xl p-4 border border-gray-700">
                   <div className="flex justify-between items-start">
                     <div>
-                      <div className="font-bold text-lg">{pos.symbol}</div>
-                      <div className="text-sm text-gray-400">{pos.qty} shares @ ${Number(pos.avg_entry_price || pos.price).toFixed(2)}</div>
+                      <div className="font-bold text-2xl text-white">{pos.symbol}</div>
+                      <div className="text-sm text-gray-400 mt-1">
+                        {pos.qty} shares @ ${Number(pos.avg_entry_price).toFixed(2)}
+                      </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-green-400 font-medium">
-                        ${(pos.qty * (pos.current_price || pos.avg_entry_price)).toFixed(0)}
+                      <div className="text-green-400 font-bold text-xl">
+                        ${(pos.qty * pos.avg_entry_price).toFixed(0)}
                       </div>
                     </div>
                   </div>
@@ -298,14 +322,14 @@ export default function Dashboard() {
         </div>
 
         {/* Rockets */}
-        <div className="lg:col-span-2 bg-gray-900/50 border border-cyan-900/30 rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center justify-between">
+        <div className="lg:col-span-2 bg-gray-900/60 border border-cyan-900/40 rounded-2xl p-6 shadow-2xl">
+          <h2 className="text-xl font-bold mb-4 flex items-center justify-between text-cyan-300">
             <span>Hot Rockets ({rockets.length})</span>
-            {rockets.length > 0 && <Zap className="w-5 h-5 text-yellow-400 animate-pulse" />}
+            {rockets.length > 0 && <Zap className="w-7 h-7 text-yellow-400 animate-pulse" />}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
             {rockets.length === 0 ? (
-              <p className="col-span-2 text-gray-500 text-center py-12">No rockets detected</p>
+              <p className="col-span-2 text-gray-500 text-center py-16 text-lg">No rockets detected — waiting for spike</p>
             ) : (
               rockets.map((rocket: Rocket, i: number) => {
                 const action = getActionDetails(rocket.mlAction, rocket.mlPriority, rocket.mlConfidence);
@@ -313,21 +337,43 @@ export default function Dashboard() {
                 return (
                   <div
                     key={i}
-                    className={`p-4 rounded-lg border transition-all ${isFlashing ? 'border-yellow-400 bg-yellow-900/20 scale-105' : 'border-gray-700'} bg-gray-800/50`}
+                    className={`p-5 rounded-xl border-2 transition-all duration-300 ${
+                      isFlashing 
+                        ? 'border-yellow-400 bg-yellow-900/30 scale-105 shadow-2xl shadow-yellow-500/50' 
+                        : 'border-cyan-800/50 bg-gray-800/70'
+                    }`}
                   >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="font-bold text-xl">{rocket.symbol}</div>
-                      <div className={`px-3 py-1 rounded text-xs font-bold ${action.color}`}>
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="font-bold text-2xl text-white">{rocket.symbol}</div>
+                      <div className={`px-4 py-2 rounded-lg text-sm font-bold border ${action.color}`}>
                         {action.label}
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>Price: <span className="font-medium">${Number(rocket.price).toFixed(2)}</span></div>
-                      <div>Gap: <span className="font-medium text-green-400">+{rocket.gap}%</span></div>
-                      {rocket.rvol && <div>RVOL: <span className="font-medium">{rocket.rvol}</span></div>}
-                      <div>ML Conf: <span className="font-medium">{rocket.mlConfidence}%</span></div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-gray-400">Price:</span>
+                        <span className="font-bold text-white ml-2">${Number(rocket.price).toFixed(2)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Gap:</span>
+                        <span className="font-bold text-green-400 ml-2">+{rocket.gap}%</span>
+                      </div>
+                      {rocket.rvol && (
+                        <div>
+                          <span className="text-gray-400">RVOL:</span>
+                          <span className="font-bold text-cyan-300 ml-2">{rocket.rvol}x</span>
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-gray-400">ML Conf:</span>
+                        <span className="font-bold text-yellow-400 ml-2">{rocket.mlConfidence}%</span>
+                      </div>
                     </div>
-                    {rocket.mlPriority && <div className="mt-2 text-yellow-400 text-xs font-bold">⚡ PRIORITY SPIKE</div>}
+                    {rocket.mlPriority && (
+                      <div className="mt-4 text-yellow-400 text-center font-bold text-lg animate-pulse">
+                        ⚡ ULTRA PRIORITY SPIKE ⚡
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -336,15 +382,16 @@ export default function Dashboard() {
         </div>
 
         {/* Trade Log */}
-        <div className="bg-gray-900/50 border border-cyan-900/30 rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Trade Log</h2>
-          <div className="space-y-2 text-xs max-h-96 overflow-y-auto font-mono">
+        <div className="bg-gray-900/60 border border-cyan-900/40 rounded-2xl p-6 shadow-2xl">
+          <h2 className="text-xl font-bold mb-4 text-cyan-300">Trade Log</h2>
+          <div className="space-y-2 text-sm max-h-96 overflow-y-auto font-mono bg-black/40 rounded-lg p-4">
             {logs.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No activity yet</p>
+              <p className="text-gray-500 text-center py-12">No activity yet</p>
             ) : (
               logs.map((log: any, i: number) => (
-                <div key={i} className="py-1 border-b border-gray-800">
-                  <span className="text-gray-500">{log.time}</span> {log.message}
+                <div key={i} className="py-2 border-b border-gray-800 last:border-0">
+                  <span className="text-gray-500 text-xs">{log.time}</span>
+                  <span className="ml-3 text-gray-300">{log.message}</span>
                 </div>
               ))
             )}
