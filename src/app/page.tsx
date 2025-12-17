@@ -57,7 +57,6 @@ export default function Dashboard() {
   const [darkMode, setDarkMode] = useState(true);
   const [liveRockets, setLiveRockets] = useState<Rocket[]>([]);
   const [flashRockets, setFlashRockets] = useState<Set<string>>(new Set());
-  const [afterHoursQueue, setAfterHoursQueue] = useState<Rocket[]>([]);
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
 
@@ -85,10 +84,6 @@ export default function Dashboard() {
           setTimeout(() => setFlashRockets(new Set()), 3000);
         }
         setLiveRockets(data.rockets);
-      }
-
-      if (Array.isArray(data.afterHoursQueue)) {
-        setAfterHoursQueue(data.afterHoursQueue);
       }
 
       setError(null);
@@ -223,41 +218,186 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Equity, Positions, Rockets, Trade Log sections remain unchanged from your original code */}
-
-      {/* AFTER HOURS QUEUE */}
-      {afterHoursQueue.length > 0 && (
-        <div className="max-w-7xl mx-auto px-4 py-6 bg-gray-800/60 border border-yellow-600 rounded-2xl shadow-lg mb-6">
-          <h2 className="text-xl font-bold mb-4 text-yellow-400 flex items-center gap-2">
-            <Zap className="w-6 h-6" />
-            After-Hours Queue ({afterHoursQueue.length})
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {afterHoursQueue.map((rocket: Rocket, i: number) => {
-              const action = getActionDetails(rocket.mlAction, rocket.mlPriority, rocket.mlConfidence);
-              return (
-                <div
-                  key={i}
-                  className="p-4 rounded-xl border border-yellow-500 bg-yellow-900/30"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="font-bold text-xl text-white">{rocket.symbol}</div>
-                    <div className={`px-2 py-1 rounded text-sm font-bold border ${action.color}`}>
-                      {action.label}
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-200">
-                    Price: ${Number(rocket.price).toFixed(2)} | Gap: +{rocket.gap}% | ML Conf: {rocket.mlConfidence}%
-                  </div>
-                  {rocket.mlPriority && (
-                    <div className="mt-2 text-yellow-300 font-bold animate-pulse text-center">⚡ PRIORITY ⚡</div>
-                  )}
+      <div className="border-b border-cyan-900/30 bg-gradient-to-r from-black via-cyan-950/20 to-black py-4">
+        <div className="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-6 text-sm">
+          <div className="flex flex-wrap items-center gap-8">
+            <div className="flex items-center gap-3">
+              <Wallet className="w-6 h-6 text-cyan-400" />
+              <div>
+                <div className="text-gray-400">Equity</div>
+                <div className="font-bold text-xl text-cyan-400">
+                  ${equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-              );
-            })}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <DollarSign className="w-6 h-6 text-green-400" />
+              <div>
+                <div className="text-gray-400">Buying Power</div>
+                <div className="font-bold text-xl text-green-400">
+                  ${buyingPower.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+            </div>
+
+            <div className={`flex items-center gap-3 ${lossLimitHit ? 'text-red-400' : 'text-orange-400'}`}>
+              <AlertTriangle className="w-6 h-6" />
+              <div>
+                <div className="text-gray-400">Daily Drawdown</div>
+                <div className={`font-bold text-xl ${lossLimitHit ? 'text-red-400' : 'text-orange-400'}`}>
+                  {dailyDrawdownPct}%
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-3">
+              <Zap className={`w-6 h-6 ${mlConnected ? 'text-green-400 animate-pulse' : 'text-gray-600'}`} />
+              <div>
+                <div className="text-gray-400">ML Brain</div>
+                <div className={`font-bold text-lg ${mlConnected ? 'text-green-400' : 'text-red-400'}`}>
+                  {mlConnected ? 'ONLINE' : 'OFFLINE'}
+                </div>
+              </div>
+            </div>
+            <div className="text-sm text-gray-500">
+              Last update: {lastUpdate} ET
+            </div>
           </div>
         </div>
-      )}
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Equity Chart */}
+        <div className="lg:col-span-2 bg-gray-900/60 border border-cyan-900/40 rounded-2xl p-6 shadow-2xl">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-3 text-cyan-300">
+            <TrendingUp className="w-6 h-6" />
+            Equity Curve
+          </h2>
+          <div className="h-80">
+            <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500">Loading chart...</div>}>
+              <Line data={equityChartData} options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { mode: 'index' } },
+                scales: {
+                  x: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af' } },
+                  y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af' } }
+                }
+              }} />
+            </Suspense>
+          </div>
+        </div>
+
+        {/* Positions */}
+        <div className="bg-gray-900/60 border border-cyan-900/40 rounded-2xl p-6 shadow-2xl">
+          <h2 className="text-xl font-bold mb-4 text-cyan-300">
+            Positions ({positions.length}/6)
+          </h2>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {positions.length === 0 ? (
+              <p className="text-gray-500 text-center py-12 text-lg">No open positions</p>
+            ) : (
+              positions.map((pos: any, i: number) => (
+                <div key={i} className="bg-gray-800/70 rounded-xl p-4 border border-gray-700">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-bold text-2xl text-white">{pos.symbol}</div>
+                      <div className="text-sm text-gray-400 mt-1">
+                        {pos.qty} shares @ ${Number(pos.avg_entry_price).toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-green-400 font-bold text-xl">
+                        ${(pos.qty * pos.avg_entry_price).toFixed(0)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Rockets */}
+        <div className="lg:col-span-2 bg-gray-900/60 border border-cyan-900/40 rounded-2xl p-6 shadow-2xl">
+          <h2 className="text-xl font-bold mb-4 flex items-center justify-between text-cyan-300">
+            <span>Hot Rockets ({rockets.length})</span>
+            {rockets.length > 0 && <Zap className="w-7 h-7 text-yellow-400 animate-pulse" />}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+            {rockets.length === 0 ? (
+              <p className="col-span-2 text-gray-500 text-center py-16 text-lg">No rockets detected — waiting for spike</p>
+            ) : (
+              rockets.map((rocket: Rocket, i: number) => {
+                const action = getActionDetails(rocket.mlAction, rocket.mlPriority, rocket.mlConfidence);
+                const isFlashing = flashRockets.has(rocket.symbol);
+                return (
+                  <div
+                    key={i}
+                    className={`p-5 rounded-xl border-2 transition-all duration-300 ${
+                      isFlashing 
+                        ? 'border-yellow-400 bg-yellow-900/30 scale-105 shadow-2xl shadow-yellow-500/50' 
+                        : 'border-cyan-800/50 bg-gray-800/70'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="font-bold text-2xl text-white">{rocket.symbol}</div>
+                      <div className={`px-4 py-2 rounded-lg text-sm font-bold border ${action.color}`}>
+                        {action.label}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-gray-400">Price:</span>
+                        <span className="font-bold text-white ml-2">${Number(rocket.price).toFixed(2)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Gap:</span>
+                        <span className="font-bold text-green-400 ml-2">+{rocket.gap}%</span>
+                      </div>
+                      {rocket.rvol && (
+                        <div>
+                          <span className="text-gray-400">RVOL:</span>
+                          <span className="font-bold text-cyan-300 ml-2">{rocket.rvol}x</span>
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-gray-400">ML Conf:</span>
+                        <span className="font-bold text-yellow-400 ml-2">{rocket.mlConfidence}%</span>
+                      </div>
+                    </div>
+                    {rocket.mlPriority && (
+                      <div className="mt-4 text-yellow-400 text-center font-bold text-lg animate-pulse">
+                        ⚡ ULTRA PRIORITY SPIKE ⚡
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Trade Log */}
+        <div className="bg-gray-900/60 border border-cyan-900/40 rounded-2xl p-6 shadow-2xl">
+          <h2 className="text-xl font-bold mb-4 text-cyan-300">Trade Log</h2>
+          <div className="space-y-2 text-sm max-h-96 overflow-y-auto font-mono bg-black/40 rounded-lg p-4">
+            {logs.length === 0 ? (
+              <p className="text-gray-500 text-center py-12">No activity yet</p>
+            ) : (
+              logs.map((log: any, i: number) => (
+                <div key={i} className="py-2 border-b border-gray-800 last:border-0">
+                  <span className="text-gray-500 text-xs">{log.time}</span>
+                  <span className="ml-3 text-gray-300">{log.message}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
