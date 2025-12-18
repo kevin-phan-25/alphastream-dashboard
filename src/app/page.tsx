@@ -20,7 +20,8 @@ import {
   Clock,
   Package,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Plus
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -82,6 +83,13 @@ export default function Dashboard() {
   const [expandedRocket, setExpandedRocket] = useState<string | null>(null);
   const [rocketCharts, setRocketCharts] = useState<Record<string, ChartData>>({});
 
+  // Manual Ticker Add States
+  const [showAddTicker, setShowAddTicker] = useState(false);
+  const [tickerInput, setTickerInput] = useState('');
+  const [addSecret, setAddSecret] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [addResult, setAddResult] = useState('');
+
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || 'https://alphastream-core-1017433009054.us-east1.run.app';
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
 
@@ -119,7 +127,7 @@ export default function Dashboard() {
   };
 
   // ─────────────────────────────────────────
-  // SCAN BUTTON — FIXED
+  // SCAN BUTTON
   // ─────────────────────────────────────────
 
   const forceScan = async () => {
@@ -128,11 +136,9 @@ export default function Dashboard() {
     setMessage('Triggering scan…');
 
     try {
-      // POST first (new core)
       await axios.post(`${CORE_URL}/scan`, {}, { timeout: 20000 });
     } catch {
       try {
-        // fallback GET (older core)
         await axios.get(`${CORE_URL}/scan`, { timeout: 20000 });
       } catch {
         setMessage('Scan endpoint not responding');
@@ -148,6 +154,32 @@ export default function Dashboard() {
   };
 
   // ─────────────────────────────────────────
+  // MANUAL TICKER ADD
+  // ─────────────────────────────────────────
+
+  const handleAddTicker = async () => {
+    if (!tickerInput.trim() || !addSecret.trim()) return;
+    setAdding(true);
+    setAddResult('');
+
+    try {
+      const res = await axios.post(`${CORE_URL}/admin/add-ticker`, {
+        secret: addSecret,
+        symbols: tickerInput.trim().toUpperCase()
+      }, { timeout: 10000 });
+
+      setAddResult(`Success: ${res.data.message}`);
+      setTickerInput('');
+      setTimeout(fetchData, 1000); // Refresh data
+    } catch (err: any) {
+      setAddResult(`Error: ${err.response?.data?.error || err.message || 'Failed'}`);
+    } finally {
+      setAdding(false);
+      setTimeout(() => setAddResult(''), 5000);
+    }
+  };
+
+  // ─────────────────────────────────────────
   // ROCKET CHART
   // ─────────────────────────────────────────
 
@@ -156,7 +188,7 @@ export default function Dashboard() {
 
     try {
       const end = Math.floor(Date.now() / 1000);
-      const start = end - 6 * 60 * 60; // 6h — mobile friendly
+      const start = end - 6 * 60 * 60;
 
       const res = await axios.get(
         `https://finnhub.io/api/v1/stock/candle?symbol=${symbol}&resolution=1&from=${start}&to=${end}&token=${FINNHUB_KEY}`
@@ -251,6 +283,9 @@ export default function Dashboard() {
             <span className="font-bold">AlphaStream</span>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={() => setShowAddTicker(!showAddTicker)} className="p-1">
+              <Plus className="w-5 h-5 text-cyan-400" />
+            </button>
             <button onClick={() => setDarkMode(!darkMode)} className="p-1">
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -262,40 +297,80 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* CONTENT — SINGLE SCREEN */}
-      <main className="h-[calc(100vh-52px)] overflow-y-auto px-3 pb-24">
-
-        {/* STATUS */}
-        <div className="grid grid-cols-2 gap-3 my-3 text-xs">
-          <div className={`p-3 rounded border ${mlConnected ? 'border-green-600' : 'border-red-600'}`}>
-            ML: <b>{mlConnected ? 'ONLINE' : 'OFFLINE'}</b>
-          </div>
-          <div className="p-3 rounded border border-cyan-700">
-            Equity: <b>${equity.toFixed(0)}</b>
+      {/* ADD TICKER FORM */}
+      {showAddTicker && (
+        <div className="mx-3 mt-3 p-4 bg-gray-900 rounded border border-cyan-800">
+          <h3 className="text-sm font-bold mb-2">Add Tickers Manually</h3>
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              value={tickerInput}
+              onChange={(e) => setTickerInput(e.target.value)}
+              placeholder="e.g. GME AMC NVDA (space separated)"
+              className="px-3 py-2 bg-black border border-gray-700 rounded text-sm"
+            />
+            <input
+              type="password"
+              value={addSecret}
+              onChange={(e) => setAddSecret(e.target.value)}
+              placeholder="Dashboard secret"
+              className="px-3 py-2 bg-black border border-gray-700 rounded text-sm"
+            />
+            <button
+              onClick={handleAddTicker}
+              disabled={adding || !tickerInput || !addSecret}
+              className="px-4 py-2 bg-cyan-600 rounded text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Add Ticker(s)
+            </button>
+            {addResult && <p className={`text-xs ${addResult.includes('Error') ? 'text-red-400' : 'text-green-400'}`}>{addResult}</p>}
           </div>
         </div>
+      )}
 
-        {/* ROCKETS */}
-        <div className="space-y-3">
-          {rockets.map((r: Rocket) => (
-            <div key={r.symbol} className="border border-gray-700 rounded">
-              <div onClick={() => toggleRocketChart(r.symbol)} className="p-3 flex justify-between">
+      {/* STATUS */}
+      <div className="grid grid-cols-2 gap-3 my-3 px-3 text-xs">
+        <div className={`p-3 rounded border ${mlConnected ? 'border-green-600' : 'border-red-600'}`}>
+          ML: <b>{mlConnected ? 'ONLINE' : 'OFFLINE'}</b>
+        </div>
+        <div className="p-3 rounded border border-cyan-700">
+          Equity: <b>${equity.toFixed(0)}</b>
+        </div>
+      </div>
+
+      {/* ROCKETS */}
+      <div className="space-y-3 px-3">
+        {rockets.length === 0 ? (
+          <p className="text-center text-gray-500 text-sm py-8">No rockets detected</p>
+        ) : (
+          rockets.map((r: Rocket) => (
+            <div key={r.symbol} className="border border-gray-700 rounded overflow-hidden">
+              <div onClick={() => toggleRocketChart(r.symbol)} className="p-3 flex justify-between cursor-pointer hover:bg-gray-900">
                 <div>
-                  <b>{r.symbol}</b>
-                  <div className="text-xs">+{r.gap}% • RVOL {r.rvol || '–'} • {r.mlConfidence}%</div>
+                  <b className="text-cyan-400">{r.symbol}</b>
+                  <div className="text-xs opacity-80">
+                    +{Number(r.gap).toFixed(1)}% • RVOL {r.rvol ? Number(r.rvol).toFixed(2) : '–'} • Conf: {r.mlConfidence}%
+                  </div>
                 </div>
-                {expandedRocket === r.symbol ? <ChevronUp /> : <ChevronDown />}
+                {expandedRocket === r.symbol ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
               </div>
               {expandedRocket === r.symbol && rocketCharts[r.symbol] && (
-                <div className="h-40 px-2 pb-2">
-                  <Line data={rocketCharts[r.symbol]} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }} />
+                <div className="h-40 bg-black px-2 pb-2">
+                  <Line data={rocketCharts[r.symbol]} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: true } }, scales: { x: { display: false }, y: { display: false } } }} />
                 </div>
               )}
             </div>
-          ))}
-        </div>
+          ))
+        )}
+      </div>
 
-      </main>
+      {/* MESSAGE */}
+      {message && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-cyan-900 rounded text-sm">
+          {message}
+        </div>
+      )}
     </div>
   );
 }
