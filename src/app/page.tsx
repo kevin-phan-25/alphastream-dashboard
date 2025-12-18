@@ -83,9 +83,7 @@ export default function Dashboard() {
   const [expandedRocket, setExpandedRocket] = useState<string | null>(null);
   const [rocketCharts, setRocketCharts] = useState<Record<string, ChartData>>({});
 
-  // ─────────────────────────────────────────
-  // ADD TICKER FEATURE STATES
-  // ─────────────────────────────────────────
+  // Add Ticker States
   const [showAddForm, setShowAddForm] = useState(false);
   const [tickerInput, setTickerInput] = useState('');
   const [secretInput, setSecretInput] = useState('');
@@ -129,7 +127,7 @@ export default function Dashboard() {
   };
 
   // ─────────────────────────────────────────
-  // SCAN BUTTON — FIXED
+  // SCAN BUTTON
   // ─────────────────────────────────────────
 
   const forceScan = async () => {
@@ -138,11 +136,9 @@ export default function Dashboard() {
     setMessage('Triggering scan…');
 
     try {
-      // POST first (new core)
       await axios.post(`${CORE_URL}/scan`, {}, { timeout: 20000 });
     } catch {
       try {
-        // fallback GET (older core)
         await axios.get(`${CORE_URL}/scan`, { timeout: 20000 });
       } catch {
         setMessage('Scan endpoint not responding');
@@ -158,7 +154,7 @@ export default function Dashboard() {
   };
 
   // ─────────────────────────────────────────
-  // ADD TICKER HANDLER
+  // ADD TICKERS
   // ─────────────────────────────────────────
 
   const handleAddTickers = async () => {
@@ -180,16 +176,15 @@ export default function Dashboard() {
         { timeout: 10000 }
       );
 
-      setAddMessage(`✓ ${response.data.message}`);
+      setAddMessage(`Success: ${response.data.message}`);
       setTickerInput('');
       setSecretInput('');
-      fetchData(); // Refresh to show updated universe/rockets
+      fetchData();
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || 'Failed';
-      setAddMessage(`✗ Error: ${msg}`);
+      setAddMessage(`Error: ${err.response?.data?.error || err.message || 'Failed'}`);
     } finally {
       setAddingTickers(false);
-      setTimeout(() => setAddMessage(''), 7000);
+      setTimeout(() => setAddMessage(''), 6000);
     }
   };
 
@@ -202,7 +197,7 @@ export default function Dashboard() {
 
     try {
       const end = Math.floor(Date.now() / 1000);
-      const start = end - 6 * 60 * 60; // 6h — mobile friendly
+      const start = end - 6 * 60 * 60;
 
       const res = await axios.get(
         `https://finnhub.io/api/v1/stock/candle?symbol=${symbol}&resolution=1&from=${start}&to=${end}&token=${FINNHUB_KEY}`
@@ -251,17 +246,8 @@ export default function Dashboard() {
   // ─────────────────────────────────────────
 
   const equity = Number(core.equity || 0);
-  const buyingPower = Number(core.buyingPower || 0);
-  const dailyDrawdown = Number(core.dailyDrawdown || 0);
-  const dailyDrawdownPct = dailyDrawdown !== 0
-    ? ((Math.abs(dailyDrawdown) / (equity - dailyDrawdown)) * 100).toFixed(1)
-    : '0.0';
-
   const mlConnected = core.mlHealthy === true;
-  const afterHoursQueue = Array.isArray(core.afterHoursQueue) ? core.afterHoursQueue : [];
-  const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = liveRockets.length ? liveRockets : Array.isArray(core.rockets) ? core.rockets : [];
-  const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse() : [];
 
   // ─────────────────────────────────────────
   // RENDER
@@ -298,9 +284,8 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowAddForm(prev => !prev)}
+              onClick={() => setShowAddForm(!showAddForm)}
               className="p-2 rounded hover:bg-gray-800 transition"
-              title="Add Tickers Manually"
             >
               <Plus className="w-5 h-5 text-cyan-400" />
             </button>
@@ -318,32 +303,32 @@ export default function Dashboard() {
       {/* ADD TICKER FORM */}
       {showAddForm && (
         <div className="mx-3 mt-3 p-4 bg-gray-900 rounded-lg border border-cyan-800">
-          <h3 className="text-sm font-bold mb-3 text-cyan-400">Add Tickers to Universe</h3>
+          <h3 className="text-sm font-bold mb-3 text-cyan-400">Add Tickers Manually</h3>
           <div className="space-y-3">
             <input
               type="text"
               value={tickerInput}
               onChange={(e) => setTickerInput(e.target.value)}
-              placeholder="e.g. GME AMC NVDA (space separated)"
-              className="w-full px-3 py-2 bg-black border border-gray-700 rounded text-sm focus:outline-none focus:border-cyan-500"
+              placeholder="GME AMC NVDA (space separated)"
+              className="w-full px-3 py-2 bg-black border border-gray-700 rounded text-sm"
             />
             <input
               type="password"
               value={secretInput}
               onChange={(e) => setSecretInput(e.target.value)}
-              placeholder="Dashboard secret (set in Cloud Run)"
-              className="w-full px-3 py-2 bg-black border border-gray-700 rounded text-sm focus:outline-none focus:border-cyan-500"
+              placeholder="Secret (from DASHBOARD_SECRET)"
+              className="w-full px-3 py-2 bg-black border border-gray-700 rounded text-sm"
             />
             <button
               onClick={handleAddTickers}
-              disabled={addingTickers || !tickerInput.trim() || !secretInput.trim()}
-              className="w-full py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 rounded text-sm font-medium flex items-center justify-center gap-2 transition"
+              disabled={addingTickers}
+              className="w-full py-2 bg-cyan-600 rounded flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {addingTickers ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               Add Ticker(s)
             </button>
             {addMessage && (
-              <p className={`text-xs text-center font-medium ${addMessage.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>
+              <p className={`text-xs text-center ${addMessage.includes('Error') ? 'text-red-400' : 'text-green-400'}`}>
                 {addMessage}
               </p>
             )}
@@ -351,44 +336,56 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* CONTENT — SINGLE SCREEN */}
-      <main className="h-[calc(100vh-52px)] overflow-y-auto px-3 pb-24">
-
-        {/* STATUS */}
-        <div className="grid grid-cols-2 gap-3 my-3 text-xs">
-          <div className={`p-3 rounded border ${mlConnected ? 'border-green-600' : 'border-red-600'}`}>
-            ML: <b>{mlConnected ? 'ONLINE' : 'OFFLINE'}</b>
-          </div>
-          <div className="p-3 rounded border border-cyan-700">
-            Equity: <b>${equity.toFixed(0)}</b>
-          </div>
+      {/* STATUS */}
+      <div className="grid grid-cols-2 gap-3 my-3 text-xs px-3">
+        <div className={`p-3 rounded border ${mlConnected ? 'border-green-600' : 'border-red-600'}`}>
+          ML: <b>{mlConnected ? 'ONLINE' : 'OFFLINE'}</b>
         </div>
+        <div className="p-3 rounded border border-cyan-700">
+          Equity: <b>${equity.toFixed(0)}</b>
+        </div>
+      </div>
 
-        {/* ROCKETS */}
-        <div className="space-y-3">
-          {rockets.map((r: Rocket) => (
+      {/* ROCKETS */}
+      <div className="space-y-3 px-3 pb-24">
+        {rockets.length === 0 ? (
+          <div className="text-center py-20 text-gray-500">
+            <Zap className="w-12 h-12 mx-auto mb-4 opacity-30" />
+            <p>No rockets detected yet</p>
+            <p className="text-xs mt-2">Try scanning or wait for market open</p>
+          </div>
+        ) : (
+          rockets.map((r: Rocket) => (
             <div key={r.symbol} className="border border-gray-700 rounded">
-              <div onClick={() => toggleRocketChart(r.symbol)} className="p-3 flex justify-between">
+              <div onClick={() => toggleRocketChart(r.symbol)} className="p-3 flex justify-between cursor-pointer hover:bg-gray-900 transition">
                 <div>
-                  <b>{r.symbol}</b>
-                  <div className="text-xs">+{r.gap}% • RVOL {r.rvol || '–'} • {r.mlConfidence}%</div>
+                  <b className="text-lg">{r.symbol}</b>
+                  <div className="text-xs opacity-80">
+                    +{r.gap}% • RVOL {r.rvol || '–'} • Conf: {r.mlConfidence}%
+                  </div>
                 </div>
-                {expandedRocket === r.symbol ? <ChevronUp /> : <ChevronDown />}
+                {expandedRocket === r.symbol ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
               </div>
               {expandedRocket === r.symbol && rocketCharts[r.symbol] && (
                 <div className="h-40 px-2 pb-2">
-                  <Line data={rocketCharts[r.symbol]} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }} />
+                  <Line
+                    data={rocketCharts[r.symbol]}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: { legend: { display: false } }
+                    }}
+                  />
                 </div>
               )}
             </div>
-          ))}
-        </div>
-
-      </main>
+          ))
+        )}
+      </div>
 
       {/* BOTTOM MESSAGE */}
       {message && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-cyan-900/90 backdrop-blur rounded-full text-sm">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-cyan-900/90 rounded-full text-sm backdrop-blur">
           {message}
         </div>
       )}
