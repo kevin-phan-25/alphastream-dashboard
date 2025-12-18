@@ -20,10 +20,7 @@ import {
   Package,
   ChevronDown,
   ChevronUp,
-  Plus,
-  Search,
-  ChevronLeft,
-  ChevronRight
+  Plus
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -245,7 +242,7 @@ export default function Dashboard() {
   const dailyDrawdownPct = dailyDrawdown !== 0
     ? ((Math.abs(dailyDrawdown) / (equity - dailyDrawdown)) * 100).toFixed(1)
     : "0.0";
-  const lossLimitHit = Math.abs(dailyDrawdown) >= 1500; // Match new survival limit
+  const lossLimitHit = Math.abs(dailyDrawdown) >= 1500;
   const mlConnected = core.mlHealthy === true;
   const universeSize = core.universeSize || 0;
   const afterHoursQueue = Array.isArray(core.afterHoursQueue) ? core.afterHoursQueue : [];
@@ -253,22 +250,22 @@ export default function Dashboard() {
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
   const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse() : [];
 
-  // Universe symbols from core (fallback if not sent)
-  const rawUniverse = Array.isArray(core.universeSymbols) 
+  // Extract universe symbols
+  const rawUniverse: string[] = Array.isArray(core.universeSymbols) 
     ? core.universeSymbols 
     : universeSize > 0 
       ? ['Universe loading...'] 
       : [];
 
-  // Filtered & sorted universe
-  const filteredUniverse = rawUniverse.filter(sym => 
+  // Fixed: Explicit types to satisfy TypeScript
+  const filteredUniverse = rawUniverse.filter((sym: string) => 
     sym.toLowerCase().includes(universeSearch.toLowerCase())
   );
 
-  const sortedUniverse = [...filteredUniverse].sort((a, b) => {
+  const sortedUniverse = [...filteredUniverse].sort((a: string, b: string) => {
     if (universeSort === 'az') return a.localeCompare(b);
     if (universeSort === 'za') return b.localeCompare(a);
-    return 0; // newest not tracked yet
+    return 0;
   });
 
   const equityChartData = {
@@ -567,4 +564,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-      }
+}
