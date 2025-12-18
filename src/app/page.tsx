@@ -21,7 +21,9 @@ import {
   ChevronDown,
   ChevronUp,
   Plus,
-  Search  // ← FIXED: Added missing import
+  Search,
+  ChevronLeft,    // ← FIXED: Added missing import
+  ChevronRight    // ← FIXED: Added missing import
 } from 'lucide-react';
 import {
   Chart as ChartJS,
