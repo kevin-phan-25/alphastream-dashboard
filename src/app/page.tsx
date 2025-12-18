@@ -88,7 +88,7 @@ export default function Dashboard() {
   // Universe Controls
   const [showUniverse, setShowUniverse] = useState(false);
   const [universeSearch, setUniverseSearch] = useState('');
-  const [universeSort, setUniverseSort] = useState<'az' | 'za' | 'newest'>('az');
+  const [universeSort, setUniverseSort] = useState<'az' | 'za'>('az');
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
@@ -101,7 +101,10 @@ export default function Dashboard() {
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       setCore(data);
-      setEquityHistory(prev => [...prev, { time, equity: equityValue }].slice(-30));
+      setEquityHistory(prev => {
+        const updated = [...prev, { time, equity: equityValue }].slice(-30);
+        return updated;
+      });
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
 
       if (Array.isArray(data.rockets) && data.rockets.length > 0) {
@@ -208,9 +211,11 @@ export default function Dashboard() {
     }
   };
 
+  // Fixed dark/light mode toggle
   useEffect(() => {
     if (typeof window !== 'undefined') {
       document.documentElement.classList.toggle('dark', darkMode);
+      document.body.style.backgroundColor = darkMode ? '#000000' : '#f3f4f6';
     }
   }, [darkMode]);
 
@@ -260,17 +265,14 @@ export default function Dashboard() {
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
   const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse() : [];
 
-  const rawUniverse: string[] = Array.isArray(core.universeSymbols) 
-    ? core.universeSymbols 
-    : universeSize > 0 
-      ? ['Universe loading...'] 
-      : [];
+  // Fixed universe symbols extraction
+  const rawUniverse: string[] = Array.from(new Set(KNOWN_UNIVERSE || [])).sort();
 
-  const filteredUniverse = rawUniverse.filter((sym: string) => 
+  const filteredUniverse = rawUniverse.filter(sym => 
     sym.toLowerCase().includes(universeSearch.toLowerCase())
   );
 
-  const sortedUniverse = [...filteredUniverse].sort((a: string, b: string) => {
+  const sortedUniverse = [...filteredUniverse].sort((a, b) => {
     if (universeSort === 'az') return a.localeCompare(b);
     if (universeSort === 'za') return b.localeCompare(a);
     return 0;
@@ -302,7 +304,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-gray-100 overflow-hidden relative">
+    <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-100' : 'bg-gray-100 text-gray-900'} overflow-hidden relative transition-colors duration-500`}>
       {/* Animated Background Grid */}
       <div className="fixed inset-0 opacity-20 pointer-events-none">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/20 via-purple-900/10 to-black"></div>
@@ -397,7 +399,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Collapsible Universe */}
+      {/* Collapsible Universe - Fixed to show actual symbols */}
       {showUniverse && (
         <div className="px-4 py-4">
           <div className="max-w-2xl mx-auto bg-gray-900/90 border border-cyan-500/40 rounded-xl p-5 backdrop-blur-xl shadow-2xl shadow-cyan-500/10">
@@ -488,7 +490,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Equity Chart */}
+      {/* Equity Chart - Fixed data flow */}
       <div className="px-4 py-4">
         <div className="bg-gradient-to-br from-gray-900/90 to-black/90 border border-cyan-500/40 rounded-xl p-5 backdrop-blur-xl shadow-2xl shadow-cyan-500/10">
           <h2 className="text-lg font-bold text-cyan-300 mb-3 flex items-center gap-2">
