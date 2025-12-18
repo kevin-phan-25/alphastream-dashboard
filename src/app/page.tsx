@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect, useState, Suspense } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
@@ -42,7 +41,6 @@ const Line = dynamic(() => import('react-chartjs-2').then(m => m.Line), {
 // ─────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────
-
 type Rocket = {
   symbol: string;
   gap: string;
@@ -68,7 +66,6 @@ type ChartData = {
 // ─────────────────────────────────────────
 // DASHBOARD
 // ─────────────────────────────────────────
-
 export default function Dashboard() {
   const [core, setCore] = useState<any>({});
   const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
@@ -96,12 +93,10 @@ export default function Dashboard() {
   // ─────────────────────────────────────────
   // CORE FETCH
   // ─────────────────────────────────────────
-
   const fetchData = async () => {
     try {
       const res = await axios.get(CORE_URL, { timeout: 15000 });
       const data = res.data || {};
-
       const equityValue = Number(data.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -127,14 +122,12 @@ export default function Dashboard() {
   };
 
   // ─────────────────────────────────────────
-  // SCAN BUTTON
+  // SCAN BUTTON — ROBUST
   // ─────────────────────────────────────────
-
   const forceScan = async () => {
     if (scanning) return;
     setScanning(true);
     setMessage('Triggering scan…');
-
     try {
       await axios.post(`${CORE_URL}/scan`, {}, { timeout: 20000 });
     } catch {
@@ -146,7 +139,6 @@ export default function Dashboard() {
         return;
       }
     }
-
     setMessage('Scan triggered');
     setTimeout(fetchData, 1200);
     setTimeout(() => setMessage(''), 3000);
@@ -156,16 +148,13 @@ export default function Dashboard() {
   // ─────────────────────────────────────────
   // ADD TICKERS
   // ─────────────────────────────────────────
-
   const handleAddTickers = async () => {
     if (!tickerInput.trim() || !secretInput.trim()) {
       setAddMessage('Please fill both fields');
       return;
     }
-
     setAddingTickers(true);
     setAddMessage('');
-
     try {
       const response = await axios.post(
         `${CORE_URL}/admin/add-ticker`,
@@ -175,7 +164,6 @@ export default function Dashboard() {
         },
         { timeout: 10000 }
       );
-
       setAddMessage(`Success: ${response.data.message}`);
       setTickerInput('');
       setSecretInput('');
@@ -191,18 +179,14 @@ export default function Dashboard() {
   // ─────────────────────────────────────────
   // ROCKET CHART
   // ─────────────────────────────────────────
-
   const fetchRocketChart = async (symbol: string) => {
     if (rocketCharts[symbol] || !FINNHUB_KEY) return;
-
     try {
       const end = Math.floor(Date.now() / 1000);
-      const start = end - 6 * 60 * 60;
-
+      const start = end - 6 * 60 * 60; // 6 hours
       const res = await axios.get(
         `https://finnhub.io/api/v1/stock/candle?symbol=${symbol}&resolution=1&from=${start}&to=${end}&token=${FINNHUB_KEY}`
       );
-
       if (res.data?.s === 'ok') {
         setRocketCharts(prev => ({
           ...prev,
@@ -230,7 +214,6 @@ export default function Dashboard() {
   // ─────────────────────────────────────────
   // EFFECTS
   // ─────────────────────────────────────────
-
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
@@ -244,15 +227,22 @@ export default function Dashboard() {
   // ─────────────────────────────────────────
   // DERIVED
   // ─────────────────────────────────────────
-
   const equity = Number(core.equity || 0);
+  const buyingPower = Number(core.buyingPower || 0);
+  const dailyDrawdown = Number(core.dailyDrawdown || 0);
+  const dailyDrawdownPct = dailyDrawdown !== 0
+    ? ((Math.abs(dailyDrawdown) / (equity - dailyDrawdown)) * 100).toFixed(1)
+    : '0.0';
   const mlConnected = core.mlHealthy === true;
+  const universeSize = core.universeSize || 0;
+  const afterHoursQueue = Array.isArray(core.afterHoursQueue) ? core.afterHoursQueue : [];
+  const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = liveRockets.length ? liveRockets : Array.isArray(core.rockets) ? core.rockets : [];
+  const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse() : [];
 
   // ─────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────
-
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-black text-cyan-400">
@@ -274,13 +264,13 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-black text-gray-200 overflow-hidden">
-
       {/* HEADER */}
       <header className="sticky top-0 z-50 bg-black/80 border-b border-cyan-900/40">
         <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center gap-2">
             <Bot className="w-6 h-6 text-cyan-400" />
             <span className="font-bold">AlphaStream</span>
+            <span className="text-xs opacity-70">({universeSize})</span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -356,12 +346,21 @@ export default function Dashboard() {
           </div>
         ) : (
           rockets.map((r: Rocket) => (
-            <div key={r.symbol} className="border border-gray-700 rounded">
-              <div onClick={() => toggleRocketChart(r.symbol)} className="p-3 flex justify-between cursor-pointer hover:bg-gray-900 transition">
+            <div
+              key={r.symbol}
+              className={`border rounded transition-all ${
+                flashRockets.has(r.symbol) ? 'border-yellow-400 bg-yellow-900/20' : 'border-gray-700'
+              }`}
+            >
+              <div
+                onClick={() => toggleRocketChart(r.symbol)}
+                className="p-3 flex justify-between cursor-pointer hover:bg-gray-900 transition"
+              >
                 <div>
                   <b className="text-lg">{r.symbol}</b>
                   <div className="text-xs opacity-80">
                     +{r.gap}% • RVOL {r.rvol || '–'} • Conf: {r.mlConfidence}%
+                    {r.mlPriority && <span className="text-yellow-400 ml-2">⚡ PRIORITY</span>}
                   </div>
                 </div>
                 {expandedRocket === r.symbol ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
@@ -373,7 +372,8 @@ export default function Dashboard() {
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
-                      plugins: { legend: { display: false } }
+                      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                      scales: { x: { display: false }, y: { display: false } }
                     }}
                   />
                 </div>
