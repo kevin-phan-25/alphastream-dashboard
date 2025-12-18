@@ -1,4 +1,5 @@
 'use client';
+
 import { useEffect, useState, Suspense } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
@@ -22,8 +23,8 @@ import {
   ChevronUp,
   Plus,
   Search,
-  ChevronLeft,    // ← FIXED: Added missing import
-  ChevronRight    // ← FIXED: Added missing import
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -38,7 +39,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip)
 
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
   ssr: false,
-  loading: () => <div className="h-16 flex items-center justify-center text-gray-500 text-xs">Chart...</div>
+  loading: () => <div className="h-16 flex items-center justify-center text-cyan-500 text-xs animate-pulse">Loading Chart...</div>
 });
 
 type Rocket = {
@@ -184,10 +185,10 @@ export default function Dashboard() {
           labels,
           datasets: [{
             data: prices,
-            borderColor: '#06b6d4',
-            backgroundColor: 'rgba(6,182,212,0.1)',
+            borderColor: '#00ffff',
+            backgroundColor: 'rgba(0, 255, 255, 0.1)',
             fill: true,
-            tension: 0.3,
+            tension: 0.4,
             pointRadius: 0
           }]
         };
@@ -223,18 +224,24 @@ export default function Dashboard() {
   const isAfterHours = etHour >= 16 && etHour < 20;
 
   if (loading) return (
-    <div className="min-h-screen bg-black text-cyan-400 flex flex-col items-center justify-center gap-3">
-      <Activity className="w-8 h-8 animate-pulse" />
-      <p className="text-sm">Connecting to AlphaStream Core...</p>
+    <div className="min-h-screen bg-black text-cyan-400 flex flex-col items-center justify-center gap-4">
+      <div className="relative">
+        <Activity className="w-12 h-12 animate-pulse" />
+        <div className="absolute inset-0 animate-ping rounded-full border-4 border-cyan-500 opacity-20"></div>
+      </div>
+      <p className="text-sm font-medium tracking-wider">INITIALIZING ALPHASTREAM CORE...</p>
     </div>
   );
 
   if (error) return (
-    <div className="min-h-screen bg-black text-red-400 flex flex-col items-center justify-center gap-3 p-4 text-center">
-      <AlertCircle className="w-10 h-10" />
-      <p className="text-sm max-w-xs">{error}</p>
-      <button onClick={fetchData} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded text-xs font-medium">
-        Retry
+    <div className="min-h-screen bg-black text-red-400 flex flex-col items-center justify-center gap-4 p-4 text-center">
+      <div className="relative">
+        <AlertCircle className="w-16 h-16" />
+        <div className="absolute inset-0 animate-ping rounded-full border-4 border-red-500 opacity-30"></div>
+      </div>
+      <p className="text-sm max-w-xs font-medium tracking-wide">{error}</p>
+      <button onClick={fetchData} className="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-sm font-bold tracking-wider transition">
+        RECONNECT
       </button>
     </div>
   );
@@ -253,14 +260,12 @@ export default function Dashboard() {
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
   const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse() : [];
 
-  // Extract universe symbols
   const rawUniverse: string[] = Array.isArray(core.universeSymbols) 
     ? core.universeSymbols 
     : universeSize > 0 
       ? ['Universe loading...'] 
       : [];
 
-  // Fixed: Explicit types
   const filteredUniverse = rawUniverse.filter((sym: string) => 
     sym.toLowerCase().includes(universeSearch.toLowerCase())
   );
@@ -275,102 +280,115 @@ export default function Dashboard() {
     labels: equityHistory.map(d => d.time),
     datasets: [{
       data: equityHistory.map(d => d.equity),
-      borderColor: dailyDrawdown < 0 ? '#ef4444' : '#06b6d4',
-      backgroundColor: dailyDrawdown < 0 ? 'rgba(239,68,68,0.1)' : 'rgba(6,182,212,0.1)',
+      borderColor: dailyDrawdown < 0 ? '#ff0080' : '#00ffff',
+      backgroundColor: dailyDrawdown < 0 ? 'rgba(255, 0, 128, 0.1)' : 'rgba(0, 255, 255, 0.1)',
       fill: true,
       tension: 0.4,
-      pointRadius: 1
+      pointRadius: 0,
+      borderWidth: 2
     }]
   };
 
   const getActionDetails = (action: number = 2) => {
     const labels = ["STRONG BUY", "BUY", "HOLD", "NEUTRAL", "SELL"];
     const colors = [
-      "text-green-300 bg-green-900/40",
-      "text-green-400 bg-green-900/30",
-      "text-yellow-400 bg-yellow-900/20",
-      "text-gray-400 bg-gray-800/30",
-      "text-red-400 bg-red-900/30"
+      "text-green-300 bg-green-900/60 border border-green-600",
+      "text-cyan-300 bg-cyan-900/50 border border-cyan-600",
+      "text-yellow-300 bg-yellow-900/40 border border-yellow-600",
+      "text-gray-400 bg-gray-800/50 border border-gray-600",
+      "text-red-400 bg-red-900/50 border border-red-600"
     ];
     return { label: labels[action] || "HOLD", color: colors[action] || colors[2] };
   };
 
   return (
-    <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-200' : 'bg-gray-50 text-gray-800'} pb-20`}>
-      {/* Compact Header */}
-      <header className="border-b border-cyan-900/30 bg-black/80 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-3 py-2 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2">
-            <Bot className="w-5 h-5 text-cyan-400" />
-            <h1 className="font-bold text-cyan-400">AlphaStream</h1>
-            {/* Collapsible Universe Toggle */}
+    <div className="min-h-screen bg-black text-gray-100 overflow-hidden relative">
+      {/* Animated Background Grid */}
+      <div className="fixed inset-0 opacity-20 pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/20 via-purple-900/10 to-black"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#00ffff0a_1px,transparent_1px),linear-gradient(to_bottom,#00ffff0a_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+      </div>
+
+      {/* Header */}
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/80 border-b border-cyan-500/30">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <Bot className="w-8 h-8 text-cyan-400 animate-pulse" />
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+                AlphaStream
+              </h1>
+            </div>
             <button
               onClick={() => setShowUniverse(!showUniverse)}
-              className="flex items-center gap-1 opacity-70 hover:opacity-100 transition"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-900/40 border border-cyan-700/50 hover:bg-cyan-800/50 transition"
             >
-              <Globe className="w-3 h-3" />
-              {universeSize}
-              {showUniverse ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              <Globe className="w-4 h-4" />
+              <span className="font-mono text-sm">{universeSize}</span>
+              {showUniverse ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setShowAddForm(!showAddForm)}
-              className="p-1.5 rounded hover:bg-gray-800"
+              className="p-3 rounded-lg bg-purple-900/40 border border-purple-700/50 hover:bg-purple-800/50 transition"
             >
-              <Plus className="w-4 h-4 text-cyan-400" />
+              <Plus className="w-5 h-5 text-purple-400" />
             </button>
-            <button onClick={() => setDarkMode(!darkMode)} className="p-1.5 rounded hover:bg-gray-800">
-              {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+            <button onClick={() => setDarkMode(!darkMode)} className="p-3 rounded-lg bg-gray-900/50 hover:bg-gray-800/70 transition">
+              {darkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-blue-400" />}
             </button>
             <button
               onClick={forceScan}
               disabled={scanning}
-              className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-60 rounded text-xs flex items-center gap-1"
+              className="px-6 py-3 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 disabled:opacity-50 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20"
             >
-              {scanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-              Scan
+              {scanning ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+              SCAN
             </button>
           </div>
         </div>
       </header>
 
+      {/* Message Bar */}
       {message && (
-        <div className="bg-cyan-900/70 py-1.5 text-center text-cyan-200 text-xs font-medium">
+        <div className="bg-gradient-to-r from-cyan-900/80 to-purple-900/80 py-3 text-center font-bold tracking-wider animate-pulse">
           {message}
         </div>
       )}
 
-      {/* Manual Add Ticker Form */}
+      {/* Add Ticker Form */}
       {showAddForm && (
-        <div className="px-3 py-3">
-          <div className="bg-gray-900/80 border border-cyan-800 rounded-lg p-4">
-            <h3 className="text-sm font-bold text-cyan-400 mb-3">Add Tickers Manually</h3>
-            <div className="space-y-3">
+        <div className="px-4 py-4">
+          <div className="max-w-md mx-auto bg-gradient-to-br from-gray-900/90 to-black/90 border border-cyan-500/50 rounded-xl p-6 backdrop-blur-xl shadow-2xl shadow-cyan-500/20">
+            <h3 className="text-lg font-bold text-cyan-400 mb-4 flex items-center gap-2">
+              <Plus className="w-5 h-5" /> Add Tickers to Universe
+            </h3>
+            <div className="space-y-4">
               <input
                 type="text"
                 value={tickerInput}
                 onChange={(e) => setTickerInput(e.target.value)}
                 placeholder="GME AMC NVDA..."
-                className="w-full px-3 py-2 bg-black border border-gray-700 rounded text-sm"
+                className="w-full px-4 py-3 bg-black/70 border border-cyan-700/50 rounded-lg focus:border-cyan-400 focus:outline-none transition"
               />
               <input
                 type="password"
                 value={secretInput}
                 onChange={(e) => setSecretInput(e.target.value)}
                 placeholder="Admin secret"
-                className="w-full px-3 py-2 bg-black border border-gray-700 rounded text-sm"
+                className="w-full px-4 py-3 bg-black/70 border border-cyan-700/50 rounded-lg focus:border-cyan-400 focus:outline-none transition"
               />
               <button
                 onClick={handleAddTickers}
                 disabled={addingTickers}
-                className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-60 rounded flex items-center justify-center gap-2 text-sm"
+                className="w-full py-3 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 disabled:opacity-60 rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-lg"
               >
-                {addingTickers ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                Add
+                {addingTickers ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+                Add Tickers
               </button>
               {addMessage && (
-                <p className={`text-xs text-center ${addMessage.includes('Error') ? 'text-red-400' : 'text-green-400'}`}>
+                <p className={`text-center font-medium ${addMessage.includes('Error') ? 'text-red-400' : 'text-green-400'}`}>
                   {addMessage}
                 </p>
               )}
@@ -379,37 +397,39 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Collapsible Universe List with Search & Sort */}
+      {/* Collapsible Universe */}
       {showUniverse && (
-        <div className="px-3 py-3">
-          <div className="bg-gray-900/80 border border-cyan-800 rounded-lg p-3">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-cyan-400">Universe ({universeSize})</h3>
-              <div className="flex items-center gap-2">
+        <div className="px-4 py-4">
+          <div className="max-w-2xl mx-auto bg-gray-900/90 border border-cyan-500/40 rounded-xl p-5 backdrop-blur-xl shadow-2xl shadow-cyan-500/10">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-cyan-400">Universe ({universeSize})</h3>
+              <div className="flex items-center gap-3">
                 <div className="relative">
-                  <Search className="w-4 h-4 absolute left-2 top-2 text-gray-500" />
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-gray-500" />
                   <input
                     type="text"
                     value={universeSearch}
                     onChange={(e) => setUniverseSearch(e.target.value)}
-                    placeholder="Search..."
-                    className="pl-8 pr-2 py-1 bg-black border border-gray-700 rounded text-xs w-32"
+                    placeholder="Search symbols..."
+                    className="pl-10 pr-4 py-2 bg-black/70 border border-gray-700 rounded-lg text-sm focus:border-cyan-400 focus:outline-none transition"
                   />
                 </div>
                 <button
                   onClick={() => setUniverseSort(universeSort === 'az' ? 'za' : 'az')}
-                  className="p-1 hover:bg-gray-800 rounded"
+                  className="p-2 rounded-lg bg-gray-800/70 hover:bg-gray-700 transition"
                 >
-                  {universeSort === 'az' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  {universeSort === 'az' ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
                 </button>
               </div>
             </div>
-            <div className="max-h-48 overflow-y-auto text-[10px] font-mono opacity-90 space-y-1">
+            <div className="max-h-64 overflow-y-auto font-mono text-xs grid grid-cols-4 gap-2">
               {sortedUniverse.length === 0 ? (
-                <p className="text-gray-500 text-center">No symbols match filter</p>
+                <p className="col-span-4 text-center text-gray-500 py-8">No symbols match</p>
               ) : (
                 sortedUniverse.map((sym, i) => (
-                  <div key={i}>{sym}</div>
+                  <div key={i} className="bg-gray-800/50 rounded px-3 py-2 border border-gray-700/50">
+                    {sym}
+                  </div>
                 ))
               )}
             </div>
@@ -417,80 +437,95 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Compact Quick Watch */}
-      <div className="px-3 py-2">
-        <div className="grid grid-cols-3 gap-2 text-xs">
-          <div className={`p-2 rounded border text-center ${mlConnected ? 'border-green-600 bg-green-900/20' : 'border-red-600 bg-red-900/20'}`}>
-            <Zap className={`w-4 h-4 mx-auto mb-1 ${mlConnected ? 'text-green-400' : 'text-red-400'}`} />
-            <div className="font-bold text-[10px]">ML ON</div>
+      {/* Quick Status */}
+      <div className="px-4 py-3">
+        <div className="grid grid-cols-3 gap-4">
+          <div className={`p-4 rounded-xl border ${mlConnected ? 'border-green-500/50 bg-green-900/20' : 'border-red-500/50 bg-red-900/20'} backdrop-blur-sm`}>
+            <Zap className={`w-8 h-8 mx-auto mb-2 ${mlConnected ? 'text-green-400' : 'text-red-400'}`} />
+            <div className="text-center font-bold text-sm">ML {mlConnected ? 'ONLINE' : 'OFFLINE'}</div>
           </div>
-          <div className={`p-2 rounded border text-center ${lossLimitHit ? 'border-red-600 bg-red-900/20' : 'border-green-600 bg-green-900/20'}`}>
-            <AlertTriangle className={`w-4 h-4 mx-auto mb-1 ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`} />
-            <div className="font-bold text-[10px]">{lossLimitHit ? 'LIMIT' : 'SAFE'}</div>
-            <div className="text-[9px] opacity-70">{dailyDrawdownPct}%</div>
+          <div className={`p-4 rounded-xl border ${lossLimitHit ? 'border-red-500/50 bg-red-900/20' : 'border-green-500/50 bg-green-900/20'} backdrop-blur-sm`}>
+            <AlertTriangle className={`w-8 h-8 mx-auto mb-2 ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`} />
+            <div className="text-center font-bold text-sm">{lossLimitHit ? 'LIMIT HIT' : 'SAFE'}</div>
+            <div className="text-center text-xs opacity-70">{dailyDrawdownPct}%</div>
           </div>
-          <div className="p-2 rounded border border-cyan-600 bg-cyan-900/20 text-center">
-            <Clock className="w-4 h-4 mx-auto mb-1 text-cyan-400" />
-            <div className="font-bold text-[10px]">
+          <div className="p-4 rounded-xl border border-cyan-500/50 bg-cyan-900/20 backdrop-blur-sm">
+            <Clock className="w-8 h-8 mx-auto mb-2 text-cyan-400" />
+            <div className="text-center font-bold text-sm">
               {new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: '2-digit', minute: '2-digit' })} ET
             </div>
           </div>
         </div>
       </div>
 
-      {/* Compact Status Bar */}
-      <div className="px-3 py-1.5 border-b border-cyan-900/30 bg-gradient-to-r from-black via-cyan-950/10 to-black text-xs">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              <Wallet className="w-4 h-4 text-cyan-400" />
-              <span className="font-bold">${equity.toFixed(0)}</span>
+      {/* Equity & Buying Power Bar */}
+      <div className="px-4 py-3 border-y border-cyan-900/30 bg-gradient-to-r from-black via-cyan-950/20 to-black">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
+              <Wallet className="w-6 h-6 text-cyan-400" />
+              <div>
+                <div className="text-xs opacity-70">Equity</div>
+                <div className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+                  ${equity.toFixed(0)}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-              <DollarSign className="w-4 h-4 text-green-400" />
-              <span className="font-bold">${buyingPower.toFixed(0)}</span>
+            <div className="flex items-center gap-3">
+              <DollarSign className="w-6 h-6 text-green-400" />
+              <div>
+                <div className="text-xs opacity-70">Buying Power</div>
+                <div className="text-2xl font-bold text-green-400">
+                  ${buyingPower.toFixed(0)}
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-[10px] opacity-70">
-            <Zap className={`w-3 h-3 ${mlConnected ? 'text-green-400' : 'text-gray-600'}`} />
-            {mlConnected ? 'ON' : 'OFF'} • {lastUpdate.split(' ')[0]}
+          <div className="text-xs opacity-70 flex items-center gap-2">
+            <Zap className={`w-4 h-4 ${mlConnected ? 'text-green-400' : 'text-gray-600'}`} />
+            {mlConnected ? 'CONNECTED' : 'DISCONNECTED'} • {lastUpdate.split(' ')[0]}
           </div>
         </div>
       </div>
 
-      {/* Compact Equity Chart */}
-      <div className="px-3 py-3">
-        <div className="bg-gray-900/50 border border-cyan-900/30 rounded-lg p-3">
-          <h2 className="text-xs font-semibold text-cyan-300 mb-2 flex items-center gap-1">
-            <TrendingUp className="w-4 h-4" /> Equity
+      {/* Equity Chart */}
+      <div className="px-4 py-4">
+        <div className="bg-gradient-to-br from-gray-900/90 to-black/90 border border-cyan-500/40 rounded-xl p-5 backdrop-blur-xl shadow-2xl shadow-cyan-500/10">
+          <h2 className="text-lg font-bold text-cyan-300 mb-3 flex items-center gap-2">
+            <TrendingUp className="w-6 h-6" /> Equity Flow
           </h2>
-          <div className="h-32">
-            <Suspense fallback={<div className="h-full flex items-center justify-center text-gray-500 text-xs">Loading...</div>}>
+          <div className="h-40">
+            <Suspense fallback={<div className="h-full flex items-center justify-center text-cyan-500">Loading...</div>}>
               <Line data={equityChartData} options={{
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false }, tooltip: { enabled: false } },
-                scales: { x: { display: false }, y: { display: false } }
+                scales: { x: { display: false }, y: { display: false } },
+                elements: { point: { radius: 0 } }
               }} />
             </Suspense>
           </div>
         </div>
       </div>
 
-      {/* Main Grid - Mobile Stacked */}
-      <div className="px-3 space-y-3 pb-4">
+      {/* Main Content Grid */}
+      <div className="px-4 space-y-4 pb-24">
+
         {/* Positions */}
-        <div className="bg-gray-900/50 border border-cyan-900/30 rounded-lg p-3">
-          <h2 className="text-xs font-semibold text-cyan-300 mb-2">Positions ({positions.length})</h2>
-          <div className="max-h-32 overflow-y-auto text-xs space-y-1.5">
+        <div className="bg-gradient-to-br from-gray-900/90 to-black/90 border border-cyan-500/40 rounded-xl p-5 backdrop-blur-xl shadow-2xl shadow-cyan-500/10">
+          <h2 className="text-lg font-bold text-cyan-300 mb-4">Active Positions ({positions.length})</h2>
+          <div className="space-y-3">
             {positions.length === 0 ? (
-              <p className="text-gray-500 text-center text-[10px] py-4">No positions</p>
+              <p className="text-center text-gray-500 py-8">No active positions</p>
             ) : (
               positions.map((pos: any, i: number) => (
-                <div key={i} className="bg-gray-800/50 rounded p-2 text-[11px]">
-                  <div className="flex justify-between">
-                    <span className="font-bold">{pos.symbol}</span>
-                    <span className="text-green-400">{pos.qty} @ ${Number(pos.avg_entry_price).toFixed(2)}</span>
+                <div key={i} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+                  <div className="flex justify-between items-center">
+                    <div className="font-bold text-lg">{pos.symbol}</div>
+                    <div className="text-right">
+                      <div className="text-sm opacity-70">{pos.qty} shares</div>
+                      <div className="text-green-400 font-mono">@ ${Number(pos.avg_entry_price).toFixed(2)}</div>
+                    </div>
                   </div>
                 </div>
               ))
@@ -499,14 +534,19 @@ export default function Dashboard() {
         </div>
 
         {/* Rockets */}
-        <div className="bg-gray-900/50 border border-cyan-900/30 rounded-lg p-3">
-          <h2 className="text-xs font-semibold text-cyan-300 mb-2 flex items-center justify-between">
-            <span>Hot Rockets ({rockets.length})</span>
-            {rockets.length > 0 && <Zap className="w-5 h-5 text-yellow-400 animate-pulse" />}
-          </h2>
-          <div className="max-h-48 overflow-y-auto space-y-2">
+        <div className="bg-gradient-to-br from-gray-900/90 to-black/90 border border-cyan-500/40 rounded-xl p-5 backdrop-blur-xl shadow-2xl shadow-cyan-500/10">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-cyan-300 flex items-center gap-2">
+              <Zap className="w-6 h-6 text-yellow-400 animate-pulse" /> Hot Rockets ({rockets.length})
+            </h2>
+            {rockets.length > 0 && <Zap className="w-8 h-8 text-yellow-400 animate-pulse" />}
+          </div>
+          <div className="space-y-3">
             {rockets.length === 0 ? (
-              <p className="text-gray-500 text-center text-[11px] py-6">Waiting for spike...</p>
+              <div className="text-center py-12">
+                <Zap className="w-16 h-16 mx-auto mb-4 opacity-30 text-yellow-400" />
+                <p className="text-gray-400">Scanning for momentum...</p>
+              </div>
             ) : (
               rockets.map((rocket: Rocket, i: number) => {
                 const action = getActionDetails(rocket.mlAction);
@@ -517,26 +557,34 @@ export default function Dashboard() {
                 return (
                   <div
                     key={i}
-                    className={`rounded border text-xs p-2 transition-all ${
-                      flashing ? 'border-yellow-400 bg-yellow-900/30' : 'border-gray-700 bg-gray-800/50'
-                    }`}
+                    className={`rounded-xl border transition-all duration-300 ${
+                      flashing 
+                        ? 'border-yellow-400 bg-yellow-900/30 shadow-2xl shadow-yellow-500/30' 
+                        : 'border-cyan-700/50 bg-gray-800/40'
+                    } backdrop-blur-sm overflow-hidden`}
                   >
-                    <div className="flex justify-between items-start cursor-pointer" onClick={() => toggleRocketChart(rocket.symbol)}>
-                      <div>
-                        <div className="font-bold text-sm">{rocket.symbol}</div>
-                        <div className="text-[10px] opacity-80">
-                          ${Number(rocket.price).toFixed(2)} • +{rocket.gap}% • Conf: {rocket.mlConfidence}%
-                          {rocket.mlPriority && <span className="text-yellow-400 ml-1">⚡</span>}
+                    <div 
+                      className="p-4 cursor-pointer hover:bg-gray-800/60 transition"
+                      onClick={() => toggleRocketChart(rocket.symbol)}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="text-2xl font-bold text-cyan-400">{rocket.symbol}</div>
+                          <div className="text-sm opacity-80 mt-1">
+                            ${Number(rocket.price).toFixed(2)} • +{rocket.gap}% • Conf: {rocket.mlConfidence}%
+                            {rocket.mlPriority && <span className="ml-2 text-yellow-400 font-bold">⚡ PRIORITY</span>}
+                          </div>
                         </div>
-                      </div>
-                      <div className={`px-2 py-0.5 rounded text-[10px] font-bold ${action.color}`}>
-                        {action.label}
+                        <div className={`px-4 py-2 rounded-lg font-bold text-xs ${action.color}`}>
+                          {action.label}
+                        </div>
                       </div>
                     </div>
                     {isExpanded && chartData && (
-                      <div className="mt-2 h-24 border-t border-gray-700 pt-2">
+                      <div className="h-32 border-t border-cyan-700/50 bg-black/50">
                         <Line data={chartData} options={{
                           responsive: true,
+                          maintainAspectRatio: false,
                           plugins: { legend: { display: false }, tooltip: { enabled: false } },
                           scales: { x: { display: false }, y: { display: false } }
                         }} />
@@ -550,15 +598,15 @@ export default function Dashboard() {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-gray-900/50 border border-cyan-900/30 rounded-lg p-3">
-          <h2 className="text-xs font-semibold text-cyan-300 mb-2">Recent Activity</h2>
-          <div className="max-h-32 overflow-y-auto text-[10px] font-mono space-y-1">
+        <div className="bg-gradient-to-br from-gray-900/90 to-black/90 border border-cyan-500/40 rounded-xl p-5 backdrop-blur-xl shadow-2xl shadow-cyan-500/10">
+          <h2 className="text-lg font-bold text-cyan-300 mb-4">Recent Activity</h2>
+          <div className="font-mono text-xs space-y-1 max-h-48 overflow-y-auto">
             {logs.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No activity</p>
+              <p className="text-center text-gray-500 py-8">No recent activity</p>
             ) : (
-              logs.slice(0, 10).map((log: any, i: number) => (
-                <div key={i} className="opacity-80">
-                  <span className="text-gray-500">{log.time}</span> {log.message}
+              logs.slice(0, 15).map((log: any, i: number) => (
+                <div key={i} className="opacity-80 hover:opacity-100 transition">
+                  <span className="text-cyan-500">{log.time}</span> {log.message}
                 </div>
               ))
             )}
