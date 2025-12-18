@@ -20,7 +20,10 @@ import {
   Package,
   ChevronDown,
   ChevronUp,
-  Plus
+  Plus,
+  Search,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -74,12 +77,17 @@ export default function Dashboard() {
   const [expandedRocket, setExpandedRocket] = useState<string | null>(null);
   const [rocketCharts, setRocketCharts] = useState<Record<string, ChartData>>({});
 
-  // Add Ticker Form States
+  // Add Ticker Form
   const [showAddForm, setShowAddForm] = useState(false);
   const [tickerInput, setTickerInput] = useState('');
   const [secretInput, setSecretInput] = useState('');
   const [addingTickers, setAddingTickers] = useState(false);
   const [addMessage, setAddMessage] = useState('');
+
+  // Universe Controls
+  const [showUniverse, setShowUniverse] = useState(false);
+  const [universeSearch, setUniverseSearch] = useState('');
+  const [universeSort, setUniverseSort] = useState<'az' | 'za' | 'newest'>('az');
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
@@ -90,9 +98,11 @@ export default function Dashboard() {
       const data = res.data || {};
       const equityValue = Number(data.equity || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
       setCore(data);
       setEquityHistory(prev => [...prev, { time, equity: equityValue }].slice(-30));
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
+
       if (Array.isArray(data.rockets) && data.rockets.length > 0) {
         const newSymbols = data.rockets.map((r: Rocket) => r.symbol);
         setFlashRockets(new Set(newSymbols));
@@ -101,6 +111,7 @@ export default function Dashboard() {
       } else {
         setLiveRockets([]);
       }
+
       setError(null);
     } catch (e: any) {
       console.error("Dashboard fetch error:", e);
@@ -110,7 +121,6 @@ export default function Dashboard() {
     }
   };
 
-  // Robust Scan Button (POST first, fallback GET)
   const forceScan = async () => {
     if (scanning) return;
     setScanning(true);
@@ -121,21 +131,13 @@ export default function Dashboard() {
       setTimeout(() => fetchData(), 1000);
       setTimeout(() => setMessage(""), 3000);
     } catch {
-      try {
-        await axios.get(`${CORE_URL}/scan`, { timeout: 30000 });
-        setMessage("Scan triggered (fallback)");
-        setTimeout(() => fetchData(), 1000);
-        setTimeout(() => setMessage(""), 3000);
-      } catch {
-        setMessage("Scan failed");
-        setTimeout(() => setMessage(""), 3000);
-      }
+      setMessage("Scan failed");
+      setTimeout(() => setMessage(""), 3000);
     } finally {
       setScanning(false);
     }
   };
 
-  // Manual Add Tickers
   const handleAddTickers = async () => {
     if (!tickerInput.trim() || !secretInput.trim()) {
       setAddMessage("Please fill both fields");
@@ -152,7 +154,7 @@ export default function Dashboard() {
         },
         { timeout: 10000 }
       );
-      setAddMessage(`Success: ${response.data.message || 'Tickers added'}`);
+      setAddMessage(`Success: ${response.data.message || 'Added'}`);
       setTickerInput('');
       setSecretInput('');
       fetchData();
@@ -243,13 +245,31 @@ export default function Dashboard() {
   const dailyDrawdownPct = dailyDrawdown !== 0
     ? ((Math.abs(dailyDrawdown) / (equity - dailyDrawdown)) * 100).toFixed(1)
     : "0.0";
-  const lossLimitHit = Math.abs(dailyDrawdown) >= 2000;
+  const lossLimitHit = Math.abs(dailyDrawdown) >= 1500; // Match new survival limit
   const mlConnected = core.mlHealthy === true;
   const universeSize = core.universeSize || 0;
   const afterHoursQueue = Array.isArray(core.afterHoursQueue) ? core.afterHoursQueue : [];
   const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
   const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse() : [];
+
+  // Universe symbols from core (fallback if not sent)
+  const rawUniverse = Array.isArray(core.universeSymbols) 
+    ? core.universeSymbols 
+    : universeSize > 0 
+      ? ['Universe loading...'] 
+      : [];
+
+  // Filtered & sorted universe
+  const filteredUniverse = rawUniverse.filter(sym => 
+    sym.toLowerCase().includes(universeSearch.toLowerCase())
+  );
+
+  const sortedUniverse = [...filteredUniverse].sort((a, b) => {
+    if (universeSort === 'az') return a.localeCompare(b);
+    if (universeSort === 'za') return b.localeCompare(a);
+    return 0; // newest not tracked yet
+  });
 
   const equityChartData = {
     labels: equityHistory.map(d => d.time),
@@ -277,16 +297,21 @@ export default function Dashboard() {
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-200' : 'bg-gray-50 text-gray-800'} pb-20`}>
-      {/* Compact Header with + Button */}
+      {/* Compact Header */}
       <header className="border-b border-cyan-900/30 bg-black/80 backdrop-blur sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-3 py-2 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <Bot className="w-5 h-5 text-cyan-400" />
             <h1 className="font-bold text-cyan-400">AlphaStream</h1>
-            <div className="flex items-center gap-1 opacity-70">
+            {/* Collapsible Universe Toggle */}
+            <button
+              onClick={() => setShowUniverse(!showUniverse)}
+              className="flex items-center gap-1 opacity-70 hover:opacity-100 transition"
+            >
               <Globe className="w-3 h-3" />
               {universeSize}
-            </div>
+              {showUniverse ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -354,12 +379,50 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Collapsible Universe List with Search & Sort */}
+      {showUniverse && (
+        <div className="px-3 py-3">
+          <div className="bg-gray-900/80 border border-cyan-800 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-cyan-400">Universe ({universeSize})</h3>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-2 top-2 text-gray-500" />
+                  <input
+                    type="text"
+                    value={universeSearch}
+                    onChange={(e) => setUniverseSearch(e.target.value)}
+                    placeholder="Search..."
+                    className="pl-8 pr-2 py-1 bg-black border border-gray-700 rounded text-xs w-32"
+                  />
+                </div>
+                <button
+                  onClick={() => setUniverseSort(universeSort === 'az' ? 'za' : 'az')}
+                  className="p-1 hover:bg-gray-800 rounded"
+                >
+                  {universeSort === 'az' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="max-h-48 overflow-y-auto text-[10px] font-mono opacity-90 space-y-1">
+              {sortedUniverse.length === 0 ? (
+                <p className="text-gray-500 text-center">No symbols match filter</p>
+              ) : (
+                sortedUniverse.map((sym, i) => (
+                  <div key={i}>{sym}</div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Compact Quick Watch */}
       <div className="px-3 py-2">
         <div className="grid grid-cols-3 gap-2 text-xs">
           <div className={`p-2 rounded border text-center ${mlConnected ? 'border-green-600 bg-green-900/20' : 'border-red-600 bg-red-900/20'}`}>
             <Zap className={`w-4 h-4 mx-auto mb-1 ${mlConnected ? 'text-green-400' : 'text-red-400'}`} />
-            <div className="font-bold text-[10px]">{mlConnected ? 'ML ON' : 'ML OFF'}</div>
+            <div className="font-bold text-[10px]">ML ON</div>
           </div>
           <div className={`p-2 rounded border text-center ${lossLimitHit ? 'border-red-600 bg-red-900/20' : 'border-green-600 bg-green-900/20'}`}>
             <AlertTriangle className={`w-4 h-4 mx-auto mb-1 ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`} />
@@ -486,7 +549,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Trade Log */}
+        {/* Recent Activity */}
         <div className="bg-gray-900/50 border border-cyan-900/30 rounded-lg p-3">
           <h2 className="text-xs font-semibold text-cyan-300 mb-2">Recent Activity</h2>
           <div className="max-h-32 overflow-y-auto text-[10px] font-mono space-y-1">
@@ -504,4 +567,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-}
+      }
