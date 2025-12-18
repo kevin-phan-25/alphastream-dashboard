@@ -24,7 +24,8 @@ import {
   Plus,
   Search,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Minus
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -84,6 +85,13 @@ export default function Dashboard() {
   const [secretInput, setSecretInput] = useState('');
   const [addingTickers, setAddingTickers] = useState(false);
   const [addMessage, setAddMessage] = useState('');
+
+  // Remove Ticker Form
+  const [showRemoveForm, setShowRemoveForm] = useState(false);
+  const [removeTickerInput, setRemoveTickerInput] = useState('');
+  const [removeSecretInput, setRemoveSecretInput] = useState('');
+  const [removingTickers, setRemovingTickers] = useState(false);
+  const [removeMessage, setRemoveMessage] = useState('');
 
   // Universe Controls
   const [showUniverse, setShowUniverse] = useState(false);
@@ -167,6 +175,34 @@ export default function Dashboard() {
     } finally {
       setAddingTickers(false);
       setTimeout(() => setAddMessage(''), 6000);
+    }
+  };
+
+  const handleRemoveTickers = async () => {
+    if (!removeTickerInput.trim() || !removeSecretInput.trim()) {
+      setRemoveMessage("Please fill both fields");
+      return;
+    }
+    setRemovingTickers(true);
+    setRemoveMessage('');
+    try {
+      const response = await axios.post(
+        `${CORE_URL}/admin/remove-ticker`,
+        {
+          secret: removeSecretInput.trim(),
+          symbols: removeTickerInput.trim().toUpperCase()
+        },
+        { timeout: 10000 }
+      );
+      setRemoveMessage(`Success: ${response.data.message || 'Removed'}`);
+      setRemoveTickerInput('');
+      setRemoveSecretInput('');
+      fetchData();
+    } catch (err: any) {
+      setRemoveMessage(`Error: ${err.response?.data?.error || err.message || 'Failed'}`);
+    } finally {
+      setRemovingTickers(false);
+      setTimeout(() => setRemoveMessage(''), 6000);
     }
   };
 
@@ -265,8 +301,8 @@ export default function Dashboard() {
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
   const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse() : [];
 
-  // Fixed universe symbols extraction
-  const rawUniverse: string[] = Array.from(new Set(KNOWN_UNIVERSE || [])).sort();
+  // Universe symbols from core
+  const rawUniverse: string[] = Array.isArray(core.universeSymbols) ? core.universeSymbols : [];
 
   const filteredUniverse = rawUniverse.filter(sym => 
     sym.toLowerCase().includes(universeSearch.toLowerCase())
@@ -337,6 +373,12 @@ export default function Dashboard() {
             >
               <Plus className="w-5 h-5 text-purple-400" />
             </button>
+            <button
+              onClick={() => setShowRemoveForm(!showRemoveForm)}
+              className="p-3 rounded-lg bg-red-900/40 border border-red-700/50 hover:bg-red-800/50 transition"
+            >
+              <Minus className="w-5 h-5 text-red-400" />
+            </button>
             <button onClick={() => setDarkMode(!darkMode)} className="p-3 rounded-lg bg-gray-900/50 hover:bg-gray-800/70 transition">
               {darkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-blue-400" />}
             </button>
@@ -399,7 +441,47 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Collapsible Universe - Fixed to show actual symbols */}
+      {/* Remove Ticker Form */}
+      {showRemoveForm && (
+        <div className="px-4 py-4">
+          <div className="max-w-md mx-auto bg-gradient-to-br from-gray-900/90 to-black/90 border border-red-500/50 rounded-xl p-6 backdrop-blur-xl shadow-2xl shadow-red-500/20">
+            <h3 className="text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
+              <Minus className="w-5 h-5" /> Remove Tickers from Universe
+            </h3>
+            <div className="space-y-4">
+              <input
+                type="text"
+                value={removeTickerInput}
+                onChange={(e) => setRemoveTickerInput(e.target.value)}
+                placeholder="CEI XELA..."
+                className="w-full px-4 py-3 bg-black/70 border border-red-700/50 rounded-lg focus:border-red-400 focus:outline-none transition"
+              />
+              <input
+                type="password"
+                value={removeSecretInput}
+                onChange={(e) => setRemoveSecretInput(e.target.value)}
+                placeholder="Admin secret"
+                className="w-full px-4 py-3 bg-black/70 border border-red-700/50 rounded-lg focus:border-red-400 focus:outline-none transition"
+              />
+              <button
+                onClick={handleRemoveTickers}
+                disabled={removingTickers}
+                className="w-full py-3 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 disabled:opacity-60 rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-lg"
+              >
+                {removingTickers ? <Loader2 className="w-5 h-5 animate-spin" /> : <Minus className="w-5 h-5" />}
+                Remove Tickers
+              </button>
+              {removeMessage && (
+                <p className={`text-center font-medium ${removeMessage.includes('Error') ? 'text-red-400' : 'text-green-400'}`}>
+                  {removeMessage}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Collapsible Universe */}
       {showUniverse && (
         <div className="px-4 py-4">
           <div className="max-w-2xl mx-auto bg-gray-900/90 border border-cyan-500/40 rounded-xl p-5 backdrop-blur-xl shadow-2xl shadow-cyan-500/10">
@@ -490,7 +572,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Equity Chart - Fixed data flow */}
+      {/* Equity Chart */}
       <div className="px-4 py-4">
         <div className="bg-gradient-to-br from-gray-900/90 to-black/90 border border-cyan-500/40 rounded-xl p-5 backdrop-blur-xl shadow-2xl shadow-cyan-500/10">
           <h2 className="text-lg font-bold text-cyan-300 mb-3 flex items-center gap-2">
