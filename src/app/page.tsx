@@ -20,7 +20,8 @@ import {
   Package,
   ChevronDown,
   ChevronUp,
-  Plus
+  Plus,
+  Search  // ← FIXED: Added missing import
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -257,7 +258,7 @@ export default function Dashboard() {
       ? ['Universe loading...'] 
       : [];
 
-  // Fixed: Explicit types to satisfy TypeScript
+  // Fixed: Explicit types
   const filteredUniverse = rawUniverse.filter((sym: string) => 
     sym.toLowerCase().includes(universeSearch.toLowerCase())
   );
