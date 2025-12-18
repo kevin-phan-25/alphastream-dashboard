@@ -84,7 +84,7 @@ export default function Dashboard() {
   const [rocketCharts, setRocketCharts] = useState<Record<string, ChartData>>({});
 
   // ─────────────────────────────────────────
-  // MANUAL TICKER ADD STATES
+  // ADD TICKER FEATURE STATES
   // ─────────────────────────────────────────
   const [showAddForm, setShowAddForm] = useState(false);
   const [tickerInput, setTickerInput] = useState('');
@@ -158,12 +158,12 @@ export default function Dashboard() {
   };
 
   // ─────────────────────────────────────────
-  // MANUAL TICKER ADD FUNCTION
+  // ADD TICKER HANDLER
   // ─────────────────────────────────────────
 
   const handleAddTickers = async () => {
     if (!tickerInput.trim() || !secretInput.trim()) {
-      setAddMessage('Please enter tickers and secret');
+      setAddMessage('Please fill both fields');
       return;
     }
 
@@ -180,16 +180,16 @@ export default function Dashboard() {
         { timeout: 10000 }
       );
 
-      setAddMessage(`Success: ${response.data.message}`);
+      setAddMessage(`✓ ${response.data.message}`);
       setTickerInput('');
       setSecretInput('');
-      fetchData(); // Refresh dashboard data
+      fetchData(); // Refresh to show updated universe/rockets
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.message || 'Failed to add';
-      setAddMessage(`Error: ${errorMsg}`);
+      const msg = err.response?.data?.error || err.message || 'Failed';
+      setAddMessage(`✗ Error: ${msg}`);
     } finally {
       setAddingTickers(false);
-      setTimeout(() => setAddMessage(''), 6000);
+      setTimeout(() => setAddMessage(''), 7000);
     }
   };
 
@@ -290,7 +290,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-black text-gray-200 overflow-hidden">
 
       {/* HEADER */}
-      <header className="sticky top-0 z-50 bg-black/80 border-b border-cyan-900/40 backdrop-blur">
+      <header className="sticky top-0 z-50 bg-black/80 border-b border-cyan-900/40">
         <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center gap-2">
             <Bot className="w-6 h-6 text-cyan-400" />
@@ -298,9 +298,9 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowAddForm(!showAddForm)}
+              onClick={() => setShowAddForm(prev => !prev)}
               className="p-2 rounded hover:bg-gray-800 transition"
-              title="Add Tickers"
+              title="Add Tickers Manually"
             >
               <Plus className="w-5 h-5 text-cyan-400" />
             </button>
@@ -317,21 +317,21 @@ export default function Dashboard() {
 
       {/* ADD TICKER FORM */}
       {showAddForm && (
-        <div className="mx-3 mt-3 p-4 bg-gray-900 border border-cyan-800 rounded-lg">
+        <div className="mx-3 mt-3 p-4 bg-gray-900 rounded-lg border border-cyan-800">
           <h3 className="text-sm font-bold mb-3 text-cyan-400">Add Tickers to Universe</h3>
           <div className="space-y-3">
             <input
               type="text"
               value={tickerInput}
               onChange={(e) => setTickerInput(e.target.value)}
-              placeholder="GME AMC NVDA (space separated)"
+              placeholder="e.g. GME AMC NVDA (space separated)"
               className="w-full px-3 py-2 bg-black border border-gray-700 rounded text-sm focus:outline-none focus:border-cyan-500"
             />
             <input
               type="password"
               value={secretInput}
               onChange={(e) => setSecretInput(e.target.value)}
-              placeholder="Dashboard secret"
+              placeholder="Dashboard secret (set in Cloud Run)"
               className="w-full px-3 py-2 bg-black border border-gray-700 rounded text-sm focus:outline-none focus:border-cyan-500"
             />
             <button
@@ -343,7 +343,7 @@ export default function Dashboard() {
               Add Ticker(s)
             </button>
             {addMessage && (
-              <p className={`text-xs text-center ${addMessage.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>
+              <p className={`text-xs text-center font-medium ${addMessage.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>
                 {addMessage}
               </p>
             )}
@@ -366,48 +366,29 @@ export default function Dashboard() {
 
         {/* ROCKETS */}
         <div className="space-y-3">
-          {rockets.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 text-sm">
-              No rockets detected
-            </div>
-          ) : (
-            rockets.map((r: Rocket) => (
-              <div key={r.symbol} className="border border-gray-700 rounded overflow-hidden">
-                <div
-                  onClick={() => toggleRocketChart(r.symbol)}
-                  className="p-3 flex justify-between cursor-pointer hover:bg-gray-900 transition"
-                >
-                  <div>
-                    <b className="text-cyan-400 text-lg">{r.symbol}</b>
-                    <div className="text-xs opacity-80">
-                      +{Number(r.gap).toFixed(1)}% • RVOL {r.rvol ? Number(r.rvol).toFixed(2) : '–'} • Conf: {r.mlConfidence}%
-                    </div>
-                  </div>
-                  {expandedRocket === r.symbol ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          {rockets.map((r: Rocket) => (
+            <div key={r.symbol} className="border border-gray-700 rounded">
+              <div onClick={() => toggleRocketChart(r.symbol)} className="p-3 flex justify-between">
+                <div>
+                  <b>{r.symbol}</b>
+                  <div className="text-xs">+{r.gap}% • RVOL {r.rvol || '–'} • {r.mlConfidence}%</div>
                 </div>
-                {expandedRocket === r.symbol && rocketCharts[r.symbol] && (
-                  <div className="h-40 bg-black px-2 pb-2">
-                    <Line
-                      data={rocketCharts[r.symbol]}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false }, tooltip: { enabled: true } },
-                        scales: { x: { display: false }, y: { display: false } }
-                      }}
-                    />
-                  </div>
-                )}
+                {expandedRocket === r.symbol ? <ChevronUp /> : <ChevronDown />}
               </div>
-            ))
-          )}
+              {expandedRocket === r.symbol && rocketCharts[r.symbol] && (
+                <div className="h-40 px-2 pb-2">
+                  <Line data={rocketCharts[r.symbol]} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }} />
+                </div>
+              )}
+            </div>
+          ))}
         </div>
 
       </main>
 
       {/* BOTTOM MESSAGE */}
       {message && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-cyan-900/90 rounded-full text-sm font-medium backdrop-blur">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-cyan-900/90 backdrop-blur rounded-full text-sm">
           {message}
         </div>
       )}
