@@ -99,6 +99,9 @@ export default function Dashboard() {
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
 
+  // Fixed: Define constant here for dashboard use (matches core)
+  const DAILY_LOSS_LIMIT = 1500;
+
   const fetchData = async () => {
     try {
       const res = await axios.get(CORE_URL, { timeout: 20000 });
@@ -288,7 +291,7 @@ export default function Dashboard() {
   const dailyDrawdownPct = dailyDrawdown !== 0
     ? ((Math.abs(dailyDrawdown) / (equity - dailyDrawdown)) * 100).toFixed(1)
     : "0.0";
-  const lossLimitHit = Math.abs(dailyDrawdown) >= 1500;
+  const lossLimitHit = Math.abs(dailyDrawdown) >= DAILY_LOSS_LIMIT;
   const mlConnected = core.mlHealthy === true;
   const universeSize = core.universeSize || 0;
   const positions = Array.isArray(core.positions) ? core.positions : [];
