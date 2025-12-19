@@ -24,7 +24,10 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-  Minus
+  Minus,
+  Shield,
+  Target,
+  BarChart3
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -67,6 +70,7 @@ type ChartData = {
 export default function Dashboard() {
   const [core, setCore] = useState<any>({});
   const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
+  const [realizedPnLHistory, setRealizedPnLHistory] = useState<{ time: string; pnl: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState("");
@@ -100,11 +104,16 @@ export default function Dashboard() {
       const res = await axios.get(CORE_URL, { timeout: 20000 });
       const data = res.data || {};
       const equityValue = Number(data.equity || 0);
+      const realizedPnLValue = Number(data.realizedDailyPnL || 0);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       setCore(data);
       setEquityHistory(prev => {
         const updated = [...prev, { time, equity: equityValue }].slice(-30);
+        return updated;
+      });
+      setRealizedPnLHistory(prev => {
+        const updated = [...prev, { time, pnl: realizedPnLValue }].slice(-30);
         return updated;
       });
       setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" }));
@@ -275,6 +284,7 @@ export default function Dashboard() {
   const equity = Number(core.equity || 0);
   const buyingPower = Number(core.buyingPower || 0);
   const dailyDrawdown = Number(core.dailyDrawdown || 0);
+  const realizedDailyPnL = Number(core.realizedDailyPnL || 0);
   const dailyDrawdownPct = dailyDrawdown !== 0
     ? ((Math.abs(dailyDrawdown) / (equity - dailyDrawdown)) * 100).toFixed(1)
     : "0.0";
@@ -310,6 +320,19 @@ export default function Dashboard() {
     }]
   };
 
+  const realizedPnLChartData = {
+    labels: realizedPnLHistory.map(d => d.time),
+    datasets: [{
+      data: realizedPnLHistory.map(d => d.pnl),
+      borderColor: realizedDailyPnL >= 0 ? '#00ff88' : '#ff3366',
+      backgroundColor: realizedDailyPnL >= 0 ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255, 51, 102, 0.1)',
+      fill: true,
+      tension: 0.4,
+      pointRadius: 0,
+      borderWidth: 2
+    }]
+  };
+
   const getActionDetails = (action: number = 2) => {
     const labels = ["STRONG BUY", "BUY", "HOLD", "NEUTRAL", "SELL"];
     const colors = [
@@ -321,6 +344,12 @@ export default function Dashboard() {
     ];
     return { label: labels[action] || "HOLD", color: colors[action] || colors[2] };
   };
+
+  // Calculate total exposure
+  const totalExposure = positions.reduce((sum: number, pos: any) => {
+    return sum + (pos.qty * pos.avg_entry_price);
+  }, 0);
+  const exposurePct = equity > 0 ? ((totalExposure / equity) * 100).toFixed(1) : "0.0";
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-black text-gray-100' : 'bg-gray-100 text-gray-900'} overflow-hidden relative transition-colors duration-500`}>
@@ -384,7 +413,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Forms and Universe — ALL WRAPPED IN FRAGMENTS WITH PARENT DIV */}
+      {/* Forms and Universe */}
       <>
         {showAddForm && (
           <div className="px-4 py-4">
@@ -492,7 +521,7 @@ export default function Dashboard() {
 
       {/* Quick Status */}
       <div className="px-4 py-3">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <div className={`p-4 rounded-xl border ${mlConnected ? 'border-green-500/50 bg-green-900/20' : 'border-red-500/50 bg-red-900/20'} backdrop-blur-sm`}>
             <Zap className={`w-8 h-8 mx-auto mb-2 ${mlConnected ? 'text-green-400' : 'text-red-400'}`} />
             <div className="text-center font-bold text-sm">ML {mlConnected ? 'ONLINE' : 'OFFLINE'}</div>
@@ -501,6 +530,11 @@ export default function Dashboard() {
             <AlertTriangle className={`w-8 h-8 mx-auto mb-2 ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`} />
             <div className="text-center font-bold text-sm">{lossLimitHit ? 'LIMIT HIT' : 'SAFE'}</div>
             <div className="text-center text-xs opacity-70">{dailyDrawdownPct}%</div>
+          </div>
+          <div className="p-4 rounded-xl border border-yellow-500/50 bg-yellow-900/20 backdrop-blur-sm">
+            <BarChart3 className="w-8 h-8 mx-auto mb-2 text-yellow-400" />
+            <div className="text-center font-bold text-sm">Exposure</div>
+            <div className="text-center text-yellow-400 text-lg font-mono">{exposurePct}%</div>
           </div>
           <div className="p-4 rounded-xl border border-cyan-500/50 bg-cyan-900/20 backdrop-blur-sm">
             <Clock className="w-8 h-8 mx-auto mb-2 text-cyan-400" />
@@ -511,9 +545,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Equity & Buying Power Bar */}
+      {/* Equity & PnL Bar */}
       <div className="px-4 py-3 border-y border-cyan-900/30 bg-gradient-to-r from-black via-cyan-950/20 to-black">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
               <Wallet className="w-6 h-6 text-cyan-400" />
@@ -533,6 +567,15 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
+            <div className="flex items-center gap-3">
+              <Target className={`w-6 h-6 ${realizedDailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`} />
+              <div>
+                <div className="text-xs opacity-70">Realized PnL</div>
+                <div className={`text-2xl font-bold ${realizedDailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {realizedDailyPnL >= 0 ? '+' : ''}${Math.abs(realizedDailyPnL).toFixed(0)}
+                </div>
+              </div>
+            </div>
           </div>
           <div className="text-xs opacity-70 flex items-center gap-2">
             <Zap className={`w-4 h-4 ${mlConnected ? 'text-green-400' : 'text-gray-600'}`} />
@@ -541,8 +584,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Equity Chart */}
-      <div className="px-4 py-4">
+      {/* Equity & Realized PnL Charts */}
+      <div className="px-4 py-4 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-gradient-to-br from-gray-900/90 to-black/90 border border-cyan-500/40 rounded-xl p-5 backdrop-blur-xl shadow-2xl shadow-cyan-500/10">
           <h2 className="text-lg font-bold text-cyan-300 mb-3 flex items-center gap-2">
             <TrendingUp className="w-6 h-6" /> Equity Flow
@@ -557,6 +600,54 @@ export default function Dashboard() {
                 elements: { point: { radius: 0 } }
               }} />
             </Suspense>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-gray-900/90 to-black/90 border border-purple-500/40 rounded-xl p-5 backdrop-blur-xl shadow-2xl shadow-purple-500/10">
+          <h2 className="text-lg font-bold text-purple-300 mb-3 flex items-center gap-2">
+            <BarChart3 className="w-6 h-6" /> Realized Daily PnL
+          </h2>
+          <div className="h-40">
+            <Suspense fallback={<div className="h-full flex items-center justify-center text-purple-500">Loading...</div>}>
+              <Line data={realizedPnLChartData} options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                scales: { x: { display: false }, y: { display: false } },
+                elements: { point: { radius: 0 } }
+              }} />
+            </Suspense>
+          </div>
+        </div>
+      </div>
+
+      {/* Risk Management Dashboard */}
+      <div className="px-4 py-4">
+        <div className="bg-gradient-to-br from-red-900/30 via-gray-900/90 to-purple-900/30 border border-red-500/40 rounded-xl p-6 backdrop-blur-xl shadow-2xl shadow-red-500/20">
+          <h2 className="text-xl font-bold text-red-400 mb-5 flex items-center gap-3">
+            <Shield className="w-8 h-8" /> Risk Management
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-red-400">${Math.abs(dailyDrawdown).toFixed(0)}</div>
+              <div className="text-sm opacity-80 mt-1">Daily Drawdown</div>
+            </div>
+            <div className="text-center">
+              <div className={`text-3xl font-bold ${realizedDailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {realizedDailyPnL >= 0 ? '+' : ''}${Math.abs(realizedDailyPnL).toFixed(0)}
+              </div>
+              <div className="text-sm opacity-80 mt-1">Realized PnL</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-yellow-400">{exposurePct}%</div>
+              <div className="text-sm opacity-80 mt-1">Portfolio Exposure</div>
+            </div>
+            <div className="text-center">
+              <div className={`text-3xl font-bold ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`}>
+                ${DAILY_LOSS_LIMIT}
+              </div>
+              <div className="text-sm opacity-80 mt-1">Loss Limit</div>
+            </div>
           </div>
         </div>
       </div>
