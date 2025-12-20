@@ -395,11 +395,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Positions */}
-      <div className="px-3 py-2">
+      {/* SIDE-BY-SIDE: Positions + Rockets */}
+      <div className="px-3 py-2 grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Positions */}
         <div className="bg-gray-900/90 border border-cyan-500/40 rounded p-3 text-xs">
           <h3 className="font-bold text-cyan-300 mb-2">Positions ({positions.length})</h3>
-          {positions.length === 0 ? <p className="text-center text-gray-500 py-4">None</p> : (
+          {positions.length === 0 ? <p className="text-center text-gray-500 py-6">None</p> : (
             <div className="space-y-2">
               {positions.map((pos: any, i: number) => (
                 <div key={i} className="bg-gray-800/50 rounded p-2 flex justify-between">
@@ -410,10 +411,8 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-      </div>
 
-      {/* Rockets */}
-      <div className="px-3 py-2 pb-20">
+        {/* Hot Rockets */}
         <div className="bg-gray-900/90 border border-cyan-500/40 rounded p-3 text-xs">
           <h3 className="font-bold text-cyan-300 mb-2 flex items-center justify-between">
             <span>Hot Rockets ({rockets.length})</span>
@@ -435,7 +434,7 @@ export default function Dashboard() {
                       </div>
                       <div className={`px-3 py-1 rounded text-xs font-bold ${action.color}`}>{action.label}</div>
                     </div>
-                    {isExpanded && chartData && <div className="h-24 mt-2 border-t border-gray-700"><Line data={chartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>}
+                    {isExpanded && chartData && <div className="h-20 mt-2 border-t border-gray-700"><Line data={chartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>}
                   </div>
                 );
               })}
