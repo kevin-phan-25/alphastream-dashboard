@@ -21,7 +21,8 @@ import {
   Minus,
   Shield,
   Target,
-  BarChart3
+  BarChart3,
+  Brain
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -61,8 +62,17 @@ type ChartData = {
   }[];
 };
 
+type MLSymbolMetric = {
+  symbol: string;
+  transitions: number;
+  avgReward: number;
+  totalReward: number;
+  lastSeen: string;
+};
+
 export default function Dashboard() {
   const [core, setCore] = useState<any>({});
+  const [mlMetrics, setMlMetrics] = useState<any>({});
   const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
   const [realizedPnLHistory, setRealizedPnLHistory] = useState<{ time: string; pnl: number }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,10 +99,11 @@ export default function Dashboard() {
   const [universeSearch, setUniverseSearch] = useState('');
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
+  const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
   const DAILY_LOSS_LIMIT = 1500;
 
-  const fetchData = async () => {
+  const fetchCoreData = async () => {
     try {
       const res = await axios.get(CORE_URL, { timeout: 20000 });
       const data = res.data || {};
@@ -122,6 +133,16 @@ export default function Dashboard() {
     }
   };
 
+  const fetchMLMetrics = async () => {
+    try {
+      const res = await axios.get(`${ML_URL}/metrics`, { timeout: 10000 });
+      setMlMetrics(res.data);
+    } catch (e) {
+      // Silent fail — metrics are bonus
+      setMlMetrics({});
+    }
+  };
+
   const forceScan = async () => {
     if (scanning) return;
     setScanning(true);
@@ -129,7 +150,7 @@ export default function Dashboard() {
     try {
       await axios.post(`${CORE_URL}/scan`, {}, { timeout: 30000 });
       setMessage("Scan triggered!");
-      setTimeout(() => fetchData(), 1000);
+      setTimeout(() => fetchCoreData(), 1000);
       setTimeout(() => setMessage(""), 2500);
     } catch {
       setMessage("Scan failed");
@@ -146,7 +167,7 @@ export default function Dashboard() {
       const res = await axios.post(`${CORE_URL}/admin/add-ticker`, { symbols: tickerInput.trim().toUpperCase() });
       setAddMessage(`Success: ${res.data.message}`);
       setTickerInput('');
-      fetchData();
+      fetchCoreData();
     } catch (err: any) {
       setAddMessage(`Error: ${err.response?.data?.error || 'Failed'}`);
     } finally {
@@ -162,7 +183,7 @@ export default function Dashboard() {
       const res = await axios.post(`${CORE_URL}/admin/remove-ticker`, { symbols: removeTickerInput.trim().toUpperCase() });
       setRemoveMessage(`Success: ${res.data.message}`);
       setRemoveTickerInput('');
-      fetchData();
+      fetchCoreData();
     } catch (err: any) {
       setRemoveMessage(`Error: ${err.response?.data?.error || 'Failed'}`);
     } finally {
@@ -206,8 +227,12 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 15000);
+    fetchCoreData();
+    fetchMLMetrics();
+    const interval = setInterval(() => {
+      fetchCoreData();
+      fetchMLMetrics();
+    }, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -225,7 +250,7 @@ export default function Dashboard() {
       <div className="flex flex-col items-center gap-3">
         <AlertCircle className="w-12 h-12" />
         <p className="text-xs max-w-xs">{error}</p>
-        <button onClick={fetchData} className="px-5 py-2 bg-cyan-600 rounded text-xs font-bold">RECONNECT</button>
+        <button onClick={fetchCoreData} className="px-5 py-2 bg-cyan-600 rounded text-xs font-bold">RECONNECT</button>
       </div>
     </div>
   );
@@ -392,6 +417,39 @@ export default function Dashboard() {
             <div><div className="font-bold text-yellow-400">{exposurePct}%</div><div className="opacity-70">Exposure</div></div>
             <div><div className={`font-bold ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`}>${DAILY_LOSS_LIMIT}</div><div className="opacity-70">Limit</div></div>
           </div>
+        </div>
+      </div>
+
+      {/* NEW: ML Learning Panel — Multi-Symbol Visualization */}
+      <div className="px-3 py-2">
+        <div className="bg-gradient-to-r from-purple-900/30 via-cyan-900/30 to-black border border-purple-500/40 rounded p-3 text-xs">
+          <h3 className="font-bold text-purple-300 mb-2 flex items-center gap-2"><Brain className="w-5 h-5" /> Rainbow DQN Learning</h3>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <div className="font-bold text-cyan-400">{mlMetrics.activeSymbols || 0}</div>
+              <div className="opacity-70">Active Symbols</div>
+            </div>
+            <div>
+              <div className="font-bold text-yellow-400">{mlMetrics.memorySize || 0}</div>
+              <div className="opacity-70">Total Experience</div>
+            </div>
+            <div>
+              <div className="font-bold text-green-400">{mlMetrics.learningSteps || 0}</div>
+              <div className="opacity-70">Training Steps</div>
+            </div>
+          </div>
+          {mlMetrics.topSymbols && mlMetrics.topSymbols.length > 0 && (
+            <div className="mt-3">
+              <div className="text-xs opacity-80 mb-1">Top Learned Symbols</div>
+              <div className="grid grid-cols-5 gap-1 text-xs font-mono">
+                {mlMetrics.topSymbols.slice(0, 10).map((s: MLSymbolMetric) => (
+                  <div key={s.symbol} className="bg-purple-900/30 rounded px-2 py-1 text-center border border-purple-700/50">
+                    {s.symbol} ({s.transitions})
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
