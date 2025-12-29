@@ -22,7 +22,9 @@ import {
   Shield,
   Target,
   BarChart3,
-  Brain
+  Brain,
+  XCircle,
+  OctagonAlert
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -98,18 +100,18 @@ export default function Dashboard() {
   const [showUniverse, setShowUniverse] = useState(false);
   const [universeSearch, setUniverseSearch] = useState('');
 
-  // =========================
-  // NEW: PANIC CLOSE BUTTON
-  // =========================
-  const [showPanicConfirm, setShowPanicConfirm] = useState(false);
+  // ✅ NEW: Panic Close UI state
   const [panicClosing, setPanicClosing] = useState(false);
-  const [panicMessage, setPanicMessage] = useState<string>("");
-  const [panicError, setPanicError] = useState<string>("");
+  const [panicMsg, setPanicMsg] = useState<string>("");
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
   const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
   const DAILY_LOSS_LIMIT = 1500;
+
+  // ✅ NEW: Optional override so you can force the exact endpoint your core exposes
+  // Example: NEXT_PUBLIC_PANIC_PATH="/admin/close-all"
+  const PANIC_PATH = process.env.NEXT_PUBLIC_PANIC_PATH || "";
 
   const fetchCoreData = async () => {
     try {
@@ -234,69 +236,76 @@ export default function Dashboard() {
     }
   };
 
-  // =========================
-  // NEW: PANIC CLOSE LOGIC
-  // - tries multiple endpoints so it works with your existing core
-  // =========================
-  const tryPanicEndpoints = async () => {
-    const candidates = [
-      `${CORE_URL}/admin/close-all`,
-      `${CORE_URL}/close-all`,
-      `${CORE_URL}/panic-close`,
-      `${CORE_URL}/close`,
-      `${CORE_URL}/flatten`,
-    ];
-
-    let lastErr: any = null;
-
-    for (const url of candidates) {
-      try {
-        const res = await axios.post(url, {}, { timeout: 45000 });
-        return { ok: true, url, data: res.data };
-      } catch (e: any) {
-        lastErr = e;
-        // continue trying next
-      }
-    }
-
-    const msg =
-      lastErr?.response?.data?.error ||
-      lastErr?.response?.data?.message ||
-      lastErr?.message ||
-      "Unknown error calling panic close endpoint";
-    return { ok: false, url: candidates[candidates.length - 1], data: null, error: msg };
-  };
-
+  // ✅ NEW: Panic Close handler (tries multiple endpoints to match your existing core/index.js)
   const panicCloseAll = async () => {
     if (panicClosing) return;
+
+    // quick confirm without removing any features
+    const ok = window.confirm("PANIC CLOSE: This will attempt to CLOSE ALL POSITIONS immediately. Continue?");
+    if (!ok) return;
+
     setPanicClosing(true);
-    setPanicMessage("");
-    setPanicError("");
-    setMessage(""); // don't fight existing message bar
+    setPanicMsg("");
+    setMessage("PANIC CLOSE: sending request...");
 
-    try {
-      setPanicMessage("PANIC CLOSE: Sending close-all command...");
-      const result = await tryPanicEndpoints();
+    // If you set NEXT_PUBLIC_PANIC_PATH, we will try ONLY that first (then fall back)
+    const candidates = [
+      PANIC_PATH?.trim(),
+      "/admin/close-all",
+      "/admin/close-all-positions",
+      "/admin/close",
+      "/admin/flatten",
+      "/admin/liquidate",
+      "/close-all",
+      "/close",
+      "/flatten",
+      "/liquidate",
+      "/panic-close",
+      "/panic",
+    ].filter(Boolean) as string[];
 
-      if (!result.ok) {
-        setPanicError(`PANIC CLOSE FAILED: ${result.error || "Unknown error"}`);
-        setPanicMessage("");
+    const tried: string[] = [];
+    let lastErr: any = null;
+
+    for (const path of candidates) {
+      const url = `${CORE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
+      tried.push(url);
+
+      try {
+        // Use POST (most “close all” endpoints are POST). No body needed.
+        const res = await axios.post(url, {}, { timeout: 45000 });
+
+        setPanicMsg(res?.data?.message ? `SUCCESS: ${res.data.message}` : "SUCCESS: Close-all triggered.");
+        setMessage("PANIC CLOSE TRIGGERED ✅");
+        setTimeout(() => setMessage(""), 2500);
+
+        // Refresh core after a short delay so you see positions go to zero + logs update
+        setTimeout(() => fetchCoreData(), 1000);
+        setTimeout(() => fetchCoreData(), 4000);
+
+        setPanicClosing(false);
         return;
+      } catch (e: any) {
+        lastErr = e;
+        // Only keep trying if it's a 404/405 (route not found or method not allowed)
+        const status = e?.response?.status;
+        if (status === 404 || status === 405) {
+          continue;
+        } else {
+          // Non-route errors: stop and show why
+          break;
+        }
       }
-
-      setPanicMessage(`PANIC CLOSE SENT ✅ (${result.url.replace(CORE_URL, "") || "/"})`);
-      // immediately refresh core data a few times to show positions flattening
-      setTimeout(() => fetchCoreData(), 750);
-      setTimeout(() => fetchCoreData(), 2000);
-      setTimeout(() => fetchCoreData(), 5000);
-
-      // auto-hide after a bit
-      setTimeout(() => setPanicMessage(""), 6000);
-      setTimeout(() => setPanicError(""), 8000);
-    } finally {
-      setPanicClosing(false);
-      setShowPanicConfirm(false);
     }
+
+    const status = lastErr?.response?.status;
+    const serverMsg = lastErr?.response?.data?.error || lastErr?.response?.data?.message || lastErr?.message || "Unknown error";
+    const detail = `PANIC CLOSE FAILED${status ? ` (${status})` : ""}: ${serverMsg}`;
+    setPanicMsg(`${detail}\nTried:\n${tried.join("\n")}`);
+
+    setMessage("PANIC CLOSE FAILED ❌");
+    setTimeout(() => setMessage(""), 3500);
+    setPanicClosing(false);
   };
 
   useEffect(() => {
@@ -340,6 +349,7 @@ export default function Dashboard() {
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
   const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse().slice(0, 12) : [];
 
+  // ✅ Exposure % is still here (this is what you said went missing)
   const totalExposure = positions.reduce((sum: number, pos: any) => sum + (pos.qty * pos.avg_entry_price), 0);
   const exposurePct = equity > 0 ? ((totalExposure / equity) * 100).toFixed(1) : "0.0";
 
@@ -378,25 +388,21 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowAddForm(!showAddForm)} className="p-2 rounded bg-purple-900/40 border border-purple-700/50">
-              <Plus className="w-4 h-4 text-purple-400" />
-            </button>
-            <button onClick={() => setShowRemoveForm(!showRemoveForm)} className="p-2 rounded bg-red-900/40 border border-red-700/50">
-              <Minus className="w-4 h-4 text-red-400" />
-            </button>
+            <button onClick={() => setShowAddForm(!showAddForm)} className="p-2 rounded bg-purple-900/40 border border-purple-700/50"><Plus className="w-4 h-4 text-purple-400" /></button>
+            <button onClick={() => setShowRemoveForm(!showRemoveForm)} className="p-2 rounded bg-red-900/40 border border-red-700/50"><Minus className="w-4 h-4 text-red-400" /></button>
 
-            {/* NEW: PANIC CLOSE BUTTON */}
+            {/* ✅ NEW: PANIC CLOSE BUTTON (does not remove anything, adds on top) */}
             <button
-              onClick={() => setShowPanicConfirm(true)}
+              onClick={panicCloseAll}
               disabled={panicClosing}
-              className={`px-3 py-1.5 rounded font-extrabold text-[11px] tracking-wider flex items-center gap-1.5 border
+              className={`px-4 py-1.5 rounded font-extrabold text-xs flex items-center gap-1.5 border
                 ${panicClosing
-                  ? 'bg-red-900/50 border-red-500/50 text-red-200 opacity-80'
-                  : 'bg-gradient-to-r from-red-600 via-pink-600 to-red-700 border-red-400/60 text-white hover:brightness-110 active:scale-[0.99]'
+                  ? 'bg-red-900/40 border-red-700/60 text-red-200 opacity-70'
+                  : 'bg-gradient-to-r from-red-600 via-pink-600 to-purple-600 border-red-400/50 text-white hover:opacity-95'
                 }`}
-              title="Immediately close ALL open positions"
+              title="Close ALL positions immediately"
             >
-              {panicClosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
+              {panicClosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <OctagonAlert className="w-4 h-4" />}
               PANIC CLOSE
             </button>
 
@@ -406,74 +412,33 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
-      </header>
 
-      {/* NEW: PANIC STATUS BAR (separate from existing message bar) */}
-      {(panicMessage || panicError) && (
-        <div className={`py-2 text-center text-xs font-extrabold tracking-wider
-          ${panicError ? 'bg-gradient-to-r from-red-950 via-red-900 to-black text-red-200' : 'bg-gradient-to-r from-red-900/80 via-pink-900/70 to-black text-white'}
-        `}>
-          {panicError || panicMessage}
-        </div>
-      )}
-
-      {message && <div className="bg-gradient-to-r from-cyan-900/80 to-purple-900/80 py-2 text-center text-xs font-bold animate-pulse">{message}</div>}
-
-      {/* NEW: PANIC CONFIRM MODAL */}
-      {showPanicConfirm && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => !panicClosing && setShowPanicConfirm(false)} />
-          <div className="relative w-full max-w-md bg-gradient-to-b from-gray-950 via-black to-gray-950 border border-red-500/50 rounded-2xl p-5 shadow-2xl">
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-xl bg-red-900/40 border border-red-500/40">
-                <AlertTriangle className="w-6 h-6 text-red-300" />
+        {/* ✅ NEW: Panic Close status line (keeps your existing message bar intact) */}
+        {panicMsg && (
+          <div className="px-3 pb-2">
+            <div className="bg-red-950/40 border border-red-500/40 rounded p-2 text-[11px] whitespace-pre-wrap">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 font-bold text-red-300">
+                  <XCircle className="w-4 h-4" />
+                  Panic Close Status
+                </div>
+                <button
+                  onClick={() => setPanicMsg("")}
+                  className="px-2 py-0.5 text-[10px] rounded border border-red-500/40 bg-black/40 text-red-200"
+                >
+                  X
+                </button>
               </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-extrabold text-red-200 tracking-wider">PANIC CLOSE — CONFIRM</h3>
-                <p className="text-xs text-gray-300 mt-1 leading-relaxed">
-                  This will send an immediate <span className="text-red-200 font-bold">CLOSE ALL POSITIONS</span> command to your Core.
-                  Use this if you need to flatten risk right now.
-                </p>
-                <p className="text-[11px] text-gray-400 mt-2">
-                  Core: <span className="font-mono text-gray-200">{CORE_URL}</span>
-                </p>
+              <div className="mt-1 text-red-100/90">{panicMsg}</div>
+              <div className="mt-1 text-red-200/70">
+                Tip: set <span className="font-mono">NEXT_PUBLIC_PANIC_PATH</span> to your Core’s exact close-all route.
               </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setShowPanicConfirm(false)}
-                disabled={panicClosing}
-                className="py-2 rounded-xl border border-gray-700/70 bg-gray-900/40 text-gray-200 font-bold text-xs hover:bg-gray-800/40"
-              >
-                CANCEL
-              </button>
-              <button
-                onClick={panicCloseAll}
-                disabled={panicClosing}
-                className={`py-2 rounded-xl font-extrabold text-xs tracking-wider border
-                  ${panicClosing
-                    ? 'bg-red-900/50 border-red-500/50 text-red-200'
-                    : 'bg-gradient-to-r from-red-600 via-pink-600 to-red-700 border-red-400/60 text-white hover:brightness-110'
-                  }`}
-              >
-                {panicClosing ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" /> CLOSING...
-                  </span>
-                ) : (
-                  "YES — CLOSE EVERYTHING"
-                )}
-              </button>
-            </div>
-
-            <div className="mt-3 text-[11px] text-gray-500">
-              Tip: If this fails, your Core likely uses a different endpoint name.
-              Tell me your actual route (example: <span className="font-mono text-gray-300">/admin/close</span>) and I’ll hardwire it.
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </header>
+
+      {message && <div className="bg-gradient-to-r from-cyan-900/80 to-purple-900/80 py-2 text-center text-xs font-bold animate-pulse">{message}</div>}
 
       {/* Forms */}
       {showAddForm && (
@@ -660,7 +625,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Logs */}
+      {/* ✅ Logs are still here exactly like your original */}
       <div className="fixed bottom-0 left-0 right-0 bg-black/90 border-t border-cyan-500/30 p-2 text-xs font-mono max-h-32 overflow-y-auto">
         {logs.map((log: any, i: number) => (
           <div key={i} className="opacity-70"><span className="text-cyan-500">{log.time}</span> {log.message}</div>
