@@ -140,7 +140,6 @@ export default function Dashboard() {
       const res = await axios.get(`${ML_URL}/metrics`, { timeout: 10000 });
       setMlMetrics(res.data);
     } catch (e) {
-      // Silent fail — metrics are bonus
       setMlMetrics({});
     }
   };
@@ -162,8 +161,6 @@ export default function Dashboard() {
     }
   };
 
-  // ✅ PANIC CLOSE — calls your Core endpoint: POST /admin/force-close
-  // Fixes the 404 by using the endpoint that actually exists in your core/index.js
   const panicCloseAll = async () => {
     if (panicClosing) return;
     const ok = window.confirm(
@@ -193,18 +190,26 @@ export default function Dashboard() {
   };
 
   const handleAddTickers = async () => {
-    if (!tickerInput.trim()) return;
+    const input = tickerInput.trim();
+    if (!input) {
+      setAddMessage("Error: Please enter at least one ticker");
+      setTimeout(() => setAddMessage(''), 4000);
+      return;
+    }
+
     setAddingTickers(true);
+    setAddMessage('');
     try {
-      const res = await axios.post(`${CORE_URL}/admin/add-ticker`, { symbols: tickerInput.trim().toUpperCase() });
+      const res = await axios.post(`${CORE_URL}/admin/add-ticker`, { symbols: input.toUpperCase() }, { timeout: 15000 });
       setAddMessage(`Success: ${res.data.message}`);
       setTickerInput('');
       fetchCoreData();
     } catch (err: any) {
-      setAddMessage(`Error: ${err.response?.data?.error || 'Failed'}`);
+      const msg = err.response?.data?.error || err.message || 'Failed to add tickers';
+      setAddMessage(`Error: ${msg}`);
     } finally {
       setAddingTickers(false);
-      setTimeout(() => setAddMessage(''), 5000);
+      setTimeout(() => setAddMessage(''), 6000);
     }
   };
 
@@ -339,7 +344,6 @@ export default function Dashboard() {
             <button onClick={() => setShowAddForm(!showAddForm)} className="p-2 rounded bg-purple-900/40 border border-purple-700/50"><Plus className="w-4 h-4 text-purple-400" /></button>
             <button onClick={() => setShowRemoveForm(!showRemoveForm)} className="p-2 rounded bg-red-900/40 border border-red-700/50"><Minus className="w-4 h-4 text-red-400" /></button>
 
-            {/* ✅ NEW: PANIC CLOSE BUTTON (calls Core: POST /admin/force-close) */}
             <button
               onClick={panicCloseAll}
               disabled={panicClosing}
@@ -361,20 +365,37 @@ export default function Dashboard() {
       {message && <div className="bg-gradient-to-r from-cyan-900/80 to-purple-900/80 py-2 text-center text-xs font-bold animate-pulse">{message}</div>}
       {panicMessage && <div className="bg-gradient-to-r from-red-900/80 to-pink-900/80 py-2 text-center text-xs font-bold animate-pulse">{panicMessage}</div>}
 
-      {/* Forms */}
+      {/* IMPROVED ADD TICKERS FORM */}
       {showAddForm && (
         <div className="px-3 py-2">
-          <div className="max-w-xs mx-auto bg-gray-900/90 border border-cyan-500/50 rounded p-3 text-xs">
-            <h3 className="font-bold text-cyan-400 mb-2">Add Tickers</h3>
-            <input value={tickerInput} onChange={e => setTickerInput(e.target.value)} placeholder="GME AMC..." className="w-full px-3 py-1.5 bg-black/70 border border-cyan-700/50 rounded mb-2" />
-            <button onClick={handleAddTickers} disabled={addingTickers} className="w-full py-1.5 bg-cyan-600 rounded font-bold flex justify-center">
-              {addingTickers ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add'}
+          <div className="max-w-xs mx-auto bg-gray-900/90 border border-cyan-500/50 rounded p-4 text-xs">
+            <h3 className="font-bold text-cyan-400 mb-3">Add Tickers (space separated)</h3>
+            <input 
+              value={tickerInput} 
+              onChange={e => setTickerInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !addingTickers && tickerInput.trim() && handleAddTickers()}
+              placeholder="GME AMC CEI NVDA..." 
+              className="w-full px-4 py-2 bg-black/70 border border-cyan-700/50 rounded mb-3 focus:outline-none focus:border-cyan-400 transition" 
+              autoFocus
+            />
+            <button 
+              onClick={handleAddTickers} 
+              disabled={addingTickers || !tickerInput.trim()}
+              className="w-full py-2.5 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed rounded font-bold flex items-center justify-center gap-2 transition"
+            >
+              {addingTickers ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+              {addingTickers ? 'Adding...' : 'Add to Universe'}
             </button>
-            {addMessage && <p className={`text-center mt-1 text-xs ${addMessage.includes('Error') ? 'text-red-400' : 'text-green-400'}`}>{addMessage}</p>}
+            {addMessage && (
+              <p className={`text-center mt-3 text-sm font-bold ${addMessage.includes('Error') ? 'text-red-400' : 'text-green-400'}`}>
+                {addMessage}
+              </p>
+            )}
           </div>
         </div>
       )}
 
+      {/* Remove Form (unchanged) */}
       {showRemoveForm && (
         <div className="px-3 py-2">
           <div className="max-w-xs mx-auto bg-gray-900/90 border border-red-500/50 rounded p-3 text-xs">
@@ -465,7 +486,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* NEW: ML Learning Panel — Multi-Symbol Visualization */}
+      {/* ML Learning Panel */}
       <div className="px-3 py-2">
         <div className="bg-gradient-to-r from-purple-900/30 via-cyan-900/30 to-black border border-purple-500/40 rounded p-3 text-xs">
           <h3 className="font-bold text-purple-300 mb-2 flex items-center gap-2"><Brain className="w-5 h-5" /> Rainbow DQN Learning</h3>
