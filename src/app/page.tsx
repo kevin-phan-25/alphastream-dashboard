@@ -31,8 +31,9 @@ import {
   PointElement,
   LineElement,
   Tooltip,
+  Filler
 } from 'chart.js';
-import { Filler } from 'chart.js';
+
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
 
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
@@ -365,7 +366,7 @@ export default function Dashboard() {
       {message && <div className="bg-gradient-to-r from-cyan-900/80 to-purple-900/80 py-2 text-center text-xs font-bold animate-pulse">{message}</div>}
       {panicMessage && <div className="bg-gradient-to-r from-red-900/80 to-pink-900/80 py-2 text-center text-xs font-bold animate-pulse">{panicMessage}</div>}
 
-      {/* IMPROVED ADD TICKERS FORM */}
+      {/* Add Tickers Form */}
       {showAddForm && (
         <div className="px-3 py-2">
           <div className="max-w-xs mx-auto bg-gray-900/90 border border-cyan-500/50 rounded p-4 text-xs">
@@ -395,7 +396,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Remove Form (unchanged) */}
+      {/* Remove Form */}
       {showRemoveForm && (
         <div className="px-3 py-2">
           <div className="max-w-xs mx-auto bg-gray-900/90 border border-red-500/50 rounded p-3 text-xs">
