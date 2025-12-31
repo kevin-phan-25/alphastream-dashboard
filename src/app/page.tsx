@@ -122,7 +122,7 @@ export default function Dashboard() {
 
       setError(null);
     } catch (e: any) {
-      setError("Core unreachable");
+      setError("Cannot reach AlphaStream Core — retrying...");
     } finally {
       setLoading(false);
     }
@@ -140,39 +140,43 @@ export default function Dashboard() {
   const forceScan = async () => {
     if (scanning) return;
     setScanning(true);
-    setMessage("Deep scan...");
+    setMessage("Initiating deep scan...");
     try {
       await axios.post(`${CORE_URL}/scan`, {}, { timeout: 30000 });
-      setMessage("Complete");
+      setMessage("Scan complete!");
       setTimeout(() => fetchCoreData(), 1000);
-      setTimeout(() => setMessage(""), 2000);
+      setTimeout(() => setMessage(""), 3000);
     } catch {
-      setMessage("Failed");
-      setTimeout(() => setMessage(""), 2000);
+      setMessage("Scan failed");
+      setTimeout(() => setMessage(""), 3000);
     } finally {
       setScanning(false);
     }
   };
 
   const panicCloseAll = async () => {
-    if (panicClosing || !window.confirm("PANIC CLOSE all positions?")) return;
+    if (panicClosing) return;
+    const ok = window.confirm("⚠️ PANIC CLOSE: This will immediately liquidate ALL positions and enable HARD FLAT. Confirm?");
+    if (!ok) return;
+
     setPanicClosing(true);
-    setPanicMessage("LIQUIDATING...");
+    setPanicMessage("EXECUTING PANIC CLOSE...");
     try {
       const res = await axios.post(`${CORE_URL}/admin/force-close`, {}, { timeout: 30000 });
-      setPanicMessage(res?.data?.message || "EXECUTED");
+      setPanicMessage(res?.data?.message || "PANIC CLOSE EXECUTED");
       setTimeout(() => fetchCoreData(), 1000);
     } catch (err: any) {
-      setPanicMessage(`FAILED: ${err.response?.data?.error || err.message}`);
+      setPanicMessage(`PANIC FAILED: ${err.response?.data?.error || err.message}`);
     } finally {
       setPanicClosing(false);
-      setTimeout(() => setPanicMessage(""), 8000);
+      setTimeout(() => setPanicMessage(""), 10000);
     }
   };
 
   const handleAddTickers = async () => {
     const input = tickerInput.trim();
     if (!input) return;
+
     setAddingTickers(true);
     setAddMessage('');
     try {
@@ -184,7 +188,7 @@ export default function Dashboard() {
       setAddMessage(`✗ ${err.response?.data?.error || 'Failed'}`);
     } finally {
       setAddingTickers(false);
-      setTimeout(() => setAddMessage(''), 4000);
+      setTimeout(() => setAddMessage(''), 5000);
     }
   };
 
@@ -200,7 +204,7 @@ export default function Dashboard() {
       setRemoveMessage(`✗ ${err.response?.data?.error || 'Failed'}`);
     } finally {
       setRemovingTickers(false);
-      setTimeout(() => setRemoveMessage(''), 4000);
+      setTimeout(() => setRemoveMessage(''), 5000);
     }
   };
 
@@ -231,12 +235,16 @@ export default function Dashboard() {
         };
         setRocketCharts(prev => ({ ...prev, [symbol]: chartData }));
       }
-    } catch {}
+    } catch (e) {}
   };
 
   const toggleRocketChart = (symbol: string) => {
-    if (expandedRocket === symbol) setExpandedRocket(null);
-    else { setExpandedRocket(symbol); fetchRocketChart(symbol); }
+    if (expandedRocket === symbol) {
+      setExpandedRocket(null);
+    } else {
+      setExpandedRocket(symbol);
+      fetchRocketChart(symbol);
+    }
   };
 
   useEffect(() => {
@@ -364,7 +372,7 @@ export default function Dashboard() {
       {message && <div className="shrink-0 bg-gradient-to-r from-cyan-600/80 to-purple-600/80 py-1 text-center text-xs font-bold">{message}</div>}
       {panicMessage && <div className="shrink-0 bg-gradient-to-r from-red-600/90 to-pink-700/90 py-1 text-center text-xs font-bold">{panicMessage}</div>}
 
-      {/* Forms */}
+      {/* Add/Remove Forms */}
       {showAddForm && (
         <div className="shrink-0 px-3 py-1 bg-black/80 border-b border-cyan-900/50">
           <div className="flex gap-1">
@@ -543,8 +551,8 @@ export default function Dashboard() {
                 const time = match?.[1] || '';
                 const message = match?.[2] || logLine;
                 const isEntry = message.includes('ENTERED');
-                const isExit = message.includes('EXIT') || message.includes('CLOSED');
-                const isDense = message.includes('DENSE');
+                const isExit = message.includes('EXIT') || message.includes('CLOSED') || message.includes('FORCE');
+                const isDense = message.includes('DENSE FEEDBACK');
                 const isReject = message.includes('REJECT');
                 return (
                   <div key={i} className={`py-0.5 ${isEntry ? 'text-green-400' : isExit ? 'text-red-400' : isDense ? 'text-purple-400' : isReject ? 'text-gray-500' : ''}`}>
