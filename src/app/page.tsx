@@ -291,7 +291,7 @@ export default function Dashboard() {
   const universeSize = core.universeSize || 0;
   const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
-  const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse().slice(0, 20) : [];
+  const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse().slice(0, 50) : []; // ← Extended to 50 lines
 
   const totalExposure = positions.reduce((sum: number, pos: any) => sum + (pos.marketValue || 0), 0);
   const exposurePct = equity > 0 ? ((totalExposure / equity) * 100).toFixed(1) : "0.0";
@@ -350,8 +350,8 @@ export default function Dashboard() {
             <Radio className="absolute -top-1 -right-1 w-4 h-4 text-green-400 animate-pulse" />
           </div>
           <div>
-            <h1 className="text-xl font-black bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">ALPHASTREAM</h1>
-            <p className="text-xs text-gray-500 tracking-widest">NEURAL MOMENTUM ENGINE v3</p>
+            <h1 className="text-xl font-black bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">ALPHASTREAM</h1>
+            <p className="text-xs text-gray-500 tracking-widest">QR-DQN MOMENTUM ENGINE v4</p>
           </div>
           <button onClick={() => setShowUniverse(true)} className="flex items-center gap-1 px-2 py-1 bg-cyan-900/40 border border-cyan-700/50 rounded text-xs">
             <Globe className="w-3 h-3" /> {universeSize}
@@ -466,14 +466,15 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Neural Core */}
+          {/* Neural Core — Now with Quantiles */}
           <div className="bg-gradient-to-r from-purple-900/50 via-cyan-900/30 to-black border border-purple-500/40 rounded p-3">
             <div className="flex items-center gap-2 mb-2"><Network className="w-5 h-5 text-purple-400" /> <span className="font-bold text-purple-300">NEURAL CORE</span></div>
-            <div className="grid grid-cols-4 gap-3 text-center">
+            <div className="grid grid-cols-5 gap-3 text-center">
               <div><p className="text-xl font-bold text-cyan-300">{mlMetrics.activeSymbols || 0}</p><p className="text-xs text-gray-500">Active</p></div>
               <div><p className="text-xl font-bold text-purple-300">{mlMetrics.memorySize || 0}</p><p className="text-xs text-gray-500">Memory</p></div>
               <div><p className="text-xl font-bold text-yellow-300">{mlMetrics.learningSteps || 0}</p><p className="text-xs text-gray-500">Steps</p></div>
               <div><p className="text-xl font-bold text-green-300">{(mlMetrics.eps || 0).toFixed(3)}</p><p className="text-xs text-gray-500">ε</p></div>
+              <div><p className="text-xl font-bold text-pink-300">{mlMetrics.qrQuantiles || 200}</p><p className="text-xs text-gray-500">Quantiles</p></div>
             </div>
             {topSymbols.length > 0 && (
               <div className="mt-3">
@@ -542,9 +543,9 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Neural Log */}
-          <div className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 max-h-40 overflow-y-auto font-mono text-xs">
-            <p className="font-bold text-cyan-300 mb-1 flex items-center gap-1"><Activity className="w-4 h-4" /> NEURAL LOG</p>
+          {/* Neural Log — Extended to 50 lines + taller container */}
+          <div className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 max-h-64 overflow-y-auto font-mono text-xs">
+            <p className="font-bold text-cyan-300 mb-1 flex items-center gap-1"><Activity className="w-4 h-4" /> NEURAL LOG (50)</p>
             {logs.length === 0 ? <p className="text-center text-gray-600 py-4">Core idle — awaiting market stimulus</p> : (
               logs.map((logLine: string, i: number) => {
                 const match = logLine.match(/\[(.*?)\] (.*)/);
