@@ -94,16 +94,20 @@ export default function Dashboard() {
   const [showUniverse, setShowUniverse] = useState(false);
   const [universeSearch, setUniverseSearch] = useState('');
 
-  // ✅ NEW: Resizable (drag-down) log panel
-  const [logHeight, setLogHeight] = useState<number>(256); // px (default ~ max-h-64)
-  const [isResizingLogs, setIsResizingLogs] = useState(false);
-  const resizeStartYRef = useRef<number>(0);
-  const resizeStartHeightRef = useRef<number>(256);
-
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
   const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
   const DAILY_LOSS_LIMIT = 1500;
+
+  // =========================
+  // DRAG-RESIZE LOG BOX (INSIDE)
+  // =========================
+  const [logHeight, setLogHeight] = useState<number>(256); // default ~ max-h-64
+  const [draggingLogs, setDraggingLogs] = useState(false);
+  const dragStartYRef = useRef<number>(0);
+  const dragStartHeightRef = useRef<number>(256);
+  const logMinHeight = 140;
+  const logMaxHeight = 560;
 
   const fetchCoreData = async () => {
     try {
@@ -253,36 +257,28 @@ export default function Dashboard() {
     }
   };
 
-  // ✅ NEW: Drag handlers for log resize
-  const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
-
-  const startResizeLogs = (clientY: number) => {
-    setIsResizingLogs(true);
-    resizeStartYRef.current = clientY;
-    resizeStartHeightRef.current = logHeight;
-    // prevent accidental text selection while dragging
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'ns-resize';
-  };
-
-  const stopResizeLogs = () => {
-    setIsResizingLogs(false);
-    document.body.style.userSelect = '';
-    document.body.style.cursor = '';
+  // =========================
+  // LOG RESIZE HANDLERS
+  // =========================
+  const startLogDrag = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDraggingLogs(true);
+    dragStartYRef.current = e.clientY;
+    dragStartHeightRef.current = logHeight;
   };
 
   useEffect(() => {
+    if (!draggingLogs) return;
+
     const onMove = (e: MouseEvent) => {
-      if (!isResizingLogs) return;
-      const dy = e.clientY - resizeStartYRef.current;
-      const next = resizeStartHeightRef.current + dy;
-      // min 120px, max 560px (safe within right column)
-      setLogHeight(clamp(next, 120, 560));
+      const dy = e.clientY - dragStartYRef.current;
+      const next = Math.max(logMinHeight, Math.min(logMaxHeight, dragStartHeightRef.current + dy));
+      setLogHeight(next);
     };
 
     const onUp = () => {
-      if (!isResizingLogs) return;
-      stopResizeLogs();
+      setDraggingLogs(false);
     };
 
     window.addEventListener('mousemove', onMove);
@@ -290,11 +286,8 @@ export default function Dashboard() {
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
-      // cleanup in case component unmounts mid-drag
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
     };
-  }, [isResizingLogs, logHeight]);
+  }, [draggingLogs, logHeight]);
 
   useEffect(() => {
     fetchCoreData();
@@ -592,44 +585,51 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* ✅ NEW: Drag handle to resize logs (drag down / up) */}
+          {/* Neural Log — Extended to 50 lines + DRAG INSIDE BOX */}
           <div
-            className={`h-3 rounded bg-gradient-to-r from-cyan-500/20 via-purple-500/10 to-cyan-500/20 border border-cyan-500/20 flex items-center justify-center select-none ${
-              isResizingLogs ? 'cursor-ns-resize' : 'cursor-ns-resize hover:border-cyan-400/40'
-            }`}
-            onMouseDown={(e) => startResizeLogs(e.clientY)}
-            title="Drag to resize logs"
+            className={`bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 font-mono text-xs relative overflow-hidden ${draggingLogs ? 'select-none' : ''}`}
+            style={{ height: `${logHeight}px` }}
           >
-            <div className="flex gap-1">
-              <span className="w-8 h-0.5 bg-cyan-400/40 rounded" />
-              <span className="w-8 h-0.5 bg-cyan-400/30 rounded" />
-              <span className="w-8 h-0.5 bg-cyan-400/40 rounded" />
+            <p className="font-bold text-cyan-300 mb-1 flex items-center gap-1">
+              <Activity className="w-4 h-4" /> NEURAL LOG (50)
+              <span className="ml-auto text-[10px] text-gray-500 flex items-center gap-1">
+                <span className="opacity-70">drag handle ↓</span>
+              </span>
+            </p>
+
+            <div className="overflow-y-auto pr-1" style={{ height: `${logHeight - 34}px` }}>
+              {logs.length === 0 ? <p className="text-center text-gray-600 py-4">Core idle — awaiting market stimulus</p> : (
+                logs.map((logLine: string, i: number) => {
+                  const match = logLine.match(/\[(.*?)\] (.*)/);
+                  const time = match?.[1] || '';
+                  const message = match?.[2] || logLine;
+                  const isEntry = message.includes('ENTERED');
+                  const isExit = message.includes('EXIT') || message.includes('CLOSED') || message.includes('FORCE');
+                  const isDense = message.includes('DENSE FEEDBACK');
+                  const isReject = message.includes('REJECT');
+                  return (
+                    <div key={i} className={`py-0.5 ${isEntry ? 'text-green-400' : isExit ? 'text-red-400' : isDense ? 'text-purple-400' : isReject ? 'text-gray-500' : ''}`}>
+                      <span className="text-cyan-500">{time}</span> {message}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* INSIDE drag handle (bottom strip) */}
+            <div
+              onMouseDown={startLogDrag}
+              className="absolute left-2 right-2 bottom-2 h-4 rounded bg-black/50 border border-cyan-700/40 flex items-center justify-center cursor-row-resize"
+              title="Drag to resize log box"
+            >
+              <div className="flex gap-1 opacity-80">
+                <div className="w-10 h-0.5 bg-cyan-500/60 rounded" />
+                <div className="w-10 h-0.5 bg-cyan-500/30 rounded" />
+                <div className="w-10 h-0.5 bg-cyan-500/60 rounded" />
+              </div>
             </div>
           </div>
 
-          {/* Neural Log — Resizable height (still 50 lines) */}
-          <div
-            className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 overflow-y-auto font-mono text-xs"
-            style={{ height: `${logHeight}px` }}
-          >
-            <p className="font-bold text-cyan-300 mb-1 flex items-center gap-1"><Activity className="w-4 h-4" /> NEURAL LOG (50)</p>
-            {logs.length === 0 ? <p className="text-center text-gray-600 py-4">Core idle — awaiting market stimulus</p> : (
-              logs.map((logLine: string, i: number) => {
-                const match = logLine.match(/\[(.*?)\] (.*)/);
-                const time = match?.[1] || '';
-                const message = match?.[2] || logLine;
-                const isEntry = message.includes('ENTERED');
-                const isExit = message.includes('EXIT') || message.includes('CLOSED') || message.includes('FORCE');
-                const isDense = message.includes('DENSE FEEDBACK');
-                const isReject = message.includes('REJECT');
-                return (
-                  <div key={i} className={`py-0.5 ${isEntry ? 'text-green-400' : isExit ? 'text-red-400' : isDense ? 'text-purple-400' : isReject ? 'text-gray-500' : ''}`}>
-                    <span className="text-cyan-500">{time}</span> {message}
-                  </div>
-                );
-              })
-            )}
-          </div>
         </div>
       </div>
     </div>
