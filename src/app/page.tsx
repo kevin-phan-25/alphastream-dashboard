@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import {
@@ -93,6 +93,12 @@ export default function Dashboard() {
 
   const [showUniverse, setShowUniverse] = useState(false);
   const [universeSearch, setUniverseSearch] = useState('');
+
+  // ✅ NEW: Resizable (drag-down) log panel
+  const [logHeight, setLogHeight] = useState<number>(256); // px (default ~ max-h-64)
+  const [isResizingLogs, setIsResizingLogs] = useState(false);
+  const resizeStartYRef = useRef<number>(0);
+  const resizeStartHeightRef = useRef<number>(256);
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
   const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
@@ -246,6 +252,49 @@ export default function Dashboard() {
       fetchRocketChart(symbol);
     }
   };
+
+  // ✅ NEW: Drag handlers for log resize
+  const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+  const startResizeLogs = (clientY: number) => {
+    setIsResizingLogs(true);
+    resizeStartYRef.current = clientY;
+    resizeStartHeightRef.current = logHeight;
+    // prevent accidental text selection while dragging
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'ns-resize';
+  };
+
+  const stopResizeLogs = () => {
+    setIsResizingLogs(false);
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  };
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!isResizingLogs) return;
+      const dy = e.clientY - resizeStartYRef.current;
+      const next = resizeStartHeightRef.current + dy;
+      // min 120px, max 560px (safe within right column)
+      setLogHeight(clamp(next, 120, 560));
+    };
+
+    const onUp = () => {
+      if (!isResizingLogs) return;
+      stopResizeLogs();
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      // cleanup in case component unmounts mid-drag
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isResizingLogs, logHeight]);
 
   useEffect(() => {
     fetchCoreData();
@@ -543,8 +592,26 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Neural Log — Extended to 50 lines + taller container */}
-          <div className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 max-h-64 overflow-y-auto font-mono text-xs">
+          {/* ✅ NEW: Drag handle to resize logs (drag down / up) */}
+          <div
+            className={`h-3 rounded bg-gradient-to-r from-cyan-500/20 via-purple-500/10 to-cyan-500/20 border border-cyan-500/20 flex items-center justify-center select-none ${
+              isResizingLogs ? 'cursor-ns-resize' : 'cursor-ns-resize hover:border-cyan-400/40'
+            }`}
+            onMouseDown={(e) => startResizeLogs(e.clientY)}
+            title="Drag to resize logs"
+          >
+            <div className="flex gap-1">
+              <span className="w-8 h-0.5 bg-cyan-400/40 rounded" />
+              <span className="w-8 h-0.5 bg-cyan-400/30 rounded" />
+              <span className="w-8 h-0.5 bg-cyan-400/40 rounded" />
+            </div>
+          </div>
+
+          {/* Neural Log — Resizable height (still 50 lines) */}
+          <div
+            className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 overflow-y-auto font-mono text-xs"
+            style={{ height: `${logHeight}px` }}
+          >
             <p className="font-bold text-cyan-300 mb-1 flex items-center gap-1"><Activity className="w-4 h-4" /> NEURAL LOG (50)</p>
             {logs.length === 0 ? <p className="text-center text-gray-600 py-4">Core idle — awaiting market stimulus</p> : (
               logs.map((logLine: string, i: number) => {
