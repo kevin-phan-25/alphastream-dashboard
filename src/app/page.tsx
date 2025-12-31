@@ -22,7 +22,9 @@ import {
   Shield,
   Target,
   BarChart3,
-  Brain
+  Brain,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -65,10 +67,7 @@ type ChartData = {
 
 type MLSymbolMetric = {
   symbol: string;
-  transitions: number;
-  avgReward: number;
-  totalReward: number;
-  lastSeen: string;
+  count: number;
 };
 
 export default function Dashboard() {
@@ -303,7 +302,7 @@ export default function Dashboard() {
   const universeSize = core.universeSize || 0;
   const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
-  const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse().slice(0, 12) : [];
+  const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse().slice(0, 20) : [];
 
   const totalExposure = positions.reduce((sum: number, pos: any) => sum + (pos.qty * pos.avg_entry_price), 0);
   const exposurePct = equity > 0 ? ((totalExposure / equity) * 100).toFixed(1) : "0.0";
@@ -326,6 +325,8 @@ export default function Dashboard() {
     const colors = ["text-green-300 bg-green-900/50", "text-cyan-300 bg-cyan-900/40", "text-yellow-300 bg-yellow-900/30", "text-gray-400 bg-gray-800/40", "text-red-400 bg-red-900/40"];
     return { label: labels[action] || "HOLD", color: colors[action] || colors[2] };
   };
+
+  const topSymbols = (mlMetrics.topSymbols || []).slice(0, 10);
 
   return (
     <div className="min-h-screen bg-black text-gray-100 overflow-x-hidden">
@@ -487,31 +488,37 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ML Learning Panel */}
+      {/* ML Learning Panel — ENHANCED VISUALIZATION */}
       <div className="px-3 py-2">
         <div className="bg-gradient-to-r from-purple-900/30 via-cyan-900/30 to-black border border-purple-500/40 rounded p-3 text-xs">
           <h3 className="font-bold text-purple-300 mb-2 flex items-center gap-2"><Brain className="w-5 h-5" /> Rainbow DQN Learning</h3>
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-4 gap-2 text-center">
             <div>
               <div className="font-bold text-cyan-400">{mlMetrics.activeSymbols || 0}</div>
-              <div className="opacity-70">Active Symbols</div>
+              <div className="opacity-70 text-xs">Active</div>
             </div>
             <div>
-              <div className="font-bold text-yellow-400">{mlMetrics.memorySize || 0}</div>
-              <div className="opacity-70">Total Experience</div>
+              <div className="font-bold text-purple-400">{mlMetrics.memorySize || 0}</div>
+              <div className="opacity-70 text-xs">Memory</div>
             </div>
             <div>
-              <div className="font-bold text-green-400">{mlMetrics.learningSteps || 0}</div>
-              <div className="opacity-70">Training Steps</div>
+              <div className="font-bold text-yellow-400">{mlMetrics.learningSteps || 0}</div>
+              <div className="opacity-70 text-xs">Steps</div>
+            </div>
+            <div>
+              <div className="font-bold text-green-400">{(mlMetrics.eps || 0).toFixed(4)}</div>
+              <div className="opacity-70 text-xs">ε (Exploration)</div>
             </div>
           </div>
-          {mlMetrics.topSymbols && mlMetrics.topSymbols.length > 0 && (
+
+          {topSymbols.length > 0 && (
             <div className="mt-3">
               <div className="text-xs opacity-80 mb-1">Top Learned Symbols</div>
               <div className="grid grid-cols-5 gap-1 text-xs font-mono">
-                {mlMetrics.topSymbols.slice(0, 10).map((s: MLSymbolMetric) => (
-                  <div key={s.symbol} className="bg-purple-900/30 rounded px-2 py-1 text-center border border-purple-700/50">
-                    {s.symbol} ({s.transitions})
+                {topSymbols.map((s: MLSymbolMetric) => (
+                  <div key={s.symbol} className="bg-purple-900/30 rounded px-2 py-1 text-center border border-purple-700/50 flex items-center justify-center gap-1">
+                    <span>{s.symbol}</span>
+                    <span className="text-green-400 text-xs">{s.count}</span>
                   </div>
                 ))}
               </div>
@@ -528,9 +535,14 @@ export default function Dashboard() {
           {positions.length === 0 ? <p className="text-center text-gray-500 py-6">None</p> : (
             <div className="space-y-2">
               {positions.map((pos: any, i: number) => (
-                <div key={i} className="bg-gray-800/50 rounded p-2 flex justify-between">
+                <div key={i} className="bg-gray-800/50 rounded p-2 flex justify-between items-center">
                   <span className="font-bold">{pos.symbol}</span>
-                  <span>{pos.qty} @ ${Number(pos.avg_entry_price).toFixed(2)}</span>
+                  <div className="text-right">
+                    <div>{pos.qty} @ ${Number(pos.avg_entry_price).toFixed(2)}</div>
+                    <div className={`text-xs ${pos.unrealized_pl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {pos.unrealized_pl >= 0 ? '+' : ''}${pos.unrealized_pl?.toFixed(0) || '0'}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -551,15 +563,29 @@ export default function Dashboard() {
                 const isExpanded = expandedRocket === rocket.symbol;
                 const chartData = rocketCharts[rocket.symbol];
                 return (
-                  <div key={i} className={`rounded-lg border p-3 transition-all ${flashing ? 'border-yellow-400 bg-yellow-900/30' : 'border-gray-700/50 bg-gray-800/40'}`}>
+                  <div key={i} className={`rounded-lg border p-3 transition-all ${flashing ? 'border-yellow-400 bg-yellow-900/30 animate-pulse' : 'border-gray-700/50 bg-gray-800/40'}`}>
                     <div onClick={() => toggleRocketChart(rocket.symbol)} className="flex justify-between items-center cursor-pointer">
                       <div>
-                        <div className="font-bold text-cyan-400">{rocket.symbol}</div>
-                        <div className="text-xs opacity-80">+{rocket.gap}% • Conf: {rocket.mlConfidence}% {rocket.mlPriority && '⚡'}</div>
+                        <div className="font-bold text-cyan-400 text-lg">{rocket.symbol}</div>
+                        <div className="text-xs opacity-80">
+                          +{rocket.gap}% gap • RVOL {rocket.rvol} • ${rocket.price}
+                        </div>
                       </div>
-                      <div className={`px-3 py-1 rounded text-xs font-bold ${action.color}`}>{action.label}</div>
+                      <div className="text-right">
+                        <div className={`px-3 py-1 rounded text-xs font-bold ${action.color}`}>
+                          {action.label}
+                        </div>
+                        <div className="text-xs mt-1 flex items-center justify-end gap-1">
+                          Confidence: <span className="font-bold text-cyan-300">{rocket.mlConfidence}%</span>
+                          {rocket.mlPriority && <Zap className="w-4 h-4 text-yellow-400" />}
+                        </div>
+                      </div>
                     </div>
-                    {isExpanded && chartData && <div className="h-20 mt-2 border-t border-gray-700"><Line data={chartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>}
+                    {isExpanded && chartData && (
+                      <div className="mt-3 border-t border-gray-700 pt-2">
+                        <div className="h-24"><Line data={chartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -568,11 +594,50 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Logs */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black/90 border-t border-cyan-500/30 p-2 text-xs font-mono max-h-32 overflow-y-auto">
-        {logs.map((log: any, i: number) => (
-          <div key={i} className="opacity-70"><span className="text-cyan-500">{log.time}</span> {log.message}</div>
-        ))}
+      {/* Live Logs Panel */}
+      <div className="px-3 py-2">
+        <div className="bg-gray-900/90 border border-cyan-500/40 rounded p-3 text-xs">
+          <h3 className="font-bold text-cyan-300 mb-2 flex items-center gap-2">
+            <Activity className="w-5 h-5" /> Live Logs ({logs.length})
+          </h3>
+          <div className="max-h-48 overflow-y-auto font-mono text-xs space-y-1">
+            {logs.length === 0 ? (
+              <p className="text-center text-gray-500 py-4">Waiting for activity...</p>
+            ) : (
+              logs.map((logLine: string, i: number) => {
+                const match = logLine.match(/\[(.*?)\] (.*)/);
+                const time = match?.[1] || '';
+                const message = match?.[2] || logLine;
+
+                const isEntry = message.includes('ENTERED');
+                const isExit = message.includes('EXIT') || message.includes('CLOSED');
+                const isDense = message.includes('DENSE FEEDBACK');
+                const isReject = message.includes('REJECT');
+
+                return (
+                  <div
+                    key={i}
+                    className={`py-1 px-2 rounded ${
+                      isEntry ? 'bg-green-900/30 border border-green-700/50' :
+                      isExit ? 'bg-red-900/30 border border-red-700/50' :
+                      isDense ? 'bg-purple-900/30 border border-purple-700/30' :
+                      isReject ? 'bg-gray-800/50' :
+                      'bg-gray-800/30'
+                    }`}
+                  >
+                    <span className="text-cyan-500">{time}</span>
+                    <span className="ml-2">
+                      {isEntry && <CheckCircle2 className="w-3 h-3 inline text-green-400 mr-1" />}
+                      {isExit && <XCircle className="w-3 h-3 inline text-red-400 mr-1" />}
+                      {isDense && <Brain className="w-3 h-3 inline text-purple-400 mr-1" />}
+                      {message}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
