@@ -498,7 +498,7 @@ export default function Dashboard() {
             </div>
             {topSymbols.length > 0 && (
               <div className="mt-2 grid grid-cols-5 gap-1">
-                {topSymbols.map(s => (
+                {topSymbols.map((s: MLSymbolMetric) => (
                   <div key={s.symbol} className="bg-black/50 border border-purple-700/50 rounded px-1 py-0.5 text-center text-xs">
                     <span className="text-purple-300">{s.symbol}</span> <span className="text-green-400">{s.count}</span>
                   </div>
