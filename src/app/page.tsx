@@ -24,7 +24,11 @@ import {
   BarChart3,
   Brain,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Sparkles,
+  Cpu,
+  Network,
+  Gauge
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -33,14 +37,20 @@ import {
   PointElement,
   LineElement,
   Tooltip,
-  Filler
+  Filler,
+  ArcElement
 } from 'chart.js';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler, ArcElement);
 
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), {
   ssr: false,
-  loading: () => <div className="h-12 flex items-center justify-center text-cyan-500 text-xs animate-pulse">Chart...</div>
+  loading: () => <div className="h-12 flex items-center justify-center text-cyan-400 text-xs animate-pulse">Chart...</div>
+});
+
+const Doughnut = dynamic(() => import('react-chartjs-2').then(mod => mod.Doughnut), {
+  ssr: false,
+  loading: () => <div className="h-32 flex items-center justify-center text-cyan-400 text-xs animate-pulse">...</div>
 });
 
 type Rocket = {
@@ -114,14 +124,14 @@ export default function Dashboard() {
       const time = new Date().toLocaleTimeString([], { minute: '2-digit' });
 
       setCore(data);
-      setEquityHistory(prev => [...prev, { time, equity: equityValue }].slice(-20));
-      setRealizedPnLHistory(prev => [...prev, { time, pnl: realizedPnLValue }].slice(-20));
-      setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: '2-digit', minute: '2-digit' }));
+      setEquityHistory(prev => [...prev, { time, equity: equityValue }].slice(-30));
+      setRealizedPnLHistory(prev => [...prev, { time, pnl: realizedPnLValue }].slice(-30));
+      setLastUpdate(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 
       if (Array.isArray(data.rockets) && data.rockets.length > 0) {
         const newSymbols = data.rockets.map((r: Rocket) => r.symbol);
         setFlashRockets(new Set(newSymbols));
-        setTimeout(() => setFlashRockets(new Set()), 2500);
+        setTimeout(() => setFlashRockets(new Set()), 3000);
         setLiveRockets(data.rockets);
       } else {
         setLiveRockets([]);
@@ -147,15 +157,15 @@ export default function Dashboard() {
   const forceScan = async () => {
     if (scanning) return;
     setScanning(true);
-    setMessage("Scanning...");
+    setMessage("Initiating deep scan...");
     try {
       await axios.post(`${CORE_URL}/scan`, {}, { timeout: 30000 });
-      setMessage("Scan triggered!");
+      setMessage("Scan complete!");
       setTimeout(() => fetchCoreData(), 1000);
-      setTimeout(() => setMessage(""), 2500);
+      setTimeout(() => setMessage(""), 3000);
     } catch {
       setMessage("Scan failed");
-      setTimeout(() => setMessage(""), 2500);
+      setTimeout(() => setMessage(""), 3000);
     } finally {
       setScanning(false);
     }
@@ -163,53 +173,39 @@ export default function Dashboard() {
 
   const panicCloseAll = async () => {
     if (panicClosing) return;
-    const ok = window.confirm(
-      "PANIC CLOSE will immediately close ALL positions in the Core (and enable HARD FLAT). Continue?"
-    );
+    const ok = window.confirm("⚠️ PANIC CLOSE: This will immediately liquidate ALL positions and enable HARD FLAT. Confirm?");
     if (!ok) return;
 
     setPanicClosing(true);
-    setPanicMessage("PANIC CLOSE: executing...");
+    setPanicMessage("EXECUTING PANIC CLOSE...");
     try {
       const res = await axios.post(`${CORE_URL}/admin/force-close`, {}, { timeout: 30000 });
-      const msg = res?.data?.message || "PANIC CLOSE: executed";
-      setPanicMessage(msg);
-
+      setPanicMessage(res?.data?.message || "PANIC CLOSE EXECUTED");
       setTimeout(() => fetchCoreData(), 1000);
-      setTimeout(() => fetchMLMetrics(), 1200);
     } catch (err: any) {
-      const status = err?.response?.status;
-      const detail = err?.response?.data?.error || err?.message || "Unknown error";
-      setPanicMessage(
-        status ? `PANIC CLOSE FAILED: Request failed with status code ${status} — ${detail}` : `PANIC CLOSE FAILED: ${detail}`
-      );
+      setPanicMessage(`PANIC FAILED: ${err.response?.data?.error || err.message}`);
     } finally {
       setPanicClosing(false);
-      setTimeout(() => setPanicMessage(""), 9000);
+      setTimeout(() => setPanicMessage(""), 10000);
     }
   };
 
   const handleAddTickers = async () => {
     const input = tickerInput.trim();
-    if (!input) {
-      setAddMessage("Error: Please enter at least one ticker");
-      setTimeout(() => setAddMessage(''), 4000);
-      return;
-    }
+    if (!input) return;
 
     setAddingTickers(true);
     setAddMessage('');
     try {
       const res = await axios.post(`${CORE_URL}/admin/add-ticker`, { symbols: input.toUpperCase() }, { timeout: 15000 });
-      setAddMessage(`Success: ${res.data.message}`);
+      setAddMessage(`✓ ${res.data.message}`);
       setTickerInput('');
       fetchCoreData();
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || 'Failed to add tickers';
-      setAddMessage(`Error: ${msg}`);
+      setAddMessage(`✗ ${err.response?.data?.error || 'Failed'}`);
     } finally {
       setAddingTickers(false);
-      setTimeout(() => setAddMessage(''), 6000);
+      setTimeout(() => setAddMessage(''), 5000);
     }
   };
 
@@ -218,11 +214,11 @@ export default function Dashboard() {
     setRemovingTickers(true);
     try {
       const res = await axios.post(`${CORE_URL}/admin/remove-ticker`, { symbols: removeTickerInput.trim().toUpperCase() });
-      setRemoveMessage(`Success: ${res.data.message}`);
+      setRemoveMessage(`✓ ${res.data.message}`);
       setRemoveTickerInput('');
       fetchCoreData();
     } catch (err: any) {
-      setRemoveMessage(`Error: ${err.response?.data?.error || 'Failed'}`);
+      setRemoveMessage(`✗ ${err.response?.data?.error || 'Failed'}`);
     } finally {
       setRemovingTickers(false);
       setTimeout(() => setRemoveMessage(''), 5000);
@@ -243,10 +239,11 @@ export default function Dashboard() {
           datasets: [{
             data: prices,
             borderColor: '#00ffff',
-            backgroundColor: 'rgba(0, 255, 255, 0.1)',
+            backgroundColor: 'rgba(0, 255, 255, 0.15)',
             fill: true,
-            tension: 0.4,
-            pointRadius: 0
+            tension: 0.5,
+            pointRadius: 0,
+            borderWidth: 2
           }]
         };
         setRocketCharts(prev => ({ ...prev, [symbol]: chartData }));
@@ -269,25 +266,30 @@ export default function Dashboard() {
     const interval = setInterval(() => {
       fetchCoreData();
       fetchMLMetrics();
-    }, 15000);
+    }, 12000);
     return () => clearInterval(interval);
   }, []);
 
   if (loading) return (
-    <div className="min-h-screen bg-black text-cyan-400 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <Activity className="w-10 h-10 animate-pulse" />
-        <p className="text-xs tracking-wider">INITIALIZING...</p>
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="text-center">
+        <div className="relative">
+          <div className="w-24 h-24 border-4 border-cyan-500/30 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 w-24 h-24 border-t-4 border-cyan-400 rounded-full animate-spin animation-delay-300"></div>
+          <Sparkles className="absolute top-8 left-8 w-8 h-8 text-cyan-400 animate-pulse" />
+        </div>
+        <p className="mt-8 text-cyan-400 text-xl font-light tracking-widest">ALPHASTREAM</p>
+        <p className="text-gray-600 text-sm">Initializing neural core...</p>
       </div>
     </div>
   );
 
   if (error) return (
-    <div className="min-h-screen bg-black text-red-400 flex items-center justify-center p-4 text-center">
-      <div className="flex flex-col items-center gap-3">
-        <AlertCircle className="w-12 h-12" />
-        <p className="text-xs max-w-xs">{error}</p>
-        <button onClick={fetchCoreData} className="px-5 py-2 bg-cyan-600 rounded text-xs font-bold">RECONNECT</button>
+    <div className="min-h-screen bg-black flex items-center justify-center p-8">
+      <div className="text-center max-w-md">
+        <AlertCircle className="w-20 h-20 text-red-500 mx-auto mb-6" />
+        <p className="text-red-400 text-lg mb-4">{error}</p>
+        <button onClick={fetchCoreData} className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 rounded-full font-bold transition">RECONNECT</button>
       </div>
     </div>
   );
@@ -302,9 +304,9 @@ export default function Dashboard() {
   const universeSize = core.universeSize || 0;
   const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
-  const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse().slice(0, 20) : [];
+  const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse().slice(0, 25) : [];
 
-  const totalExposure = positions.reduce((sum: number, pos: any) => sum + (pos.qty * pos.avg_entry_price), 0);
+  const totalExposure = positions.reduce((sum: number, pos: any) => sum + (pos.marketValue || 0), 0);
   const exposurePct = equity > 0 ? ((totalExposure / equity) * 100).toFixed(1) : "0.0";
 
   const rawUniverse: string[] = Array.isArray(core.universeSymbols) ? core.universeSymbols : [];
@@ -312,213 +314,243 @@ export default function Dashboard() {
 
   const equityChartData = {
     labels: equityHistory.map(d => d.time),
-    datasets: [{ data: equityHistory.map(d => d.equity), borderColor: dailyDrawdown < 0 ? '#ff0080' : '#00ffff', backgroundColor: 'rgba(0,255,255,0.1)', fill: true, tension: 0.4, pointRadius: 0 }]
+    datasets: [{
+      data: equityHistory.map(d => d.equity),
+      borderColor: dailyDrawdown < 0 ? '#ff0080' : '#00ffff',
+      backgroundColor: 'rgba(0, 255, 255, 0.1)',
+      fill: true,
+      tension: 0.5,
+      pointRadius: 0,
+      borderWidth: 2
+    }]
   };
 
   const realizedPnLChartData = {
     labels: realizedPnLHistory.map(d => d.time),
-    datasets: [{ data: realizedPnLHistory.map(d => d.pnl), borderColor: realizedDailyPnL >= 0 ? '#00ff88' : '#ff3366', backgroundColor: 'rgba(0,255,136,0.1)', fill: true, tension: 0.4, pointRadius: 0 }]
+    datasets: [{
+      data: realizedPnLHistory.map(d => d.pnl),
+      borderColor: realizedDailyPnL >= 0 ? '#00ff88' : '#ff3366',
+      backgroundColor: 'rgba(0, 255, 136, 0.1)',
+      fill: true,
+      tension: 0.5,
+      pointRadius: 0,
+      borderWidth: 2
+    }]
   };
 
   const getActionDetails = (action: number = 2) => {
     const labels = ["STRONG BUY", "BUY", "HOLD", "NEUTRAL", "SELL"];
-    const colors = ["text-green-300 bg-green-900/50", "text-cyan-300 bg-cyan-900/40", "text-yellow-300 bg-yellow-900/30", "text-gray-400 bg-gray-800/40", "text-red-400 bg-red-900/40"];
+    const colors = [
+      "text-green-400 bg-green-900/60 border-green-600",
+      "text-cyan-400 bg-cyan-900/60 border-cyan-600",
+      "text-yellow-400 bg-yellow-900/40 border-yellow-600",
+      "text-gray-400 bg-gray-800/60 border-gray-600",
+      "text-red-400 bg-red-900/60 border-red-600"
+    ];
     return { label: labels[action] || "HOLD", color: colors[action] || colors[2] };
   };
 
   const topSymbols = (mlMetrics.topSymbols || []).slice(0, 10);
 
+  const exposureDoughnut = {
+    labels: ['Exposure', 'Cash'],
+    datasets: [{
+      data: [parseFloat(exposurePct), 100 - parseFloat(exposurePct)],
+      backgroundColor: ['#00ffff', '#1a1a1a'],
+      borderColor: ['#00ffff', '#333'],
+      borderWidth: 2,
+      cutout: '80%'
+    }]
+  };
+
   return (
-    <div className="min-h-screen bg-black text-gray-100 overflow-x-hidden">
-      <div className="fixed inset-0 opacity-10 pointer-events-none bg-[linear-gradient(to_right,#00ffff0a_1px,transparent_1px),linear-gradient(to_bottom,#00ffff0a_1px,transparent_1px)] bg-[size:30px_30px]" />
+    <div className="min-h-screen bg-black text-gray-100 overflow-x-hidden relative">
+      {/* Animated Background Grid */}
+      <div className="fixed inset-0 opacity-5 pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-purple-600/10 to-pink-500/20" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#00ffff0a_1px,transparent_1px),linear-gradient(to_bottom,#00ffff0a_1px,transparent_1px)] bg-[size:50px_50px] animate-pulse" />
+      </div>
+
+      {/* Floating Particles */}
+      <div className="fixed inset-0 pointer-events-none">
+        {[...Array(20)].map((_, i) => (
+          <div key={i} className="absolute w-1 h-1 bg-cyan-400 rounded-full animate-float" style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            animationDelay: `${i * 0.5}s`,
+            animationDuration: `${15 + Math.random() * 20}s`
+          }} />
+        ))}
+      </div>
 
       {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/90 border-b border-cyan-500/30">
-        <div className="px-3 py-2 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-3">
-            <Bot className="w-6 h-6 text-cyan-400 animate-pulse" />
-            <h1 className="text-lg font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">AlphaStream</h1>
-            <button onClick={() => setShowUniverse(!showUniverse)} className="flex items-center gap-1 px-3 py-1 rounded bg-cyan-900/40 border border-cyan-700/50 text-xs">
-              <Globe className="w-3 h-3" /> {universeSize}
-            </button>
+      <header className="sticky top-0 z-50 backdrop-blur-2xl bg-black/80 border-b border-cyan-500/20">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <Bot className="w-10 h-10 text-cyan-400" />
+              <Sparkles className="absolute -top-1 -right-1 w-5 h-5 text-yellow-400 animate-pulse" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                ALPHASTREAM
+              </h1>
+              <p className="text-xs text-gray-500 tracking-widest">NEURAL MOMENTUM ENGINE</p>
+            </div>
+            <div className="ml-8 flex items-center gap-3 px-4 py-2 bg-cyan-900/30 border border-cyan-700/50 rounded-full">
+              <Globe className="w-4 h-4 text-cyan-400" />
+              <span className="font-bold text-cyan-300">{universeSize}</span>
+              <span className="text-xs text-gray-400">symbols</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setShowAddForm(!showAddForm)} className="p-2 rounded bg-purple-900/40 border border-purple-700/50"><Plus className="w-4 h-4 text-purple-400" /></button>
-            <button onClick={() => setShowRemoveForm(!showRemoveForm)} className="p-2 rounded bg-red-900/40 border border-red-700/50"><Minus className="w-4 h-4 text-red-400" /></button>
+
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowAddForm(!showAddForm)} className="p-3 rounded-full bg-purple-900/50 border border-purple-600/50 hover:bg-purple-800/50 transition">
+              <Plus className="w-5 h-5 text-purple-300" />
+            </button>
+            <button onClick={() => setShowRemoveForm(!showRemoveForm)} className="p-3 rounded-full bg-red-900/50 border border-red-600/50 hover:bg-red-800/50 transition">
+              <Minus className="w-5 h-5 text-red-300" />
+            </button>
 
             <button
               onClick={panicCloseAll}
               disabled={panicClosing}
-              className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-pink-600 rounded font-extrabold text-xs flex items-center gap-1.5 border border-red-400/40 shadow-[0_0_25px_rgba(255,0,90,0.25)]"
-              title="Immediately close ALL positions (Core: /admin/force-close)"
+              className="px-6 py-3 bg-gradient-to-r from-red-600 to-pink-700 rounded-full font-black text-sm flex items-center gap-3 border-2 border-red-500/50 shadow-2xl shadow-red-500/30 hover:shadow-red-500/50 transition-all"
             >
-              {panicClosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
+              {panicClosing ? <Loader2 className="w-5 h-5 animate-spin" /> : <AlertTriangle className="w-5 h-5" />}
               PANIC CLOSE
             </button>
 
-            <button onClick={forceScan} disabled={scanning} className="px-4 py-1.5 bg-gradient-to-r from-cyan-600 to-purple-600 rounded font-bold text-xs flex items-center gap-1.5">
-              {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              SCAN
+            <button onClick={forceScan} disabled={scanning} className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-full font-black text-sm flex items-center gap-3 shadow-2xl shadow-cyan-500/30 hover:shadow-cyan-500/50 transition-all">
+              {scanning ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+              DEEP SCAN
             </button>
           </div>
         </div>
       </header>
 
-      {message && <div className="bg-gradient-to-r from-cyan-900/80 to-purple-900/80 py-2 text-center text-xs font-bold animate-pulse">{message}</div>}
-      {panicMessage && <div className="bg-gradient-to-r from-red-900/80 to-pink-900/80 py-2 text-center text-xs font-bold animate-pulse">{panicMessage}</div>}
+      {message && <div className="bg-gradient-to-r from-cyan-600/80 to-purple-600/80 py-3 text-center font-bold animate-pulse">{message}</div>}
+      {panicMessage && <div className="bg-gradient-to-r from-red-600/90 to-pink-700/90 py-3 text-center font-black animate-pulse">{panicMessage}</div>}
 
-      {/* Add Tickers Form */}
-      {showAddForm && (
-        <div className="px-3 py-2">
-          <div className="max-w-xs mx-auto bg-gray-900/90 border border-cyan-500/50 rounded p-4 text-xs">
-            <h3 className="font-bold text-cyan-400 mb-3">Add Tickers (space separated)</h3>
-            <input 
-              value={tickerInput} 
-              onChange={e => setTickerInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && !addingTickers && tickerInput.trim() && handleAddTickers()}
-              placeholder="GME AMC CEI NVDA..." 
-              className="w-full px-4 py-2 bg-black/70 border border-cyan-700/50 rounded mb-3 focus:outline-none focus:border-cyan-400 transition" 
-              autoFocus
-            />
-            <button 
-              onClick={handleAddTickers} 
-              disabled={addingTickers || !tickerInput.trim()}
-              className="w-full py-2.5 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed rounded font-bold flex items-center justify-center gap-2 transition"
-            >
-              {addingTickers ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-              {addingTickers ? 'Adding...' : 'Add to Universe'}
-            </button>
-            {addMessage && (
-              <p className={`text-center mt-3 text-sm font-bold ${addMessage.includes('Error') ? 'text-red-400' : 'text-green-400'}`}>
-                {addMessage}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Remove Form */}
-      {showRemoveForm && (
-        <div className="px-3 py-2">
-          <div className="max-w-xs mx-auto bg-gray-900/90 border border-red-500/50 rounded p-3 text-xs">
-            <h3 className="font-bold text-red-400 mb-2">Remove Tickers</h3>
-            <input value={removeTickerInput} onChange={e => setRemoveTickerInput(e.target.value)} placeholder="CEI..." className="w-full px-3 py-1.5 bg-black/70 border border-red-700/50 rounded mb-2" />
-            <button onClick={handleRemoveTickers} disabled={removingTickers} className="w-full py-1.5 bg-red-600 rounded font-bold flex justify-center">
-              {removingTickers ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Remove'}
-            </button>
-            {removeMessage && <p className={`text-center mt-1 text-xs ${removeMessage.includes('Error') ? 'text-red-400' : 'text-green-400'}`}>{removeMessage}</p>}
-          </div>
-        </div>
-      )}
-
-      {showUniverse && (
-        <div className="px-3 py-2">
-          <div className="max-w-md mx-auto bg-gray-900/90 border border-cyan-500/40 rounded p-3 text-xs">
-            <div className="flex justify-between mb-2">
-              <h3 className="font-bold text-cyan-400">Universe ({universeSize})</h3>
-              <input value={universeSearch} onChange={e => setUniverseSearch(e.target.value)} placeholder="Search..." className="px-2 py-1 bg-black/70 border border-gray-700 rounded text-xs" />
+      {/* Hero Stats Bar */}
+      <div className="px-4 py-4 border-y border-cyan-900/30 bg-gradient-to-r from-black via-cyan-950/30 to-black">
+        <div className="flex justify-between items-center flex-wrap gap-6">
+          <div className="flex gap-8">
+            <div className="text-center">
+              <Wallet className="w-8 h-8 text-cyan-400 mx-auto mb-1" />
+              <p className="text-3xl font-black text-cyan-300">${equity.toFixed(0)}</p>
+              <p className="text-xs text-gray-500">Equity</p>
             </div>
-            <div className="max-h-40 overflow-y-auto grid grid-cols-5 gap-1 text-xs font-mono">
-              {filteredUniverse.length === 0 ? <p className="col-span-5 text-center text-gray-500 py-4">No matches</p> : filteredUniverse.map(sym => (
-                <div key={sym} className="bg-gray-800/50 rounded px-2 py-1 border border-gray-700/50 text-center">{sym}</div>
-              ))}
+            <div className="text-center">
+              <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-1" />
+              <p className="text-3xl font-black text-green-300">${buyingPower.toFixed(0)}</p>
+              <p className="text-xs text-gray-500">Buying Power</p>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Status Tiles */}
-      <div className="px-3 py-2 grid grid-cols-4 gap-2 text-xs">
-        <div className={`p-2 rounded border text-center ${mlConnected ? 'border-green-500/50 bg-green-900/20' : 'border-red-500/50 bg-red-900/20'}`}>
-          <Zap className={`w-6 h-6 mx-auto mb-1 ${mlConnected ? 'text-green-400' : 'text-red-400'}`} />
-          ML {mlConnected ? 'ON' : 'OFF'}
-        </div>
-        <div className={`p-2 rounded border text-center ${lossLimitHit ? 'border-red-500/50 bg-red-900/20' : 'border-green-500/50 bg-green-900/20'}`}>
-          <AlertTriangle className={`w-6 h-6 mx-auto mb-1 ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`} />
-          {lossLimitHit ? 'LIMIT HIT' : 'SAFE'}<br />{dailyDrawdownPct}%
-        </div>
-        <div className="p-2 rounded border border-yellow-500/50 bg-yellow-900/20 text-center">
-          <BarChart3 className="w-6 h-6 mx-auto mb-1 text-yellow-400" />
-          Exposure<br /><span className="text-lg font-bold">{exposurePct}%</span>
-        </div>
-        <div className="p-2 rounded border border-cyan-500/50 bg-cyan-900/20 text-center">
-          <Clock className="w-6 h-6 mx-auto mb-1 text-cyan-400" />
-          {new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: '2-digit', minute: '2-digit' })} ET
-        </div>
-      </div>
-
-      {/* Equity Bar */}
-      <div className="px-3 py-2 border-y border-cyan-900/30 bg-gradient-to-r from-black via-cyan-950/20 to-black text-xs">
-        <div className="flex justify-between flex-wrap gap-3">
-          <div className="flex gap-4">
-            <div><Wallet className="w-5 h-5 inline text-cyan-400" /> <span className="font-bold text-cyan-400">${equity.toFixed(0)}</span></div>
-            <div><DollarSign className="w-5 h-5 inline text-green-400" /> <span className="font-bold text-green-400">${buyingPower.toFixed(0)}</span></div>
-            <div><Target className={`w-5 h-5 inline ${realizedDailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`} />
-              <span className={`font-bold ${realizedDailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            <div className="text-center">
+              <Target className={`w-8 h-8 mx-auto mb-1 ${realizedDailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`} />
+              <p className={`text-3xl font-black ${realizedDailyPnL >= 0 ? 'text-green-300' : 'text-red-300'}`}>
                 {realizedDailyPnL >= 0 ? '+' : ''}${Math.abs(realizedDailyPnL).toFixed(0)}
-              </span>
+              </p>
+              <p className="text-xs text-gray-500">Daily PnL</p>
             </div>
           </div>
-          <div className="opacity-70">{lastUpdate}</div>
-        </div>
-      </div>
-
-      {/* Charts */}
-      <div className="px-3 py-2 grid grid-cols-2 gap-2">
-        <div className="bg-gray-900/90 border border-cyan-500/40 rounded p-3">
-          <h3 className="text-xs font-bold text-cyan-300 mb-1">Equity Flow</h3>
-          <div className="h-24"><Line data={equityChartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>
-        </div>
-        <div className="bg-gray-900/90 border border-purple-500/40 rounded p-3">
-          <h3 className="text-xs font-bold text-purple-300 mb-1">Realized PnL</h3>
-          <div className="h-24"><Line data={realizedPnLChartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>
-        </div>
-      </div>
-
-      {/* Risk Panel */}
-      <div className="px-3 py-2">
-        <div className="bg-gradient-to-r from-red-900/30 to-purple-900/30 border border-red-500/40 rounded p-3 text-xs">
-          <h3 className="font-bold text-red-400 mb-2 flex items-center gap-2"><Shield className="w-5 h-5" /> Risk</h3>
-          <div className="grid grid-cols-4 gap-2 text-center">
-            <div><div className="font-bold text-red-400">${Math.abs(dailyDrawdown).toFixed(0)}</div><div className="opacity-70">Drawdown</div></div>
-            <div><div className={`font-bold ${realizedDailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>{realizedDailyPnL >= 0 ? '+' : ''}${Math.abs(realizedDailyPnL).toFixed(0)}</div><div className="opacity-70">PnL</div></div>
-            <div><div className="font-bold text-yellow-400">{exposurePct}%</div><div className="opacity-70">Exposure</div></div>
-            <div><div className={`font-bold ${lossLimitHit ? 'text-red-400' : 'text-green-400'}`}>${DAILY_LOSS_LIMIT}</div><div className="opacity-70">Limit</div></div>
+          <div className="text-right">
+            <p className="text-sm text-gray-400">{lastUpdate} ET</p>
+            <p className="text-xs text-gray-600">Last sync</p>
           </div>
         </div>
       </div>
 
-      {/* ML Learning Panel — ENHANCED VISUALIZATION */}
-      <div className="px-3 py-2">
-        <div className="bg-gradient-to-r from-purple-900/30 via-cyan-900/30 to-black border border-purple-500/40 rounded p-3 text-xs">
-          <h3 className="font-bold text-purple-300 mb-2 flex items-center gap-2"><Brain className="w-5 h-5" /> Rainbow DQN Learning</h3>
-          <div className="grid grid-cols-4 gap-2 text-center">
-            <div>
-              <div className="font-bold text-cyan-400">{mlMetrics.activeSymbols || 0}</div>
-              <div className="opacity-70 text-xs">Active</div>
+      {/* Status Orbs */}
+      <div className="px-4 py-4 grid grid-cols-4 gap-4">
+        <div className={`relative p-6 rounded-2xl border ${mlConnected ? 'border-green-500/50 bg-green-900/20' : 'border-red-500/50 bg-red-900/20'} backdrop-blur-xl`}>
+          <div className="absolute inset-0 bg-gradient-to-br from-transparent to-white/5 rounded-2xl" />
+          <Cpu className={`w-10 h-10 ${mlConnected ? 'text-green-400' : 'text-red-400'} mb-3`} />
+          <p className="text-2xl font-black">{mlConnected ? 'NEURAL ACTIVE' : 'ML OFFLINE'}</p>
+          <p className="text-xs text-gray-400 mt-1">Rainbow DQN</p>
+        </div>
+
+        <div className={`relative p-6 rounded-2xl border ${lossLimitHit ? 'border-red-500/50 bg-red-900/20' : 'border-green-500/50 bg-green-900/20'} backdrop-blur-xl`}>
+          <div className="absolute inset-0 bg-gradient-to-br from-transparent to-white/5 rounded-2xl" />
+          <Shield className={`w-10 h-10 ${lossLimitHit ? 'text-red-400' : 'text-green-400'} mb-3`} />
+          <p className="text-2xl font-black">{lossLimitHit ? 'RISK BREACH' : 'SAFE'}</p>
+          <p className="text-xs text-gray-400 mt-1">{dailyDrawdownPct}% drawdown</p>
+        </div>
+
+        <div className="relative p-6 rounded-2xl border border-yellow-500/50 bg-yellow-900/20 backdrop-blur-xl">
+          <div className="absolute inset-0 bg-gradient-to-br from-transparent to-white/5 rounded-2xl" />
+          <Gauge className="w-10 h-10 text-yellow-400 mb-3" />
+          <p className="text-2xl font-black">{exposurePct}%</p>
+          <p className="text-xs text-gray-400 mt-1">Market Exposure</p>
+          <div className="mt-3 h-20">
+            <Doughnut data={exposureDoughnut} options={{ responsive: true, plugins: { legend: { display: false } } }} />
+          </div>
+        </div>
+
+        <div className="relative p-6 rounded-2xl border border-cyan-500/50 bg-cyan-900/20 backdrop-blur-xl">
+          <div className="absolute inset-0 bg-gradient-to-br from-transparent to-white/5 rounded-2xl" />
+          <Clock className="w-10 h-10 text-cyan-400 mb-3" />
+          <p className="text-2xl font-black">
+            {new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: '2-digit', minute: '2-digit' })}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">NYC Time</p>
+        </div>
+      </div>
+
+      {/* Flow Charts */}
+      <div className="px-4 py-4 grid grid-cols-2 gap-4">
+        <div className="bg-gradient-to-br from-cyan-900/30 to-black border border-cyan-500/30 rounded-2xl p-5 backdrop-blur-xl">
+          <h3 className="text-lg font-bold text-cyan-300 mb-3 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5" /> Equity Flow
+          </h3>
+          <div className="h-32"><Line data={equityChartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>
+        </div>
+        <div className="bg-gradient-to-br from-purple-900/30 to-black border border-purple-500/30 rounded-2xl p-5 backdrop-blur-xl">
+          <h3 className="text-lg font-bold text-purple-300 mb-3 flex items-center gap-2">
+            <Target className="w-5 h-5" /> Realized PnL
+          </h3>
+          <div className="h-32"><Line data={realizedPnLChartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>
+        </div>
+      </div>
+
+      {/* Neural Learning Core */}
+      <div className="px-4 py-4">
+        <div className="bg-gradient-to-r from-purple-900/40 via-cyan-900/40 to-pink-900/40 border border-purple-500/40 rounded-2xl p-6 backdrop-blur-2xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-600/10 to-cyan-600/10" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,255,255,0.1)_0%,transparent_70%)]" />
+          
+          <h3 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 mb-5 flex items-center gap-3">
+            <Network className="w-8 h-8" />
+            NEURAL CORE STATUS
+          </h3>
+
+          <div className="grid grid-cols-4 gap-6 mb-6">
+            <div className="text-center">
+              <div className="text-3xl font-black text-cyan-300">{mlMetrics.activeSymbols || 0}</div>
+              <div className="text-xs text-gray-400 mt-1">Active Neurons</div>
             </div>
-            <div>
-              <div className="font-bold text-purple-400">{mlMetrics.memorySize || 0}</div>
-              <div className="opacity-70 text-xs">Memory</div>
+            <div className="text-center">
+              <div className="text-3xl font-black text-purple-300">{mlMetrics.memorySize || 0}</div>
+              <div className="text-xs text-gray-400 mt-1">Experience Memory</div>
             </div>
-            <div>
-              <div className="font-bold text-yellow-400">{mlMetrics.learningSteps || 0}</div>
-              <div className="opacity-70 text-xs">Steps</div>
+            <div className="text-center">
+              <div className="text-3xl font-black text-yellow-300">{mlMetrics.learningSteps || 0}</div>
+              <div className="text-xs text-gray-400 mt-1">Training Steps</div>
             </div>
-            <div>
-              <div className="font-bold text-green-400">{(mlMetrics.eps || 0).toFixed(4)}</div>
-              <div className="opacity-70 text-xs">ε (Exploration)</div>
+            <div className="text-center">
+              <div className="text-3xl font-black text-green-300">{(mlMetrics.eps || 0).toFixed(4)}</div>
+              <div className="text-xs text-gray-400 mt-1">Exploration Rate</div>
             </div>
           </div>
 
           {topSymbols.length > 0 && (
-            <div className="mt-3">
-              <div className="text-xs opacity-80 mb-1">Top Learned Symbols</div>
-              <div className="grid grid-cols-5 gap-1 text-xs font-mono">
+            <div>
+              <p className="text-sm text-gray-400 mb-3">Most Reinforced Symbols</p>
+              <div className="grid grid-cols-10 gap-2">
                 {topSymbols.map((s: MLSymbolMetric) => (
-                  <div key={s.symbol} className="bg-purple-900/30 rounded px-2 py-1 text-center border border-purple-700/50 flex items-center justify-center gap-1">
-                    <span>{s.symbol}</span>
-                    <span className="text-green-400 text-xs">{s.count}</span>
+                  <div key={s.symbol} className="bg-black/50 border border-purple-700/50 rounded-lg px-3 py-2 text-center">
+                    <div className="font-bold text-purple-300">{s.symbol}</div>
+                    <div className="text-xs text-green-400">{s.count}×</div>
                   </div>
                 ))}
               </div>
@@ -527,20 +559,32 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* SIDE-BY-SIDE: Positions + Rockets */}
-      <div className="px-3 py-2 grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* Positions */}
-        <div className="bg-gray-900/90 border border-cyan-500/40 rounded p-3 text-xs">
-          <h3 className="font-bold text-cyan-300 mb-2">Positions ({positions.length})</h3>
-          {positions.length === 0 ? <p className="text-center text-gray-500 py-6">None</p> : (
-            <div className="space-y-2">
+      {/* Positions + Rockets Grid */}
+      <div className="px-4 py-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Active Positions */}
+        <div className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded-2xl p-6 backdrop-blur-xl">
+          <h3 className="text-xl font-black text-cyan-300 mb-5">ACTIVE POSITIONS ({positions.length})</h3>
+          {positions.length === 0 ? (
+            <div className="text-center py-16 text-gray-600">
+              <Wallet className="w-16 h-16 mx-auto mb-4 opacity-30" />
+              <p>No active positions</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
               {positions.map((pos: any, i: number) => (
-                <div key={i} className="bg-gray-800/50 rounded p-2 flex justify-between items-center">
-                  <span className="font-bold">{pos.symbol}</span>
-                  <div className="text-right">
-                    <div>{pos.qty} @ ${Number(pos.avg_entry_price).toFixed(2)}</div>
-                    <div className={`text-xs ${pos.unrealized_pl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {pos.unrealized_pl >= 0 ? '+' : ''}${pos.unrealized_pl?.toFixed(0) || '0'}
+                <div key={i} className="bg-black/40 border border-gray-700/50 rounded-xl p-4 hover:border-cyan-500/50 transition-all">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-2xl font-black text-cyan-300">{pos.symbol}</div>
+                      <div className="text-sm text-gray-500">{pos.qty} shares @ ${Number(pos.avg_entry_price).toFixed(2)}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-2xl font-black ${pos.unrealized_pl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {pos.unrealized_pl >= 0 ? '+' : ''}${pos.unrealized_pl?.toFixed(0) || '0'}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {pos.unrealized_plpc ? (pos.unrealized_plpc * 100).toFixed(1) : '0.0'}%
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -550,40 +594,50 @@ export default function Dashboard() {
         </div>
 
         {/* Hot Rockets */}
-        <div className="bg-gray-900/90 border border-cyan-500/40 rounded p-3 text-xs">
-          <h3 className="font-bold text-cyan-300 mb-2 flex items-center justify-between">
-            <span>Hot Rockets ({rockets.length})</span>
-            {rockets.length > 0 && <Zap className="w-6 h-6 text-yellow-400 animate-pulse" />}
+        <div className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded-2xl p-6 backdrop-blur-xl">
+          <h3 className="text-xl font-black text-cyan-300 mb-5 flex items-center justify-between">
+            <span>HOT ROCKETS ({rockets.length})</span>
+            {rockets.length > 0 && <Zap className="w-8 h-8 text-yellow-400 animate-pulse" />}
           </h3>
-          {rockets.length === 0 ? <p className="text-center text-gray-500 py-6">Scanning...</p> : (
-            <div className="space-y-2">
+          {rockets.length === 0 ? (
+            <div className="text-center py-16 text-gray-600">
+              <Activity className="w-16 h-16 mx-auto mb-4 opacity-30 animate-pulse" />
+              <p>Scanning for momentum...</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
               {rockets.map((rocket: Rocket, i: number) => {
                 const action = getActionDetails(rocket.mlAction);
                 const flashing = flashRockets.has(rocket.symbol);
                 const isExpanded = expandedRocket === rocket.symbol;
                 const chartData = rocketCharts[rocket.symbol];
+
                 return (
-                  <div key={i} className={`rounded-lg border p-3 transition-all ${flashing ? 'border-yellow-400 bg-yellow-900/30 animate-pulse' : 'border-gray-700/50 bg-gray-800/40'}`}>
-                    <div onClick={() => toggleRocketChart(rocket.symbol)} className="flex justify-between items-center cursor-pointer">
-                      <div>
-                        <div className="font-bold text-cyan-400 text-lg">{rocket.symbol}</div>
-                        <div className="text-xs opacity-80">
-                          +{rocket.gap}% gap • RVOL {rocket.rvol} • ${rocket.price}
+                  <div key={i} className={`rounded-2xl border-2 p-5 transition-all ${flashing ? 'border-yellow-400 bg-yellow-900/30 shadow-2xl shadow-yellow-500/30' : 'border-gray-700/50 bg-black/40'} hover:border-cyan-400/70`}>
+                    <div onClick={() => toggleRocketChart(rocket.symbol)} className="cursor-pointer">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <div className="text-3xl font-black text-cyan-300">{rocket.symbol}</div>
+                          <div className="text-sm text-gray-400 mt-1">
+                            +{rocket.gap}% gap • RVOL {rocket.rvol} • ${rocket.price}
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <div className={`px-3 py-1 rounded text-xs font-bold ${action.color}`}>
-                          {action.label}
-                        </div>
-                        <div className="text-xs mt-1 flex items-center justify-end gap-1">
-                          Confidence: <span className="font-bold text-cyan-300">{rocket.mlConfidence}%</span>
-                          {rocket.mlPriority && <Zap className="w-4 h-4 text-yellow-400" />}
+                        <div className="text-right">
+                          <div className={`inline-block px-4 py-2 rounded-full text-sm font-black border-2 ${action.color}`}>
+                            {action.label}
+                          </div>
+                          <div className="mt-2 flex items-center justify-end gap-2">
+                            <Gauge className="w-5 h-5 text-cyan-300" />
+                            <span className="text-2xl font-black text-cyan-300">{rocket.mlConfidence}%</span>
+                            {rocket.mlPriority && <Zap className="w-6 h-6 text-yellow-400 animate-pulse" />}
+                          </div>
                         </div>
                       </div>
                     </div>
+
                     {isExpanded && chartData && (
-                      <div className="mt-3 border-t border-gray-700 pt-2">
-                        <div className="h-24"><Line data={chartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>
+                      <div className="mt-4 pt-4 border-t border-gray-700">
+                        <div className="h-32"><Line data={chartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>
                       </div>
                     )}
                   </div>
@@ -594,15 +648,15 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Live Logs Panel */}
-      <div className="px-3 py-2">
-        <div className="bg-gray-900/90 border border-cyan-500/40 rounded p-3 text-xs">
-          <h3 className="font-bold text-cyan-300 mb-2 flex items-center gap-2">
-            <Activity className="w-5 h-5" /> Live Logs ({logs.length})
+      {/* Live Neural Activity Log */}
+      <div className="fixed bottom-0 left-0 right-0 bg-black/95 border-t-2 border-cyan-500/50 backdrop-blur-2xl">
+        <div className="px-4 py-3">
+          <h3 className="text-sm font-black text-cyan-300 mb-2 flex items-center gap-2">
+            <Activity className="w-5 h-5" /> NEURAL ACTIVITY LOG
           </h3>
-          <div className="max-h-48 overflow-y-auto font-mono text-xs space-y-1">
+          <div className="max-h-48 overflow-y-auto space-y-1 font-mono text-xs">
             {logs.length === 0 ? (
-              <p className="text-center text-gray-500 py-4">Waiting for activity...</p>
+              <p className="text-center text-gray-600 py-8">Neural core idle...</p>
             ) : (
               logs.map((logLine: string, i: number) => {
                 const match = logLine.match(/\[(.*?)\] (.*)/);
@@ -610,26 +664,26 @@ export default function Dashboard() {
                 const message = match?.[2] || logLine;
 
                 const isEntry = message.includes('ENTERED');
-                const isExit = message.includes('EXIT') || message.includes('CLOSED');
+                const isExit = message.includes('EXIT') || message.includes('CLOSED') || message.includes('FORCE');
                 const isDense = message.includes('DENSE FEEDBACK');
                 const isReject = message.includes('REJECT');
 
                 return (
                   <div
                     key={i}
-                    className={`py-1 px-2 rounded ${
-                      isEntry ? 'bg-green-900/30 border border-green-700/50' :
-                      isExit ? 'bg-red-900/30 border border-red-700/50' :
-                      isDense ? 'bg-purple-900/30 border border-purple-700/30' :
+                    className={`py-2 px-3 rounded-lg ${
+                      isEntry ? 'bg-green-900/40 border border-green-600/50' :
+                      isExit ? 'bg-red-900/40 border border-red-600/50' :
+                      isDense ? 'bg-purple-900/40 border border-purple-600/30' :
                       isReject ? 'bg-gray-800/50' :
-                      'bg-gray-800/30'
+                      'bg-gray-900/30'
                     }`}
                   >
-                    <span className="text-cyan-500">{time}</span>
-                    <span className="ml-2">
-                      {isEntry && <CheckCircle2 className="w-3 h-3 inline text-green-400 mr-1" />}
-                      {isExit && <XCircle className="w-3 h-3 inline text-red-400 mr-1" />}
-                      {isDense && <Brain className="w-3 h-3 inline text-purple-400 mr-1" />}
+                    <span className="text-cyan-400">{time}</span>
+                    <span className="ml-3">
+                      {isEntry && <CheckCircle2 className="w-4 h-4 inline text-green-400 mr-2" />}
+                      {isExit && <XCircle className="w-4 h-4 inline text-red-400 mr-2" />}
+                      {isDense && <Brain className="w-4 h-4 inline text-purple-400 mr-2" />}
                       {message}
                     </span>
                   </div>
