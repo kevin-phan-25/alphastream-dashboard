@@ -73,6 +73,7 @@ type ChartData = {
     tension: number;
     pointRadius: number;
   }[];
+  options?: any;
 };
 
 type MLSymbolMetric = {
@@ -242,9 +243,22 @@ export default function Dashboard() {
             backgroundColor: 'rgba(0, 255, 255, 0.15)',
             fill: true,
             tension: 0.5,
-            pointRadius: 0,
-            borderWidth: 2
-          }]
+            pointRadius: 0
+          }],
+          options: {
+            elements: {
+              line: {
+                borderWidth: 3
+              }
+            },
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: { display: false },
+              y: { display: false }
+            }
+          }
         };
         setRocketCharts(prev => ({ ...prev, [symbol]: chartData }));
       }
@@ -368,7 +382,7 @@ export default function Dashboard() {
       {/* Animated Background Grid */}
       <div className="fixed inset-0 opacity-5 pointer-events-none">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-purple-600/10 to-pink-500/20" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#00ffff0a_1px,transparent_1px),linear-gradient(to_bottom,#00ffff0a_1px,transparent_1px)] bg-[size:50px_50px] animate-pulse" />
+        <div className="absolute inset-0 bg-grid bg-grid" />
       </div>
 
       {/* Floating Particles */}
@@ -637,7 +651,15 @@ export default function Dashboard() {
 
                     {isExpanded && chartData && (
                       <div className="mt-4 pt-4 border-t border-gray-700">
-                        <div className="h-32"><Line data={chartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>
+                        <div className="h-32">
+                          <Line 
+                            data={{
+                              labels: chartData.labels,
+                              datasets: chartData.datasets
+                            }} 
+                            options={chartData.options}
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
