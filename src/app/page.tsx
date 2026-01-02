@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
@@ -28,7 +27,9 @@ import {
   Network,
   Gauge,
   Radio,
-  Binary
+  Binary,
+  Rocket,
+  Flame
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -40,11 +41,15 @@ import {
   Filler,
   ArcElement
 } from 'chart.js';
-
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler, ArcElement);
-
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), { ssr: false });
 const Doughnut = dynamic(() => import('react-chartjs-2').then(mod => mod.Doughnut), { ssr: false });
+
+type Discovery = {
+  symbol: string;
+  confidence: number;
+  sources: string[];
+};
 
 type Rocket = {
   symbol: string;
@@ -80,19 +85,18 @@ export default function Dashboard() {
   const [flashRockets, setFlashRockets] = useState<Set<string>>(new Set());
   const [expandedRocket, setExpandedRocket] = useState<string | null>(null);
   const [rocketCharts, setRocketCharts] = useState<Record<string, ChartData>>({});
-
   const [showAddForm, setShowAddForm] = useState(false);
   const [tickerInput, setTickerInput] = useState('');
   const [addingTickers, setAddingTickers] = useState(false);
   const [addMessage, setAddMessage] = useState('');
-
   const [showRemoveForm, setShowRemoveForm] = useState(false);
   const [removeTickerInput, setRemoveTickerInput] = useState('');
   const [removingTickers, setRemovingTickers] = useState(false);
   const [removeMessage, setRemoveMessage] = useState('');
-
   const [showUniverse, setShowUniverse] = useState(false);
   const [universeSearch, setUniverseSearch] = useState('');
+  const [recentDiscoveries, setRecentDiscoveries] = useState<Discovery[]>([]);
+  const [flashDiscoveries, setFlashDiscoveries] = useState<Set<string>>(new Set());
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
   const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
@@ -115,6 +119,16 @@ export default function Dashboard() {
       const data = res.data || {};
       const equityValue = Number(data.equity || 0);
       const realizedPnLValue = Number(data.realizedDailyPnL || 0);
+
+      // === NEW: Track recent discoveries from poller ===
+      if (data.discoveries && Array.isArray(data.discoveries)) {
+        const newSymbols = data.discoveries.map((d: Discovery) => d.symbol);
+        if (newSymbols.length > 0) {
+          setFlashDiscoveries(new Set(newSymbols));
+          setTimeout(() => setFlashDiscoveries(new Set()), 4000);
+          setRecentDiscoveries(data.discoveries);
+        }
+      }
 
       setCore(data);
       setEquityHistory(prev => [...prev, { time: new Date().toLocaleTimeString([], { second: '2-digit' }), equity: equityValue }].slice(-40));
@@ -168,7 +182,6 @@ export default function Dashboard() {
     if (panicClosing) return;
     const ok = window.confirm("⚠️ PANIC CLOSE: This will immediately liquidate ALL positions and enable HARD FLAT. Confirm?");
     if (!ok) return;
-
     setPanicClosing(true);
     setPanicMessage("EXECUTING PANIC CLOSE...");
     try {
@@ -186,7 +199,6 @@ export default function Dashboard() {
   const handleAddTickers = async () => {
     const input = tickerInput.trim();
     if (!input) return;
-
     setAddingTickers(true);
     setAddMessage('');
     try {
@@ -270,17 +282,14 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!draggingLogs) return;
-
     const onMove = (e: MouseEvent) => {
       const dy = e.clientY - dragStartYRef.current;
       const next = Math.max(logMinHeight, Math.min(logMaxHeight, dragStartHeightRef.current + dy));
       setLogHeight(next);
     };
-
     const onUp = () => {
       setDraggingLogs(false);
     };
-
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     return () => {
@@ -333,11 +342,9 @@ export default function Dashboard() {
   const universeSize = core.universeSize || 0;
   const positions = Array.isArray(core.positions) ? core.positions : [];
   const rockets = liveRockets.length > 0 ? liveRockets : (Array.isArray(core.rockets) ? core.rockets : []);
-  const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse().slice(0, 50) : []; // ← Extended to 50 lines
-
+  const logs = Array.isArray(core.tradeLog) ? core.tradeLog.slice().reverse().slice(0, 50) : [];
   const totalExposure = positions.reduce((sum: number, pos: any) => sum + (pos.marketValue || 0), 0);
   const exposurePct = equity > 0 ? ((totalExposure / equity) * 100).toFixed(1) : "0.0";
-
   const rawUniverse: string[] = Array.isArray(core.universeSymbols) ? core.universeSymbols : [];
   const filteredUniverse = rawUniverse.filter(sym => sym.toLowerCase().includes(universeSearch.toLowerCase()));
 
@@ -508,6 +515,37 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* NEW: Discovery Feed from Poller */}
+          {recentDiscoveries.length > 0 && (
+            <div className="bg-gradient-to-br from-indigo-900/50 to-black border border-indigo-500/40 rounded p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Flame className="w-5 h-5 text-orange-400 animate-pulse" />
+                <span className="font-bold text-orange-300">DISCOVERY FEED ({recentDiscoveries.length})</span>
+              </div>
+              <div className="space-y-1">
+                {recentDiscoveries.map((d, i) => {
+                  const flashing = flashDiscoveries.has(d.symbol);
+                  return (
+                    <div key={i} className={`p-2 rounded text-xs flex justify-between items-center ${flashing ? 'bg-orange-900/40 border border-orange-500 shadow-lg shadow-orange-500/30' : 'bg-gray-800/50 border border-gray-700/50'}`}>
+                      <div className="flex items-center gap-2">
+                        <Rocket className="w-4 h-4 text-orange-400" />
+                        <span className="font-mono font-bold text-orange-300">{d.symbol}</span>
+                        <span className="text-gray-400">• {d.confidence}%</span>
+                      </div>
+                      <div className="flex gap-1">
+                        {d.sources.map((src, j) => (
+                          <span key={j} className="px-2 py-0.5 bg-indigo-900/70 rounded text-[10px] uppercase">
+                            {src}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Neural Core — Now with Quantiles */}
           <div className="bg-gradient-to-r from-purple-900/50 via-cyan-900/30 to-black border border-purple-500/40 rounded p-3">
             <div className="flex items-center gap-2 mb-2"><Network className="w-5 h-5 text-purple-400" /> <span className="font-bold text-purple-300">NEURAL CORE</span></div>
@@ -596,7 +634,6 @@ export default function Dashboard() {
                 <span className="opacity-70">drag handle ↓</span>
               </span>
             </p>
-
             <div className="overflow-y-auto pr-1" style={{ height: `${logHeight - 34}px` }}>
               {logs.length === 0 ? <p className="text-center text-gray-600 py-4">Core idle — awaiting market stimulus</p> : (
                 logs.map((logLine: string, i: number) => {
@@ -607,15 +644,15 @@ export default function Dashboard() {
                   const isExit = message.includes('EXIT') || message.includes('CLOSED') || message.includes('FORCE');
                   const isDense = message.includes('DENSE FEEDBACK');
                   const isReject = message.includes('REJECT');
+                  const isDiscovery = message.includes('DISCOVERY ADD');
                   return (
-                    <div key={i} className={`py-0.5 ${isEntry ? 'text-green-400' : isExit ? 'text-red-400' : isDense ? 'text-purple-400' : isReject ? 'text-gray-500' : ''}`}>
+                    <div key={i} className={`py-0.5 ${isEntry ? 'text-green-400' : isExit ? 'text-red-400' : isDense ? 'text-purple-400' : isReject ? 'text-gray-500' : isDiscovery ? 'text-orange-400' : ''}`}>
                       <span className="text-cyan-500">{time}</span> {message}
                     </div>
                   );
                 })
               )}
             </div>
-
             {/* INSIDE drag handle (bottom strip) */}
             <div
               onMouseDown={startLogDrag}
@@ -629,7 +666,6 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>
