@@ -53,6 +53,7 @@ type Discovery = {
   confidence: number;
   sources: string[];
 };
+
 type Rocket = {
   symbol: string;
   gap: string;
@@ -62,11 +63,13 @@ type Rocket = {
   mlPriority: boolean;
   mlConfidence: number;
 };
+
 type ChartData = {
   labels: string[];
   datasets: { data: number[]; borderColor: string; backgroundColor: string; fill: boolean; tension: number; pointRadius: number }[];
   options?: any;
 };
+
 type MLSymbolMetric = { symbol: string; count: number };
 
 export default function Dashboard() {
@@ -97,6 +100,7 @@ export default function Dashboard() {
   const [universeSearch, setUniverseSearch] = useState('');
   const [recentDiscoveries, setRecentDiscoveries] = useState<Discovery[]>([]);
   const [flashDiscoveries, setFlashDiscoveries] = useState<Set<string>>(new Set());
+
   // NEW: Autocomplete state
   const [addSuggestions, setAddSuggestions] = useState<string[]>([]);
   const [removeSuggestions, setRemoveSuggestions] = useState<string[]>([]);
@@ -202,6 +206,7 @@ export default function Dashboard() {
 
   // VALID TICKER REGEX: A-Z letters, optional . (for BRK.B), 1-12 chars
   const TICKER_REGEX = /^[A-Z]{1,12}(\.[A-Z]{1,4})?$/;
+
   const validateAndCleanTickers = (input: string): string[] => {
     return input
       .toUpperCase()
@@ -248,6 +253,7 @@ export default function Dashboard() {
       setTimeout(() => setAddMessage(''), 3000);
       return;
     }
+
     setAddingTickers(true);
     setAddMessage('');
     try {
@@ -271,6 +277,7 @@ export default function Dashboard() {
       setTimeout(() => setRemoveMessage(''), 3000);
       return;
     }
+
     setRemovingTickers(true);
     try {
       const res = await axios.post(`${CORE_URL}/admin/remove-ticker`, { symbols: validTickers.join(' ') });
@@ -451,6 +458,7 @@ export default function Dashboard() {
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-600/20 via-purple-600/10 to-pink-600/20" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#00ffff08_1px,transparent_1px),linear-gradient(to_bottom,#00ffff08_1px,transparent_1px)] bg-[size:40px_40px]" />
       </div>
+
       {/* Floating Neural Particles */}
       <div className="fixed inset-0 pointer-events-none">
         {[...Array(20)].map((_, i) => (
@@ -462,6 +470,7 @@ export default function Dashboard() {
           }} />
         ))}
       </div>
+
       {/* Header */}
       <header className="shrink-0 bg-black/90 backdrop-blur border-b border-cyan-500/30 px-3 py-2 flex justify-between items-center">
         <div className="flex items-center gap-3">
@@ -488,8 +497,10 @@ export default function Dashboard() {
           </button>
         </div>
       </header>
+
       {message && <div className="shrink-0 bg-gradient-to-r from-cyan-600/80 to-purple-600/80 py-1 text-center text-xs font-bold">{message}</div>}
       {panicMessage && <div className="shrink-0 bg-gradient-to-r from-red-600/90 to-pink-700/90 py-1 text-center text-xs font-bold">{panicMessage}</div>}
+
       {/* Add Form with Autocomplete */}
       {showAddForm && (
         <div className="shrink-0 px-3 py-1 bg-black/80 border-b border-cyan-900/50 relative">
@@ -528,6 +539,7 @@ export default function Dashboard() {
           {addMessage && <p className="text-center text-xs mt-1">{addMessage}</p>}
         </div>
       )}
+
       {/* Remove Form with Autocomplete */}
       {showRemoveForm && (
         <div className="shrink-0 px-3 py-1 bg-black/80 border-b border-red-900/50 relative">
@@ -566,6 +578,7 @@ export default function Dashboard() {
           {removeMessage && <p className="text-center text-xs mt-1">{removeMessage}</p>}
         </div>
       )}
+
       {/* Universe Modal with Export + Click-to-Delete */}
       {showUniverse && (
         <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4">
@@ -602,6 +615,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
       {/* Main Grid */}
       <div className="flex-1 grid grid-cols-12 gap-2 p-2 overflow-hidden">
         {/* Left: 7 columns */}
@@ -626,6 +640,7 @@ export default function Dashboard() {
               <p className="text-xs text-gray-500">Daily PnL</p>
             </div>
           </div>
+
           {/* Status + Exposure */}
           <div className="grid grid-cols-5 gap-2">
             <div className={`bg-gradient-to-br ${mlConnected ? 'from-green-900/40' : 'from-red-900/40'} to-black border ${mlConnected ? 'border-green-500/50' : 'border-red-500/50'} rounded p-2 text-center`}>
@@ -647,6 +662,7 @@ export default function Dashboard() {
               <p className="text-xs text-gray-500">Live Sync</p>
             </div>
           </div>
+
           {/* Flow Charts */}
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-gradient-to-br from-cyan-900/40 to-black border border-cyan-500/30 rounded p-2">
@@ -658,6 +674,7 @@ export default function Dashboard() {
               <div className="h-24"><Line data={realizedPnLChartData} options={{ responsive: true, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>
             </div>
           </div>
+
           {/* Discovery Feed */}
           {recentDiscoveries.length > 0 && (
             <div className="bg-gradient-to-br from-indigo-900/50 to-black border border-indigo-500/40 rounded p-3">
@@ -688,6 +705,7 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+
           {/* Neural Core */}
           <div className="bg-gradient-to-r from-purple-900/50 via-cyan-900/30 to-black border border-purple-500/40 rounded p-3">
             <div className="flex items-center gap-2 mb-2"><Network className="w-5 h-5 text-purple-400" /> <span className="font-bold text-purple-300">NEURAL CORE</span></div>
@@ -711,6 +729,7 @@ export default function Dashboard() {
               </div>
             )}
           </div>
+
           {/* Positions */}
           <div className="bg-gradient-to-br from-gray-900/80 to-black border border-cyan-500/30 rounded p-2 max-h-40 overflow-y-auto">
             <p className="font-bold text-cyan-300 text-xs mb-1">POSITIONS ({positions.length})</p>
@@ -724,6 +743,7 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+
         {/* Right: 5 columns */}
         <div className="col-span-5 space-y-2 overflow-y-auto">
           {/* Rockets */}
@@ -762,7 +782,8 @@ export default function Dashboard() {
               })
             )}
           </div>
-          {/* Neural Log - Updated to show Eastern Time */}
+
+          {/* Neural Log */}
           <div
             className={`bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 font-mono text-xs relative overflow-hidden ${draggingLogs ? 'select-none' : ''}`}
             style={{ height: `${logHeight}px` }}
@@ -774,48 +795,19 @@ export default function Dashboard() {
               </span>
             </p>
             <div className="overflow-y-auto pr-1" style={{ height: `${logHeight - 34}px` }}>
-              {logs.length === 0 ? (
-                <p className="text-center text-gray-600 py-4">Core idle — awaiting market stimulus</p>
-              ) : (
+              {logs.length === 0 ? <p className="text-center text-gray-600 py-4">Core idle — awaiting market stimulus</p> : (
                 logs.map((logLine: string, i: number) => {
                   const match = logLine.match(/\[(.*?)\] (.*)/);
-                  let timeDisplay = '';
-                  let message = logLine;
-
-                  if (match) {
-                    const rawTimestamp = match[1].trim(); // e.g. "2026-01-03T14:30:45Z"
-                    message = match[2];
-
-                    try {
-                      // Ensure it's treated as UTC
-                      const utcString = rawTimestamp.endsWith('Z') ? rawTimestamp : rawTimestamp + 'Z';
-                      const utcDate = new Date(utcString);
-
-                      // Convert to Eastern Time (automatically handles EST/EDT)
-                      timeDisplay = utcDate.toLocaleTimeString('en-US', {
-                        timeZone: 'America/New_York',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                        hour12: false,
-                      });
-                    } catch (e) {
-                      timeDisplay = rawTimestamp; // fallback to raw
-                    }
-                  }
-
+                  const time = match?.[1] || '';
+                  const message = match?.[2] || logLine;
                   const isEntry = message.includes('ENTERED');
                   const isExit = message.includes('EXIT') || message.includes('CLOSED') || message.includes('FORCE');
                   const isDense = message.includes('DENSE FEEDBACK');
                   const isReject = message.includes('REJECT');
                   const isDiscovery = message.includes('DISCOVERY ADD');
-
                   return (
-                    <div
-                      key={i}
-                      className={`py-0.5 ${isEntry ? 'text-green-400' : isExit ? 'text-red-400' : isDense ? 'text-purple-400' : isReject ? 'text-gray-500' : isDiscovery ? 'text-orange-400' : ''}`}
-                    >
-                      {timeDisplay && <span className="text-cyan-500">[{timeDisplay}]</span>} {message}
+                    <div key={i} className={`py-0.5 ${isEntry ? 'text-green-400' : isExit ? 'text-red-400' : isDense ? 'text-purple-400' : isReject ? 'text-gray-500' : isDiscovery ? 'text-orange-400' : ''}`}>
+                      <span className="text-cyan-500">{time}</span> {message}
                     </div>
                   );
                 })
