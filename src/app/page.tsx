@@ -434,7 +434,13 @@ export default function Dashboard() {
       {showRemoveForm && (
         <div className="shrink-0 px-3 py-1 bg-black/80 border-b border-red-900/50">
           <div className="flex gap-1">
-            <input value={removeTickerInput} onChange={e => setRemoveTickerInput(e.target.value)} placeholder="Remove ticker..." className="flex-1 px-2 py-1 bg-black/70 rounded border border-red-700/50 text-xs" />
+            <input
+              value={removeTickerInput}
+              onChange={e => setRemoveTickerInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleRemoveTickers()}  {/* ← FIXED: Enter now works */}
+              placeholder="Remove ticker..."
+              className="flex-1 px-2 py-1 bg-black/70 rounded border border-red-700/50 text-xs"
+            />
             <button onClick={handleRemoveTickers} disabled={removingTickers} className="px-3 py-1 bg-red-600 rounded text-xs">{removingTickers ? '...' : 'Remove'}</button>
           </div>
           {removeMessage && <p className="text-center text-xs mt-1">{removeMessage}</p>}
