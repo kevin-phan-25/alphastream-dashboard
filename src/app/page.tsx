@@ -30,7 +30,9 @@ import {
   Binary,
   Rocket,
   Flame,
-  Trash2
+  Trash2,
+  Copy,
+  Search
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -98,6 +100,12 @@ export default function Dashboard() {
   const [universeSearch, setUniverseSearch] = useState('');
   const [recentDiscoveries, setRecentDiscoveries] = useState<Discovery[]>([]);
   const [flashDiscoveries, setFlashDiscoveries] = useState<Set<string>>(new Set());
+
+  // NEW: Autocomplete state
+  const [addSuggestions, setAddSuggestions] = useState<string[]>([]);
+  const [removeSuggestions, setRemoveSuggestions] = useState<string[]>([]);
+  const [showAddSuggestions, setShowAddSuggestions] = useState(false);
+  const [showRemoveSuggestions, setShowRemoveSuggestions] = useState(false);
 
   const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
   const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
@@ -202,17 +210,46 @@ export default function Dashboard() {
   const validateAndCleanTickers = (input: string): string[] => {
     return input
       .toUpperCase()
-      .replace(/[^A-Z.\s]/g, '') // remove invalid chars
+      .replace(/[^A-Z.\s]/g, '')
       .split(/[\s,;\n]+/)
       .map(s => s.trim())
       .filter(s => TICKER_REGEX.test(s))
       .filter(Boolean);
   };
 
+  // NEW: Autocomplete suggestions
+  const updateAddSuggestions = (input: string) => {
+    if (!input.trim()) {
+      setAddSuggestions([]);
+      setShowAddSuggestions(false);
+      return;
+    }
+    const query = input.toUpperCase().trim();
+    const matches = (core.universeSymbols || [])
+      .filter((sym: string) => sym.includes(query) && !sym.startsWith(query) === false)
+      .slice(0, 8);
+    setAddSuggestions(matches);
+    setShowAddSuggestions(matches.length > 0);
+  };
+
+  const updateRemoveSuggestions = (input: string) => {
+    if (!input.trim()) {
+      setRemoveSuggestions([]);
+      setShowRemoveSuggestions(false);
+      return;
+    }
+    const query = input.toUpperCase().trim();
+    const matches = (core.universeSymbols || [])
+      .filter((sym: string) => sym.includes(query))
+      .slice(0, 8);
+    setRemoveSuggestions(matches);
+    setShowRemoveSuggestions(matches.length > 0);
+  };
+
   const handleAddTickers = async () => {
     const validTickers = validateAndCleanTickers(tickerInput);
     if (validTickers.length === 0) {
-      setAddMessage('✗ No valid tickers found');
+      setAddMessage('Invalid tickers');
       setTimeout(() => setAddMessage(''), 3000);
       return;
     }
@@ -221,21 +258,22 @@ export default function Dashboard() {
     setAddMessage('');
     try {
       const res = await axios.post(`${CORE_URL}/admin/add-ticker`, { symbols: validTickers.join(' ') }, { timeout: 15000 });
-      setAddMessage(`✓ ${res.data.message} (${validTickers.length} added)`);
+      setAddMessage(`+${validTickers.length}`);
       setTickerInput('');
+      setAddSuggestions([]);
       fetchCoreData();
     } catch (err: any) {
-      setAddMessage(`✗ ${err.response?.data?.error || 'Failed'}`);
+      setAddMessage('Failed');
     } finally {
       setAddingTickers(false);
-      setTimeout(() => setAddMessage(''), 5000);
+      setTimeout(() => setAddMessage(''), 3000);
     }
   };
 
   const handleRemoveTickers = async () => {
     const validTickers = validateAndCleanTickers(removeTickerInput);
     if (validTickers.length === 0) {
-      setRemoveMessage('✗ No valid tickers to remove');
+      setRemoveMessage('Invalid tickers');
       setTimeout(() => setRemoveMessage(''), 3000);
       return;
     }
@@ -243,14 +281,15 @@ export default function Dashboard() {
     setRemovingTickers(true);
     try {
       const res = await axios.post(`${CORE_URL}/admin/remove-ticker`, { symbols: validTickers.join(' ') });
-      setRemoveMessage(`✓ ${res.data.message} (${validTickers.length} removed)`);
+      setRemoveMessage(`-${validTickers.length}`);
       setRemoveTickerInput('');
+      setRemoveSuggestions([]);
       fetchCoreData();
     } catch (err: any) {
-      setRemoveMessage(`✗ ${err.response?.data?.error || 'Failed'}`);
+      setRemoveMessage('Failed');
     } finally {
       setRemovingTickers(false);
-      setTimeout(() => setRemoveMessage(''), 5000);
+      setTimeout(() => setRemoveMessage(''), 3000);
     }
   };
 
@@ -262,6 +301,14 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Failed to remove ticker:", err);
     }
+  };
+
+  // NEW: Batch export
+  const exportUniverse = () => {
+    const symbols = (core.universeSymbols || []).join(' ');
+    navigator.clipboard.writeText(symbols);
+    setMessage('Universe copied to clipboard');
+    setTimeout(() => setMessage(''), 3000);
   };
 
   const fetchRocketChart = async (symbol: string) => {
@@ -454,17 +501,37 @@ export default function Dashboard() {
       {message && <div className="shrink-0 bg-gradient-to-r from-cyan-600/80 to-purple-600/80 py-1 text-center text-xs font-bold">{message}</div>}
       {panicMessage && <div className="shrink-0 bg-gradient-to-r from-red-600/90 to-pink-700/90 py-1 text-center text-xs font-bold">{panicMessage}</div>}
 
-      {/* Add Form */}
+      {/* Add Form with Autocomplete */}
       {showAddForm && (
-        <div className="shrink-0 px-3 py-1 bg-black/80 border-b border-cyan-900/50">
+        <div className="shrink-0 px-3 py-1 bg-black/80 border-b border-cyan-900/50 relative">
           <div className="flex gap-1">
-            <input
-              value={tickerInput}
-              onChange={e => setTickerInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAddTickers()}
-              placeholder="Add tickers (space/comma/newline)"
-              className="flex-1 px-2 py-1 bg-black/70 rounded border border-cyan-700/50 text-xs"
-            />
+            <div className="relative flex-1">
+              <input
+                value={tickerInput}
+                onChange={e => {
+                  setTickerInput(e.target.value);
+                  updateAddSuggestions(e.target.value);
+                }}
+                onKeyDown={e => e.key === 'Enter' && handleAddTickers()}
+                onFocus={() => updateAddSuggestions(tickerInput)}
+                onBlur={() => setTimeout(() => setShowAddSuggestions(false), 200)}
+                placeholder="Add tickers (space/comma/newline)"
+                className="w-full px-2 py-1 bg-black/70 rounded border border-cyan-700/50 text-xs"
+              />
+              {showAddSuggestions && addSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-cyan-700/50 rounded shadow-lg z-10 max-h-40 overflow-y-auto">
+                  {addSuggestions.map(sym => (
+                    <div
+                      key={sym}
+                      onMouseDown={() => setTickerInput(prev => prev ? `${prev} ${sym}` : sym)}
+                      className="px-3 py-1.5 text-xs hover:bg-cyan-900/50 cursor-pointer"
+                    >
+                      {sym}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <button onClick={handleAddTickers} disabled={addingTickers} className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-purple-600 rounded text-xs flex items-center gap-1">
               {addingTickers ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
             </button>
@@ -473,17 +540,37 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Remove Form */}
+      {/* Remove Form with Autocomplete */}
       {showRemoveForm && (
-        <div className="shrink-0 px-3 py-1 bg-black/80 border-b border-red-900/50">
+        <div className="shrink-0 px-3 py-1 bg-black/80 border-b border-red-900/50 relative">
           <div className="flex gap-1">
-            <input
-              value={removeTickerInput}
-              onChange={e => setRemoveTickerInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleRemoveTickers()}
-              placeholder="Remove tickers (space/comma/newline)"
-              className="flex-1 px-2 py-1 bg-black/70 rounded border border-red-700/50 text-xs"
-            />
+            <div className="relative flex-1">
+              <input
+                value={removeTickerInput}
+                onChange={e => {
+                  setRemoveTickerInput(e.target.value);
+                  updateRemoveSuggestions(e.target.value);
+                }}
+                onKeyDown={e => e.key === 'Enter' && handleRemoveTickers()}
+                onFocus={() => updateRemoveSuggestions(removeTickerInput)}
+                onBlur={() => setTimeout(() => setShowRemoveSuggestions(false), 200)}
+                placeholder="Remove tickers (space/comma/newline)"
+                className="w-full px-2 py-1 bg-black/70 rounded border border-red-700/50 text-xs"
+              />
+              {showRemoveSuggestions && removeSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-red-700/50 rounded shadow-lg z-10 max-h-40 overflow-y-auto">
+                  {removeSuggestions.map(sym => (
+                    <div
+                      key={sym}
+                      onMouseDown={() => setRemoveTickerInput(prev => prev ? `${prev} ${sym}` : sym)}
+                      className="px-3 py-1.5 text-xs hover:bg-red-900/50 cursor-pointer"
+                    >
+                      {sym}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <button onClick={handleRemoveTickers} disabled={removingTickers} className="px-3 py-1 bg-red-600 rounded text-xs flex items-center gap-1">
               {removingTickers ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Remove'}
             </button>
@@ -492,17 +579,20 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Universe Modal — Now on same page + clickable delete */}
+      {/* Universe Modal with Export + Click-to-Delete */}
       {showUniverse && (
         <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4">
           <div className="bg-gray-900/90 border border-cyan-500/50 rounded-lg p-5 max-w-4xl w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-cyan-300 text-lg">Universe ({universeSize} tickers)</h3>
               <div className="flex gap-2">
+                <button onClick={exportUniverse} className="px-3 py-1.5 bg-cyan-800 rounded text-xs flex items-center gap-1">
+                  <Copy className="w-3 h-3" /> Export
+                </button>
                 <input
                   value={universeSearch}
                   onChange={e => setUniverseSearch(e.target.value)}
-                  placeholder="Search universe..."
+                  placeholder="Search..."
                   className="px-3 py-1.5 bg-black/70 rounded border border-cyan-700/50 text-sm w-64"
                 />
                 <button onClick={() => setShowUniverse(false)} className="px-3 py-1.5 bg-gray-800 rounded text-sm">Close</button>
