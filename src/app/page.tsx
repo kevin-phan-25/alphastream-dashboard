@@ -97,23 +97,26 @@ export default function Dashboard() {
   const [universeSearch, setUniverseSearch] = useState('');
   const [recentDiscoveries, setRecentDiscoveries] = useState<Discovery[]>([]);
   const [flashDiscoveries, setFlashDiscoveries] = useState<Set<string>>(new Set());
+  // NEW: Autocomplete state
   const [addSuggestions, setAddSuggestions] = useState<string[]>([]);
   const [removeSuggestions, setRemoveSuggestions] = useState<string[]>([]);
   const [showAddSuggestions, setShowAddSuggestions] = useState(false);
   const [showRemoveSuggestions, setShowRemoveSuggestions] = useState(false);
 
-  // Drag-resize log box
+  const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
+  const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
+  const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
+  const DAILY_LOSS_LIMIT = 1500;
+
+  // =========================
+  // DRAG-RESIZE LOG BOX (INSIDE)
+  // =========================
   const [logHeight, setLogHeight] = useState<number>(256);
   const [draggingLogs, setDraggingLogs] = useState(false);
   const dragStartYRef = useRef<number>(0);
   const dragStartHeightRef = useRef<number>(256);
   const logMinHeight = 140;
   const logMaxHeight = 560;
-
-  const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
-  const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
-  const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
-  const DAILY_LOSS_LIMIT = 1500;
 
   const fetchCoreData = async () => {
     try {
@@ -197,6 +200,7 @@ export default function Dashboard() {
     }
   };
 
+  // VALID TICKER REGEX: A-Z letters, optional . (for BRK.B), 1-12 chars
   const TICKER_REGEX = /^[A-Z]{1,12}(\.[A-Z]{1,4})?$/;
   const validateAndCleanTickers = (input: string): string[] => {
     return input
@@ -208,6 +212,7 @@ export default function Dashboard() {
       .filter(Boolean);
   };
 
+  // NEW: Autocomplete suggestions
   const updateAddSuggestions = (input: string) => {
     if (!input.trim()) {
       setAddSuggestions([]);
@@ -216,7 +221,7 @@ export default function Dashboard() {
     }
     const query = input.toUpperCase().trim();
     const matches = (core.universeSymbols || [])
-      .filter((sym: string) => sym.includes(query))
+      .filter((sym: string) => sym.includes(query) && !sym.startsWith(query) === false)
       .slice(0, 8);
     setAddSuggestions(matches);
     setShowAddSuggestions(matches.length > 0);
@@ -246,7 +251,7 @@ export default function Dashboard() {
     setAddingTickers(true);
     setAddMessage('');
     try {
-      await axios.post(`${CORE_URL}/admin/add-ticker`, { symbols: validTickers.join(' ') }, { timeout: 15000 });
+      const res = await axios.post(`${CORE_URL}/admin/add-ticker`, { symbols: validTickers.join(' ') }, { timeout: 15000 });
       setAddMessage(`+${validTickers.length}`);
       setTickerInput('');
       setAddSuggestions([]);
@@ -268,7 +273,7 @@ export default function Dashboard() {
     }
     setRemovingTickers(true);
     try {
-      await axios.post(`${CORE_URL}/admin/remove-ticker`, { symbols: validTickers.join(' ') });
+      const res = await axios.post(`${CORE_URL}/admin/remove-ticker`, { symbols: validTickers.join(' ') });
       setRemoveMessage(`-${validTickers.length}`);
       setRemoveTickerInput('');
       setRemoveSuggestions([]);
@@ -291,6 +296,7 @@ export default function Dashboard() {
     }
   };
 
+  // NEW: Batch export
   const exportUniverse = () => {
     const symbols = (core.universeSymbols || []).join(' ');
     navigator.clipboard.writeText(symbols);
@@ -361,7 +367,7 @@ export default function Dashboard() {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [draggingLogs]);
+  }, [draggingLogs, logHeight]);
 
   useEffect(() => {
     fetchCoreData();
@@ -440,11 +446,12 @@ export default function Dashboard() {
 
   return (
     <div className="h-screen bg-black text-gray-100 overflow-hidden relative flex flex-col">
-      {/* Background effects unchanged */}
+      {/* Neural Grid Background */}
       <div className="fixed inset-0 opacity-10 pointer-events-none">
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-600/20 via-purple-600/10 to-pink-600/20" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#00ffff08_1px,transparent_1px),linear-gradient(to_bottom,#00ffff08_1px,transparent_1px)] bg-[size:40px_40px]" />
       </div>
+      {/* Floating Neural Particles */}
       <div className="fixed inset-0 pointer-events-none">
         {[...Array(20)].map((_, i) => (
           <div key={i} className="absolute w-0.5 h-0.5 bg-cyan-400 rounded-full animate-pulse" style={{
@@ -455,7 +462,6 @@ export default function Dashboard() {
           }} />
         ))}
       </div>
-
       {/* Header */}
       <header className="shrink-0 bg-black/90 backdrop-blur border-b border-cyan-500/30 px-3 py-2 flex justify-between items-center">
         <div className="flex items-center gap-3">
@@ -482,29 +488,281 @@ export default function Dashboard() {
           </button>
         </div>
       </header>
-
       {message && <div className="shrink-0 bg-gradient-to-r from-cyan-600/80 to-purple-600/80 py-1 text-center text-xs font-bold">{message}</div>}
       {panicMessage && <div className="shrink-0 bg-gradient-to-r from-red-600/90 to-pink-700/90 py-1 text-center text-xs font-bold">{panicMessage}</div>}
-
-      {/* Add/Remove forms unchanged */}
-      {showAddForm && (/* ... same as before ... */)}
-      {showRemoveForm && (/* ... same as before ... */)}
-
-      {/* Universe Modal unchanged */}
-      {showUniverse && (/* ... same as before ... */)}
-
+      {/* Add Form with Autocomplete */}
+      {showAddForm && (
+        <div className="shrink-0 px-3 py-1 bg-black/80 border-b border-cyan-900/50 relative">
+          <div className="flex gap-1">
+            <div className="relative flex-1">
+              <input
+                value={tickerInput}
+                onChange={e => {
+                  setTickerInput(e.target.value);
+                  updateAddSuggestions(e.target.value);
+                }}
+                onKeyDown={e => e.key === 'Enter' && handleAddTickers()}
+                onFocus={() => updateAddSuggestions(tickerInput)}
+                onBlur={() => setTimeout(() => setShowAddSuggestions(false), 200)}
+                placeholder="Add tickers (space/comma/newline)"
+                className="w-full px-2 py-1 bg-black/70 rounded border border-cyan-700/50 text-xs"
+              />
+              {showAddSuggestions && addSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-cyan-700/50 rounded shadow-lg z-10 max-h-40 overflow-y-auto">
+                  {addSuggestions.map(sym => (
+                    <div
+                      key={sym}
+                      onMouseDown={() => setTickerInput(prev => prev ? `${prev} ${sym}` : sym)}
+                      className="px-3 py-1.5 text-xs hover:bg-cyan-900/50 cursor-pointer"
+                    >
+                      {sym}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button onClick={handleAddTickers} disabled={addingTickers} className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-purple-600 rounded text-xs flex items-center gap-1">
+              {addingTickers ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
+            </button>
+          </div>
+          {addMessage && <p className="text-center text-xs mt-1">{addMessage}</p>}
+        </div>
+      )}
+      {/* Remove Form with Autocomplete */}
+      {showRemoveForm && (
+        <div className="shrink-0 px-3 py-1 bg-black/80 border-b border-red-900/50 relative">
+          <div className="flex gap-1">
+            <div className="relative flex-1">
+              <input
+                value={removeTickerInput}
+                onChange={e => {
+                  setRemoveTickerInput(e.target.value);
+                  updateRemoveSuggestions(e.target.value);
+                }}
+                onKeyDown={e => e.key === 'Enter' && handleRemoveTickers()}
+                onFocus={() => updateRemoveSuggestions(removeTickerInput)}
+                onBlur={() => setTimeout(() => setShowRemoveSuggestions(false), 200)}
+                placeholder="Remove tickers (space/comma/newline)"
+                className="w-full px-2 py-1 bg-black/70 rounded border border-red-700/50 text-xs"
+              />
+              {showRemoveSuggestions && removeSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-red-700/50 rounded shadow-lg z-10 max-h-40 overflow-y-auto">
+                  {removeSuggestions.map(sym => (
+                    <div
+                      key={sym}
+                      onMouseDown={() => setRemoveTickerInput(prev => prev ? `${prev} ${sym}` : sym)}
+                      className="px-3 py-1.5 text-xs hover:bg-red-900/50 cursor-pointer"
+                    >
+                      {sym}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button onClick={handleRemoveTickers} disabled={removingTickers} className="px-3 py-1 bg-red-600 rounded text-xs flex items-center gap-1">
+              {removingTickers ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Remove'}
+            </button>
+          </div>
+          {removeMessage && <p className="text-center text-xs mt-1">{removeMessage}</p>}
+        </div>
+      )}
+      {/* Universe Modal with Export + Click-to-Delete */}
+      {showUniverse && (
+        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900/90 border border-cyan-500/50 rounded-lg p-5 max-w-4xl w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-cyan-300 text-lg">Universe ({universeSize} tickers)</h3>
+              <div className="flex gap-2">
+                <button onClick={exportUniverse} className="px-3 py-1.5 bg-cyan-800 rounded text-xs flex items-center gap-1">
+                  <Copy className="w-3 h-3" /> Export
+                </button>
+                <input
+                  value={universeSearch}
+                  onChange={e => setUniverseSearch(e.target.value)}
+                  placeholder="Search..."
+                  className="px-3 py-1.5 bg-black/70 rounded border border-cyan-700/50 text-sm w-64"
+                />
+                <button onClick={() => setShowUniverse(false)} className="px-3 py-1.5 bg-gray-800 rounded text-sm">Close</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto bg-black/50 rounded border border-gray-800 p-3">
+              <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
+                {filteredUniverse.map(sym => (
+                  <div
+                    key={sym}
+                    onClick={() => handleRemoveSingleTicker(sym)}
+                    className="group bg-gray-800/60 hover:bg-red-900/50 border border-gray-700/50 hover:border-red-600 rounded px-3 py-2 text-center text-sm cursor-pointer transition-all"
+                  >
+                    <span className="font-mono">{sym}</span>
+                    <Trash2 className="w-3 h-3 inline ml-1 opacity-0 group-hover:opacity-100 text-red-400" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Main Grid */}
       <div className="flex-1 grid grid-cols-12 gap-2 p-2 overflow-hidden">
+        {/* Left: 7 columns */}
         <div className="col-span-7 space-y-2 overflow-y-auto pr-2">
-          {/* All left-side panels unchanged */}
-          {/* ... */}
+          {/* Core Stats */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-gradient-to-br from-cyan-900/40 to-black border border-cyan-500/30 rounded p-3 text-center">
+              <Wallet className="w-6 h-6 mx-auto text-cyan-400 mb-1" />
+              <p className="text-xl font-bold text-cyan-300">${equity.toFixed(0)}</p>
+              <p className="text-xs text-gray-500">Equity</p>
+            </div>
+            <div className="bg-gradient-to-br from-green-900/40 to-black border border-green-500/30 rounded p-3 text-center">
+              <DollarSign className="w-6 h-6 mx-auto text-green-400 mb-1" />
+              <p className="text-xl font-bold text-green-300">${buyingPower.toFixed(0)}</p>
+              <p className="text-xs text-gray-500">Power</p>
+            </div>
+            <div className="bg-gradient-to-br from-purple-900/40 to-black border rounded p-3 text-center">
+              <Target className={`w-6 h-6 mx-auto mb-1 ${realizedDailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`} />
+              <p className={`text-xl font-bold ${realizedDailyPnL >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                {realizedDailyPnL >= 0 ? '+' : ''}${Math.abs(realizedDailyPnL).toFixed(0)}
+              </p>
+              <p className="text-xs text-gray-500">Daily PnL</p>
+            </div>
+          </div>
+          {/* Status + Exposure */}
+          <div className="grid grid-cols-5 gap-2">
+            <div className={`bg-gradient-to-br ${mlConnected ? 'from-green-900/40' : 'from-red-900/40'} to-black border ${mlConnected ? 'border-green-500/50' : 'border-red-500/50'} rounded p-2 text-center`}>
+              <Cpu className="w-5 h-5 mx-auto mb-1" />
+              <p className="text-xs font-bold">{mlConnected ? 'NEURAL ON' : 'ML OFF'}</p>
+            </div>
+            <div className={`bg-gradient-to-br ${lossLimitHit ? 'from-red-900/40' : 'from-green-900/40'} to-black border ${lossLimitHit ? 'border-red-500/50' : 'border-green-500/50'} rounded p-2 text-center`}>
+              <Shield className="w-5 h-5 mx-auto mb-1" />
+              <p className="text-xs font-bold">{lossLimitHit ? 'BREACH' : 'SAFE'}</p>
+            </div>
+            <div className="bg-gradient-to-br from-yellow-900/40 to-black border border-yellow-500/30 rounded p-2 text-center">
+              <Gauge className="w-5 h-5 mx-auto mb-1" />
+              <p className="text-xs font-bold">{exposurePct}%</p>
+              <div className="h-10 mt-1"><Doughnut data={exposureDoughnut} options={{ responsive: true, plugins: { legend: { display: false } } }} /></div>
+            </div>
+            <div className="col-span-2 bg-gradient-to-br from-cyan-900/40 to-black border border-cyan-500/30 rounded p-2 text-center">
+              <Clock className="w-5 h-5 mx-auto mb-1" />
+              <p className="text-xs font-bold">{lastUpdate} ET</p>
+              <p className="text-xs text-gray-500">Live Sync</p>
+            </div>
+          </div>
+          {/* Flow Charts */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-gradient-to-br from-cyan-900/40 to-black border border-cyan-500/30 rounded p-2">
+              <p className="text-xs font-bold text-cyan-300 mb-1 flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Equity Flow</p>
+              <div className="h-24"><Line data={equityChartData} options={{ responsive: true, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>
+            </div>
+            <div className="bg-gradient-to-br from-purple-900/40 to-black border border-purple-500/30 rounded p-2">
+              <p className="text-xs font-bold text-purple-300 mb-1 flex items-center gap-1"><Target className="w-3 h-3" /> Realized PnL</p>
+              <div className="h-24"><Line data={realizedPnLChartData} options={{ responsive: true, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }} /></div>
+            </div>
+          </div>
+          {/* Discovery Feed */}
+          {recentDiscoveries.length > 0 && (
+            <div className="bg-gradient-to-br from-indigo-900/50 to-black border border-indigo-500/40 rounded p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Flame className="w-5 h-5 text-orange-400 animate-pulse" />
+                <span className="font-bold text-orange-300">DISCOVERY FEED ({recentDiscoveries.length})</span>
+              </div>
+              <div className="space-y-1">
+                {recentDiscoveries.map((d, i) => {
+                  const flashing = flashDiscoveries.has(d.symbol);
+                  return (
+                    <div key={i} className={`p-2 rounded text-xs flex justify-between items-center ${flashing ? 'bg-orange-900/40 border border-orange-500 shadow-lg shadow-orange-500/30' : 'bg-gray-800/50 border border-gray-700/50'}`}>
+                      <div className="flex items-center gap-2">
+                        <Rocket className="w-4 h-4 text-orange-400" />
+                        <span className="font-mono font-bold text-orange-300">{d.symbol}</span>
+                        <span className="text-gray-400">• {d.confidence}%</span>
+                      </div>
+                      <div className="flex gap-1">
+                        {d.sources.map((src, j) => (
+                          <span key={j} className="px-2 py-0.5 bg-indigo-900/70 rounded text-[10px] uppercase">
+                            {src}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {/* Neural Core */}
+          <div className="bg-gradient-to-r from-purple-900/50 via-cyan-900/30 to-black border border-purple-500/40 rounded p-3">
+            <div className="flex items-center gap-2 mb-2"><Network className="w-5 h-5 text-purple-400" /> <span className="font-bold text-purple-300">NEURAL CORE</span></div>
+            <div className="grid grid-cols-5 gap-3 text-center">
+              <div><p className="text-xl font-bold text-cyan-300">{mlMetrics.activeSymbols || 0}</p><p className="text-xs text-gray-500">Active</p></div>
+              <div><p className="text-xl font-bold text-purple-300">{mlMetrics.memorySize || 0}</p><p className="text-xs text-gray-500">Memory</p></div>
+              <div><p className="text-xl font-bold text-yellow-300">{mlMetrics.learningSteps || 0}</p><p className="text-xs text-gray-500">Steps</p></div>
+              <div><p className="text-xl font-bold text-green-300">{(mlMetrics.eps || 0).toFixed(3)}</p><p className="text-xs text-gray-500">ε</p></div>
+              <div><p className="text-xl font-bold text-pink-300">{mlMetrics.qrQuantiles || 200}</p><p className="text-xs text-gray-500">Quantiles</p></div>
+            </div>
+            {topSymbols.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-gray-400 mb-1">Top Learned</p>
+                <div className="grid grid-cols-5 gap-1">
+                  {topSymbols.map((s: MLSymbolMetric) => (
+                    <div key={s.symbol} className="bg-black/60 border border-purple-700/50 rounded px-2 py-1 text-center text-xs">
+                      <span className="text-purple-300">{s.symbol}</span> <span className="text-green-400">{s.count}×</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          {/* Positions */}
+          <div className="bg-gradient-to-br from-gray-900/80 to-black border border-cyan-500/30 rounded p-2 max-h-40 overflow-y-auto">
+            <p className="font-bold text-cyan-300 text-xs mb-1">POSITIONS ({positions.length})</p>
+            {positions.length === 0 ? <p className="text-center text-gray-600 text-xs py-6">Flat — awaiting signal</p> : (
+              positions.map((p: any, i: number) => (
+                <div key={i} className="flex justify-between items-center text-xs py-1 border-b border-gray-800/50">
+                  <span className="text-cyan-300 font-mono">{p.symbol}</span>
+                  <span>{p.qty} @ ${Number(p.avg_entry_price).toFixed(2)}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
-
+        {/* Right: 5 columns */}
         <div className="col-span-5 space-y-2 overflow-y-auto">
-          {/* Rockets unchanged */}
-          {/* ... */}
-
-          {/* === UPDATED NEURAL LOG SECTION === */}
+          {/* Rockets */}
+          <div className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 max-h-56 overflow-y-auto">
+            <div className="flex justify-between items-center mb-1">
+              <p className="font-bold text-cyan-300 text-xs">HOT ROCKETS ({rockets.length})</p>
+              {rockets.length > 0 && <Zap className="w-5 h-5 text-yellow-400 animate-pulse" />}
+            </div>
+            {rockets.length === 0 ? (
+              <div className="text-center py-8 text-gray-600">
+                <Activity className="w-10 h-10 mx-auto mb-2 opacity-40 animate-pulse" />
+                <p className="text-xs">Scanning neural space...</p>
+              </div>
+            ) : (
+              rockets.map((rocket: Rocket, i: number) => {
+                const action = getActionDetails(rocket.mlAction);
+                const flashing = flashRockets.has(rocket.symbol);
+                const isExpanded = expandedRocket === rocket.symbol;
+                const chartData = rocketCharts[rocket.symbol];
+                return (
+                  <div key={i} className={`p-2 rounded mb-2 ${flashing ? 'bg-yellow-900/30 border border-yellow-400 shadow-lg shadow-yellow-500/20' : 'bg-gray-800/60 border border-gray-700/50'}`}>
+                    <div onClick={() => toggleRocketChart(rocket.symbol)} className="cursor-pointer flex justify-between items-center">
+                      <div>
+                        <span className="text-lg font-bold text-cyan-300">{rocket.symbol}</span>
+                        <span className="ml-2 text-xs text-gray-400">+{rocket.gap}% • {rocket.mlConfidence}% conf</span>
+                      </div>
+                      <span className={`px-3 py-1 rounded text-xs font-bold ${action.color}`}>{action.label}</span>
+                    </div>
+                    {isExpanded && chartData && (
+                      <div className="mt-2 h-20">
+                        <Line data={{ labels: chartData.labels, datasets: chartData.datasets }} options={chartData.options} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+          {/* Neural Log - Updated to show Eastern Time */}
           <div
             className={`bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 font-mono text-xs relative overflow-hidden ${draggingLogs ? 'select-none' : ''}`}
             style={{ height: `${logHeight}px` }}
@@ -529,11 +787,11 @@ export default function Dashboard() {
                     message = match[2];
 
                     try {
-                      // Ensure it ends with Z for UTC parsing
+                      // Ensure it's treated as UTC
                       const utcString = rawTimestamp.endsWith('Z') ? rawTimestamp : rawTimestamp + 'Z';
                       const utcDate = new Date(utcString);
 
-                      // Convert to Eastern Time (handles DST automatically)
+                      // Convert to Eastern Time (automatically handles EST/EDT)
                       timeDisplay = utcDate.toLocaleTimeString('en-US', {
                         timeZone: 'America/New_York',
                         hour: '2-digit',
@@ -542,7 +800,7 @@ export default function Dashboard() {
                         hour12: false,
                       });
                     } catch (e) {
-                      timeDisplay = rawTimestamp; // fallback
+                      timeDisplay = rawTimestamp; // fallback to raw
                     }
                   }
 
@@ -563,8 +821,6 @@ export default function Dashboard() {
                 })
               )}
             </div>
-
-            {/* Drag handle */}
             <div
               onMouseDown={startLogDrag}
               className="absolute left-2 right-2 bottom-2 h-4 rounded bg-black/50 border border-cyan-700/40 flex items-center justify-center cursor-row-resize"
