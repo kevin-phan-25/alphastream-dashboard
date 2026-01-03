@@ -29,7 +29,8 @@ import {
   Radio,
   Binary,
   Rocket,
-  Flame
+  Flame,
+  Trash2
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -106,7 +107,7 @@ export default function Dashboard() {
   // =========================
   // DRAG-RESIZE LOG BOX (INSIDE)
   // =========================
-  const [logHeight, setLogHeight] = useState<number>(256); // default ~ max-h-64
+  const [logHeight, setLogHeight] = useState<number>(256);
   const [draggingLogs, setDraggingLogs] = useState(false);
   const dragStartYRef = useRef<number>(0);
   const dragStartHeightRef = useRef<number>(256);
@@ -120,7 +121,6 @@ export default function Dashboard() {
       const equityValue = Number(data.equity || 0);
       const realizedPnLValue = Number(data.realizedDailyPnL || 0);
 
-      // === NEW: Track recent discoveries from poller ===
       if (data.discoveries && Array.isArray(data.discoveries)) {
         const newSymbols = data.discoveries.map((d: Discovery) => d.symbol);
         if (newSymbols.length > 0) {
@@ -196,14 +196,32 @@ export default function Dashboard() {
     }
   };
 
+  // VALID TICKER REGEX: A-Z letters, optional . (for BRK.B), 1-12 chars
+  const TICKER_REGEX = /^[A-Z]{1,12}(\.[A-Z]{1,4})?$/;
+
+  const validateAndCleanTickers = (input: string): string[] => {
+    return input
+      .toUpperCase()
+      .replace(/[^A-Z.\s]/g, '') // remove invalid chars
+      .split(/[\s,;\n]+/)
+      .map(s => s.trim())
+      .filter(s => TICKER_REGEX.test(s))
+      .filter(Boolean);
+  };
+
   const handleAddTickers = async () => {
-    const input = tickerInput.trim();
-    if (!input) return;
+    const validTickers = validateAndCleanTickers(tickerInput);
+    if (validTickers.length === 0) {
+      setAddMessage('✗ No valid tickers found');
+      setTimeout(() => setAddMessage(''), 3000);
+      return;
+    }
+
     setAddingTickers(true);
     setAddMessage('');
     try {
-      const res = await axios.post(`${CORE_URL}/admin/add-ticker`, { symbols: input.toUpperCase() }, { timeout: 15000 });
-      setAddMessage(`✓ ${res.data.message}`);
+      const res = await axios.post(`${CORE_URL}/admin/add-ticker`, { symbols: validTickers.join(' ') }, { timeout: 15000 });
+      setAddMessage(`✓ ${res.data.message} (${validTickers.length} added)`);
       setTickerInput('');
       fetchCoreData();
     } catch (err: any) {
@@ -215,11 +233,17 @@ export default function Dashboard() {
   };
 
   const handleRemoveTickers = async () => {
-    if (!removeTickerInput.trim()) return;
+    const validTickers = validateAndCleanTickers(removeTickerInput);
+    if (validTickers.length === 0) {
+      setRemoveMessage('✗ No valid tickers to remove');
+      setTimeout(() => setRemoveMessage(''), 3000);
+      return;
+    }
+
     setRemovingTickers(true);
     try {
-      const res = await axios.post(`${CORE_URL}/admin/remove-ticker`, { symbols: removeTickerInput.trim().toUpperCase() });
-      setRemoveMessage(`✓ ${res.data.message}`);
+      const res = await axios.post(`${CORE_URL}/admin/remove-ticker`, { symbols: validTickers.join(' ') });
+      setRemoveMessage(`✓ ${res.data.message} (${validTickers.length} removed)`);
       setRemoveTickerInput('');
       fetchCoreData();
     } catch (err: any) {
@@ -227,6 +251,16 @@ export default function Dashboard() {
     } finally {
       setRemovingTickers(false);
       setTimeout(() => setRemoveMessage(''), 5000);
+    }
+  };
+
+  const handleRemoveSingleTicker = async (symbol: string) => {
+    if (!window.confirm(`Remove ${symbol} from universe?`)) return;
+    try {
+      await axios.post(`${CORE_URL}/admin/remove-ticker`, { symbols: symbol });
+      fetchCoreData();
+    } catch (err) {
+      console.error("Failed to remove ticker:", err);
     }
   };
 
@@ -269,9 +303,6 @@ export default function Dashboard() {
     }
   };
 
-  // =========================
-  // LOG RESIZE HANDLERS
-  // =========================
   const startLogDrag = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -346,7 +377,9 @@ export default function Dashboard() {
   const totalExposure = positions.reduce((sum: number, pos: any) => sum + (pos.marketValue || 0), 0);
   const exposurePct = equity > 0 ? ((totalExposure / equity) * 100).toFixed(1) : "0.0";
   const rawUniverse: string[] = Array.isArray(core.universeSymbols) ? core.universeSymbols : [];
-  const filteredUniverse = rawUniverse.filter(sym => sym.toLowerCase().includes(universeSearch.toLowerCase()));
+  const filteredUniverse = rawUniverse
+    .filter(sym => sym.toLowerCase().includes(universeSearch.toLowerCase()))
+    .sort();
 
   const equityChartData = {
     labels: equityHistory.map(d => d.time),
@@ -402,7 +435,7 @@ export default function Dashboard() {
             <h1 className="text-xl font-black bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">ALPHASTREAM</h1>
             <p className="text-xs text-gray-500 tracking-widest">QR-DQN MOMENTUM ENGINE v4</p>
           </div>
-          <button onClick={() => setShowUniverse(true)} className="flex items-center gap-1 px-2 py-1 bg-cyan-900/40 border border-cyan-700/50 rounded text-xs">
+          <button onClick={() => setShowUniverse(true)} className="flex items-center gap-1 px-2 py-1 bg-cyan-900/40 border border-cyan-700/50 rounded text-xs cursor-pointer">
             <Globe className="w-3 h-3" /> {universeSize}
           </button>
         </div>
@@ -421,42 +454,73 @@ export default function Dashboard() {
       {message && <div className="shrink-0 bg-gradient-to-r from-cyan-600/80 to-purple-600/80 py-1 text-center text-xs font-bold">{message}</div>}
       {panicMessage && <div className="shrink-0 bg-gradient-to-r from-red-600/90 to-pink-700/90 py-1 text-center text-xs font-bold">{panicMessage}</div>}
 
-      {/* Add/Remove Forms */}
+      {/* Add Form */}
       {showAddForm && (
         <div className="shrink-0 px-3 py-1 bg-black/80 border-b border-cyan-900/50">
           <div className="flex gap-1">
-            <input value={tickerInput} onChange={e => setTickerInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddTickers()} placeholder="Add tickers..." className="flex-1 px-2 py-1 bg-black/70 rounded border border-cyan-700/50 text-xs" />
-            <button onClick={handleAddTickers} disabled={addingTickers} className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-purple-600 rounded text-xs">{addingTickers ? '...' : 'Add'}</button>
+            <input
+              value={tickerInput}
+              onChange={e => setTickerInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddTickers()}
+              placeholder="Add tickers (space/comma/newline)"
+              className="flex-1 px-2 py-1 bg-black/70 rounded border border-cyan-700/50 text-xs"
+            />
+            <button onClick={handleAddTickers} disabled={addingTickers} className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-purple-600 rounded text-xs flex items-center gap-1">
+              {addingTickers ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
+            </button>
           </div>
           {addMessage && <p className="text-center text-xs mt-1">{addMessage}</p>}
         </div>
       )}
+
+      {/* Remove Form */}
       {showRemoveForm && (
         <div className="shrink-0 px-3 py-1 bg-black/80 border-b border-red-900/50">
           <div className="flex gap-1">
             <input
               value={removeTickerInput}
               onChange={e => setRemoveTickerInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleRemoveTickers()}  {/* ← FIXED: Enter now works */}
-              placeholder="Remove ticker..."
+              onKeyDown={e => e.key === 'Enter' && handleRemoveTickers()}
+              placeholder="Remove tickers (space/comma/newline)"
               className="flex-1 px-2 py-1 bg-black/70 rounded border border-red-700/50 text-xs"
             />
-            <button onClick={handleRemoveTickers} disabled={removingTickers} className="px-3 py-1 bg-red-600 rounded text-xs">{removingTickers ? '...' : 'Remove'}</button>
+            <button onClick={handleRemoveTickers} disabled={removingTickers} className="px-3 py-1 bg-red-600 rounded text-xs flex items-center gap-1">
+              {removingTickers ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Remove'}
+            </button>
           </div>
           {removeMessage && <p className="text-center text-xs mt-1">{removeMessage}</p>}
         </div>
       )}
 
-      {/* Universe Modal */}
+      {/* Universe Modal — Now on same page + clickable delete */}
       {showUniverse && (
-        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4" onClick={() => setShowUniverse(false)}>
-          <div className="bg-gray-900/90 border border-cyan-500/50 rounded p-4 max-w-2xl w-full max-h-96" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between mb-3">
-              <h3 className="font-bold text-cyan-300">Universe ({universeSize})</h3>
-              <input value={universeSearch} onChange={e => setUniverseSearch(e.target.value)} placeholder="Search..." className="px-3 py-1 bg-black/70 rounded border border-cyan-700/50 text-xs" />
+        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900/90 border border-cyan-500/50 rounded-lg p-5 max-w-4xl w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-cyan-300 text-lg">Universe ({universeSize} tickers)</h3>
+              <div className="flex gap-2">
+                <input
+                  value={universeSearch}
+                  onChange={e => setUniverseSearch(e.target.value)}
+                  placeholder="Search universe..."
+                  className="px-3 py-1.5 bg-black/70 rounded border border-cyan-700/50 text-sm w-64"
+                />
+                <button onClick={() => setShowUniverse(false)} className="px-3 py-1.5 bg-gray-800 rounded text-sm">Close</button>
+              </div>
             </div>
-            <div className="grid grid-cols-8 gap-1 text-xs overflow-y-auto max-h-72">
-              {filteredUniverse.map(sym => <div key={sym} className="bg-gray-800/60 rounded px-2 py-1 text-center border border-gray-700/50">{sym}</div>)}
+            <div className="flex-1 overflow-y-auto bg-black/50 rounded border border-gray-800 p-3">
+              <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
+                {filteredUniverse.map(sym => (
+                  <div
+                    key={sym}
+                    onClick={() => handleRemoveSingleTicker(sym)}
+                    className="group bg-gray-800/60 hover:bg-red-900/50 border border-gray-700/50 hover:border-red-600 rounded px-3 py-2 text-center text-sm cursor-pointer transition-all"
+                  >
+                    <span className="font-mono">{sym}</span>
+                    <Trash2 className="w-3 h-3 inline ml-1 opacity-0 group-hover:opacity-100 text-red-400" />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -521,7 +585,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* NEW: Discovery Feed from Poller */}
+          {/* Discovery Feed */}
           {recentDiscoveries.length > 0 && (
             <div className="bg-gradient-to-br from-indigo-900/50 to-black border border-indigo-500/40 rounded p-3">
               <div className="flex items-center gap-2 mb-2">
@@ -552,7 +616,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Neural Core — Now with Quantiles */}
+          {/* Neural Core */}
           <div className="bg-gradient-to-r from-purple-900/50 via-cyan-900/30 to-black border border-purple-500/40 rounded p-3">
             <div className="flex items-center gap-2 mb-2"><Network className="w-5 h-5 text-purple-400" /> <span className="font-bold text-purple-300">NEURAL CORE</span></div>
             <div className="grid grid-cols-5 gap-3 text-center">
@@ -629,7 +693,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Neural Log — Extended to 50 lines + DRAG INSIDE BOX */}
+          {/* Neural Log */}
           <div
             className={`bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 font-mono text-xs relative overflow-hidden ${draggingLogs ? 'select-none' : ''}`}
             style={{ height: `${logHeight}px` }}
@@ -659,7 +723,6 @@ export default function Dashboard() {
                 })
               )}
             </div>
-            {/* INSIDE drag handle (bottom strip) */}
             <div
               onMouseDown={startLogDrag}
               className="absolute left-2 right-2 bottom-2 h-4 rounded bg-black/50 border border-cyan-700/40 flex items-center justify-center cursor-row-resize"
