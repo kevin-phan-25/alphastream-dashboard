@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import React from 'react'; // ← ADD THIS LINE
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import {
@@ -114,7 +115,7 @@ export default function Dashboard() {
   const logMinHeight = 140;
   const logMaxHeight = 560;
 
-  // FIXED: Poll open root endpoint (public) with optional forceSync
+  // Poll open root endpoint (public) with optional forceSync
   const fetchCoreData = async (forceSync = false) => {
     try {
       const url = `${CORE_URL}/?universe=1${forceSync ? '&forceSync=1' : ''}`;
@@ -390,7 +391,6 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Early returns must be at the end, after all calculations
   if (loading) {
     return (
       <div className="h-screen bg-black flex items-center justify-center text-cyan-400">
@@ -419,7 +419,7 @@ export default function Dashboard() {
     );
   }
 
-  // All calculations (must be before early returns)
+  // All calculations
   const equity = Number(core.equity || 0);
   const buyingPower = Number(core.buyingPower || 0);
   const dailyDrawdown = Number(core.dailyDrawdown || 0);
@@ -468,7 +468,6 @@ export default function Dashboard() {
     }]
   };
 
-  // Main render
   return (
     <div className="h-screen bg-black text-gray-100 overflow-hidden relative flex flex-col">
       {/* Background */}
