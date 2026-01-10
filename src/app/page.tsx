@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import type React from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import {
@@ -25,10 +26,9 @@ import {
   Gauge,
   Radio,
   Binary,
-  Rocket,
-  Flame,
   Trash2,
-  Copy
+  Copy,
+  BarChart3
 } from 'lucide-react';
 
 import {
@@ -37,16 +37,28 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Tooltip,
   Filler,
   ArcElement
 } from 'chart.js';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler, ArcElement);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Tooltip,
+  Filler,
+  ArcElement
+);
 
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), { ssr: false });
 const Doughnut = dynamic(() => import('react-chartjs-2').then(mod => mod.Doughnut), { ssr: false });
+const Bar = dynamic(() => import('react-chartjs-2').then(mod => mod.Bar), { ssr: false });
 
+// Types
 type Discovery = {
   symbol: string;
   confidence: number;
@@ -65,11 +77,101 @@ type RocketT = {
 
 type ChartData = {
   labels: string[];
-  datasets: { data: number[]; borderColor: string; backgroundColor: string; fill: boolean; tension: number; pointRadius: number }[];
+  datasets: {
+    data: number[];
+    borderColor: string;
+    backgroundColor: string;
+    fill: boolean;
+    tension: number;
+    pointRadius: number;
+  }[];
   options?: any;
 };
 
 type MLSymbolMetric = { symbol: string; count: number };
+
+// ✅ NEW: ML health ping (supports proxy to avoid CORS, with fallback to direct)
+const useMLHealth = (mlUrl: string) => {
+  const [health, setHealth] = useState<{ ok?: boolean } | null>(null);
+
+  useEffect(() => {
+    const fetchHealth = async () => {
+      // 1) Try proxy first (recommended)
+      try {
+        const res = await axios.get(`/api/ml/health`, { timeout: 8000 });
+        setHealth(res.data || { ok: true });
+        return;
+      } catch {
+        // 2) Fallback direct (may fail due to CORS)
+      }
+
+      try {
+        const res = await axios.get(`${mlUrl}/health`, { timeout: 8000 });
+        setHealth(res.data || { ok: true });
+      } catch {
+        setHealth(null);
+      }
+    };
+
+    fetchHealth();
+    const interval = setInterval(fetchHealth, 15000);
+    return () => clearInterval(interval);
+  }, [mlUrl]);
+
+  return health;
+};
+
+// ✅ NEW: Top symbols bar chart (in addition to your existing “Top Learned” grid)
+function MLBarVisualization({ mlMetrics }: { mlMetrics: any }) {
+  const topSymbols: MLSymbolMetric[] = useMemo(
+    () => (Array.isArray(mlMetrics?.topSymbols) ? mlMetrics.topSymbols : []).slice(0, 10),
+    [mlMetrics?.topSymbols]
+  );
+
+  const barData = useMemo(() => {
+    return {
+      labels: topSymbols.map(s => s.symbol),
+      datasets: [
+        {
+          label: 'Learning Count',
+          data: topSymbols.map(s => s.count),
+          backgroundColor: 'rgba(0, 255, 255, 0.35)',
+          borderColor: '#00ffff',
+          borderWidth: 1
+        }
+      ]
+    };
+  }, [topSymbols]);
+
+  const options = useMemo(
+    () => ({
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { x: { display: false }, y: { display: false } }
+    }),
+    []
+  );
+
+  if (topSymbols.length === 0) {
+    return (
+      <div className="mt-3 text-center text-gray-500 text-xs py-4">
+        No learning data yet
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 bg-black/40 border border-purple-700/30 rounded p-2">
+      <div className="flex items-center gap-2 mb-2">
+        <BarChart3 className="w-4 h-4 text-purple-300" />
+        <span className="text-xs font-bold text-purple-300">TOP LEARNED (BAR)</span>
+      </div>
+      <div className="h-28">
+        <Bar data={barData} options={options} />
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const [core, setCore] = useState<any>({});
@@ -105,11 +207,16 @@ export default function Dashboard() {
   const [showAddSuggestions, setShowAddSuggestions] = useState(false);
   const [showRemoveSuggestions, setShowRemoveSuggestions] = useState(false);
 
-  const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
-  const ML_URL = process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
+  const CORE_URL =
+    process.env.NEXT_PUBLIC_CORE_URL || "https://alphastream-core-1017433009054.us-east1.run.app";
+  const ML_URL =
+    process.env.NEXT_PUBLIC_ML_URL || "https://alphastream-ml-1017433009054.us-east1.run.app";
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
 
   const DAILY_LOSS_LIMIT = 1500;
+
+  // ✅ NEW: ML health ping
+  const mlHealth = useMLHealth(ML_URL);
 
   // =========================
   // DRAG-RESIZE LOG BOX (INSIDE)
@@ -122,7 +229,7 @@ export default function Dashboard() {
   const logMaxHeight = 560;
 
   // ✅ Single place where dashboard pulls Core
-  // Uses /admin/status which you already have, and we updated it to return full snapshot
+  // Uses /admin/status
   const fetchCoreData = async () => {
     try {
       const res = await axios.get(`${CORE_URL}/admin/status?universe=1`, { timeout: 20000 });
@@ -180,7 +287,17 @@ export default function Dashboard() {
     }
   };
 
+  // ✅ UPDATED: metrics fetch tries proxy first (avoids CORS), then falls back
   const fetchMLMetrics = async () => {
+    // 1) proxy first
+    try {
+      const res = await axios.get(`/api/ml/metrics`, { timeout: 10000 });
+      setMlMetrics(res.data || {});
+      return;
+    } catch {
+      // fallback direct
+    }
+
     try {
       const res = await axios.get(`${ML_URL}/metrics`, { timeout: 10000 });
       setMlMetrics(res.data || {});
@@ -239,7 +356,7 @@ export default function Dashboard() {
       .filter(Boolean);
   };
 
-  // ✅ Autocomplete suggestions (fixed logic)
+  // ✅ Autocomplete suggestions
   const updateAddSuggestions = (input: string) => {
     const list: string[] = Array.isArray(core.universeSymbols) ? core.universeSymbols : [];
     if (!input.trim()) {
@@ -248,9 +365,7 @@ export default function Dashboard() {
       return;
     }
     const query = input.toUpperCase().trim();
-    const matches = list
-      .filter((sym: string) => sym.startsWith(query))
-      .slice(0, 8);
+    const matches = list.filter((sym: string) => sym.startsWith(query)).slice(0, 8);
     setAddSuggestions(matches);
     setShowAddSuggestions(matches.length > 0);
   };
@@ -263,9 +378,7 @@ export default function Dashboard() {
       return;
     }
     const query = input.toUpperCase().trim();
-    const matches = list
-      .filter((sym: string) => sym.startsWith(query))
-      .slice(0, 8);
+    const matches = list.filter((sym: string) => sym.startsWith(query)).slice(0, 8);
     setRemoveSuggestions(matches);
     setShowRemoveSuggestions(matches.length > 0);
   };
@@ -290,6 +403,7 @@ export default function Dashboard() {
       setAddMessage(`+${validTickers.length}`);
       setTickerInput('');
       setAddSuggestions([]);
+      setShowAddSuggestions(false);
       fetchCoreData();
     } catch {
       setAddMessage('Failed');
@@ -314,6 +428,7 @@ export default function Dashboard() {
       setRemoveMessage(`-${validTickers.length}`);
       setRemoveTickerInput('');
       setRemoveSuggestions([]);
+      setShowRemoveSuggestions(false);
       fetchCoreData();
     } catch {
       setRemoveMessage('Failed');
@@ -457,7 +572,17 @@ export default function Dashboard() {
 
   const lossLimitHit = Math.abs(dailyDrawdown) >= DAILY_LOSS_LIMIT;
 
-  const mlConnected = core.mlHealthy === true;
+  // ✅ FIX: ML is "online" if ANY of these are true:
+  // - core says healthy
+  // - ML /health responds (prefer proxy)
+  // - ML /metrics has real data
+  const mlConnected = useMemo(() => {
+    if (core?.mlHealthy === true) return true;
+    if (mlHealth?.ok === true) return true;
+    if (mlMetrics && Object.keys(mlMetrics).length > 0) return true;
+    return false;
+  }, [core?.mlHealthy, mlHealth?.ok, mlMetrics]);
+
   const universeSize = core.universeSize || 0;
 
   const positions = Array.isArray(core.positions) ? core.positions : [];
@@ -508,7 +633,7 @@ export default function Dashboard() {
     return { label: labels[action] || "HOLD", color: colors[action] || colors[2] };
   };
 
-  const topSymbols = (mlMetrics.topSymbols || []).slice(0, 10);
+  const topSymbols: MLSymbolMetric[] = (mlMetrics.topSymbols || []).slice(0, 10);
 
   const exposureDoughnut = {
     labels: ['Exposure', 'Cash'],
@@ -604,7 +729,10 @@ export default function Dashboard() {
                   {addSuggestions.map(sym => (
                     <div
                       key={sym}
-                      onMouseDown={() => setTickerInput(prev => prev ? `${prev} ${sym}` : sym)}
+                      onMouseDown={() => {
+                        setTickerInput(prev => (prev ? `${prev} ${sym}` : sym));
+                        setShowAddSuggestions(false);
+                      }}
                       className="px-3 py-1.5 text-xs hover:bg-cyan-900/50 cursor-pointer"
                     >
                       {sym}
@@ -643,7 +771,10 @@ export default function Dashboard() {
                   {removeSuggestions.map(sym => (
                     <div
                       key={sym}
-                      onMouseDown={() => setRemoveTickerInput(prev => prev ? `${prev} ${sym}` : sym)}
+                      onMouseDown={() => {
+                        setRemoveTickerInput(prev => (prev ? `${prev} ${sym}` : sym));
+                        setShowRemoveSuggestions(false);
+                      }}
                       className="px-3 py-1.5 text-xs hover:bg-red-900/50 cursor-pointer"
                     >
                       {sym}
@@ -791,6 +922,9 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
+
+            {/* ✅ NEW: bar chart from the other code (does not replace anything) */}
+            <MLBarVisualization mlMetrics={mlMetrics} />
           </div>
 
           {/* Positions */}
