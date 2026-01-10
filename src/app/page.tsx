@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo, memo } from 'react'; // ← Added 'memo'
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import {
@@ -119,15 +119,15 @@ const useMLMetrics = (mlUrl: string) => {
     };
 
     fetch();
-    const interval = setInterval(fetch, 20000); // every 20s — less frequent than core
+    const interval = setInterval(fetch, 20000);
     return () => clearInterval(interval);
   }, [mlUrl]);
 
   return metrics;
 };
 
-// Memoized Components
-const Header = React.memo(({ universeSize, onRefresh, onPanic, panicClosing, onToggleAdd, onToggleRemove }: any) => (
+// Memoized Components (using memo from 'react')
+const Header = memo(({ universeSize, onRefresh, onPanic, panicClosing, onToggleAdd, onToggleRemove }: any) => (
   <header className="shrink-0 bg-black/90 backdrop-blur border-b border-cyan-500/30 px-3 py-2 flex justify-between items-center">
     <div className="flex items-center gap-3">
       <div className="relative">
@@ -163,7 +163,7 @@ const Header = React.memo(({ universeSize, onRefresh, onPanic, panicClosing, onT
   </header>
 ));
 
-const CoreStats = React.memo(({ core }: { core: any }) => {
+const CoreStats = memo(({ core }: { core: any }) => {
   const equity = Number(core.equity || 0);
   const buyingPower = Number(core.buyingPower || 0);
   const realizedDailyPnL = Number(core.realizedDailyPnL || 0);
@@ -229,7 +229,7 @@ const CoreStats = React.memo(({ core }: { core: any }) => {
   );
 });
 
-const RocketsPanel = React.memo(({ rockets }: { rockets: RocketT[] }) => {
+const RocketsPanel = memo(({ rockets }: { rockets: RocketT[] }) => {
   const getActionDetails = useCallback((action: number = 2) => {
     const labels = ["STRONG BUY", "BUY", "HOLD", "NEUTRAL", "SELL"];
     const colors = [
@@ -274,7 +274,7 @@ const RocketsPanel = React.memo(({ rockets }: { rockets: RocketT[] }) => {
   );
 });
 
-const MLVisualization = React.memo(({ mlMetrics }: { mlMetrics: any }) => {
+const MLVisualization = memo(({ mlMetrics }: { mlMetrics: any }) => {
   const topSymbols = useMemo(() => (mlMetrics.topSymbols || []).slice(0, 10), [mlMetrics.topSymbols]);
 
   const barData = useMemo(() => ({
@@ -311,7 +311,7 @@ const MLVisualization = React.memo(({ mlMetrics }: { mlMetrics: any }) => {
   );
 });
 
-const LogsPanel = React.memo(({ logs }: { logs: string[] }) => {
+const LogsPanel = memo(({ logs }: { logs: string[] }) => {
   return (
     <div className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 font-mono text-xs h-full overflow-hidden flex flex-col">
       <p className="font-bold text-cyan-300 mb-1 flex items-center gap-1">
@@ -348,6 +348,7 @@ export default function Dashboard() {
   // Memoized derived data
   const universeSize = useMemo(() => core.universeSize || 0, [core.universeSize]);
   const rockets = useMemo(() => core.rockets || [], [core.rockets]);
+  const positions = useMemo(() => Array.isArray(core.positions) ? core.positions : [], [core.positions]);
   const logs = useMemo(() => (core.tradeLog || []).slice().reverse().slice(0, 50), [core.tradeLog]);
 
   const forceScan = async () => {
