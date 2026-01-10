@@ -1,7 +1,6 @@
 'use client';
 
-import type React from 'react';
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import {
@@ -26,8 +25,11 @@ import {
   Gauge,
   Radio,
   Binary,
+  Rocket,
+  Flame,
   Trash2,
   Copy,
+  Search,
   BarChart3
 } from 'lucide-react';
 
@@ -43,16 +45,7 @@ import {
   ArcElement
 } from 'chart.js';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Tooltip,
-  Filler,
-  ArcElement
-);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Filler, ArcElement);
 
 const Line = dynamic(() => import('react-chartjs-2').then(mod => mod.Line), { ssr: false });
 const Doughnut = dynamic(() => import('react-chartjs-2').then(mod => mod.Doughnut), { ssr: false });
@@ -77,14 +70,7 @@ type RocketT = {
 
 type ChartData = {
   labels: string[];
-  datasets: {
-    data: number[];
-    borderColor: string;
-    backgroundColor: string;
-    fill: boolean;
-    tension: number;
-    pointRadius: number;
-  }[];
+  datasets: { data: number[]; borderColor: string; backgroundColor: string; fill: boolean; tension: number; pointRadius: number }[];
   options?: any;
 };
 
@@ -228,11 +214,10 @@ export default function Dashboard() {
   const logMinHeight = 140;
   const logMaxHeight = 560;
 
-  // ✅ Single place where dashboard pulls Core
-  // Uses /admin/status
+  // ✅ FIXED: Poll open root endpoint (public)
   const fetchCoreData = async () => {
     try {
-      const res = await axios.get(`${CORE_URL}/admin/status?universe=1`, { timeout: 20000 });
+      const res = await axios.get(`${CORE_URL}/?universe=1`, { timeout: 20000 });
       const data = res.data || {};
 
       const equityValue = Number(data.equity || 0);
@@ -576,12 +561,7 @@ export default function Dashboard() {
   // - core says healthy
   // - ML /health responds (prefer proxy)
   // - ML /metrics has real data
-  const mlConnected = useMemo(() => {
-    if (core?.mlHealthy === true) return true;
-    if (mlHealth?.ok === true) return true;
-    if (mlMetrics && Object.keys(mlMetrics).length > 0) return true;
-    return false;
-  }, [core?.mlHealthy, mlHealth?.ok, mlMetrics]);
+  const mlConnected = core?.mlHealthy === true || mlHealth?.ok === true || (mlMetrics && Object.keys(mlMetrics).length > 0);
 
   const universeSize = core.universeSize || 0;
 
@@ -1031,3 +1011,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+give me code update
