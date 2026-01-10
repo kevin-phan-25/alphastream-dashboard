@@ -126,6 +126,28 @@ const useMLMetrics = (mlUrl: string) => {
   return metrics;
 };
 
+// ✅ NEW: ML health ping (so UI reflects actual reachability)
+const useMLHealth = (mlUrl: string) => {
+  const [health, setHealth] = useState<{ ok?: boolean } | null>(null);
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const res = await axios.get(`${mlUrl}/health`, { timeout: 8000 });
+        setHealth(res.data || { ok: true });
+      } catch {
+        setHealth(null);
+      }
+    };
+
+    fetch();
+    const interval = setInterval(fetch, 15000);
+    return () => clearInterval(interval);
+  }, [mlUrl]);
+
+  return health;
+};
+
 // Memoized Components (using memo from 'react')
 const Header = memo(({ universeSize, onRefresh, onPanic, panicClosing, onToggleAdd, onToggleRemove }: any) => (
   <header className="shrink-0 bg-black/90 backdrop-blur border-b border-cyan-500/30 px-3 py-2 flex justify-between items-center">
@@ -163,14 +185,17 @@ const Header = memo(({ universeSize, onRefresh, onPanic, panicClosing, onToggleA
   </header>
 ));
 
-const CoreStats = memo(({ core }: { core: any }) => {
+/**
+ * ✅ UPDATED: CoreStats now takes mlConnected as a prop
+ * so UI can show "ML ON" when ML service is reachable even if core schema-check fails.
+ */
+const CoreStats = memo(({ core, mlConnected }: { core: any; mlConnected: boolean }) => {
   const equity = Number(core.equity || 0);
   const buyingPower = Number(core.buyingPower || 0);
   const realizedDailyPnL = Number(core.realizedDailyPnL || 0);
   const dailyDrawdown = Number(core.dailyDrawdown || 0);
   const dailyDrawdownPct = dailyDrawdown !== 0 ? ((Math.abs(dailyDrawdown) / Math.max(1, equity - dailyDrawdown)) * 100).toFixed(1) : "0.0";
   const lossLimitHit = Math.abs(dailyDrawdown) >= 1500;
-  const mlConnected = core.mlHealthy === true;
 
   const positions = Array.isArray(core.positions) ? core.positions : [];
   const totalExposure = positions.reduce((sum: number, p: PositionT) => sum + p.marketValue, 0);
@@ -337,6 +362,17 @@ export default function Dashboard() {
   const { core, loading, error, fetchCore } = useCoreData(CORE_URL);
   const mlMetrics = useMLMetrics(ML_URL);
 
+  // ✅ NEW: health ping
+  const mlHealth = useMLHealth(ML_URL);
+
+  // ✅ "online" if core says healthy OR ML responds to /health OR /metrics returns something
+  const mlConnected = useMemo(() => {
+    if (core?.mlHealthy === true) return true;
+    if (mlHealth?.ok === true) return true;
+    if (mlMetrics && Object.keys(mlMetrics).length > 0) return true;
+    return false;
+  }, [core?.mlHealthy, mlHealth?.ok, mlMetrics]);
+
   const [scanning, setScanning] = useState(false);
   const [message, setMessage] = useState("");
   const [panicClosing, setPanicClosing] = useState(false);
@@ -453,7 +489,8 @@ export default function Dashboard() {
       <div className="flex-1 grid grid-cols-12 gap-2 p-2 overflow-hidden">
         {/* Left */}
         <div className="col-span-7 space-y-2 overflow-y-auto pr-2">
-          <CoreStats core={core} />
+          {/* ✅ pass mlConnected */}
+          <CoreStats core={core} mlConnected={mlConnected} />
 
           <MLVisualization mlMetrics={mlMetrics} />
 
