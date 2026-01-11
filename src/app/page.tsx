@@ -343,8 +343,8 @@ export default function Dashboard() {
   const CORE_URL_PUBLIC = process.env.NEXT_PUBLIC_CORE_URL || 'https://alphastream-core-1017433009054.us-east1.run.app';
   const ML_URL_PUBLIC = process.env.NEXT_PUBLIC_ML_URL || 'https://alphastream-ml-1017433009054.us-east1.run.app';
 
-  const CORE_BASE = '/api/core'; // Proxy for Core
-  const ML_BASE = '/api/ml';     // Proxy for ML (fixes CORS)
+  const CORE_BASE = CORE_URL_PUBLIC; // Direct URL (no proxy needed, fixes 404)
+  const ML_BASE = '/api/ml'; // Proxy for ML to avoid CORS
 
   const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || '';
 
@@ -762,7 +762,7 @@ export default function Dashboard() {
     return raw
       .slice(-50)
       .reverse()
-      .map((log: any) => {  // <-- Fixed: explicit any type
+      .map((log: any) => {  // Fixed: explicit any type to satisfy TS
         if (typeof log === 'string') return log;
         if (log && typeof log === 'object') {
           const ts = log.ts ? new Date(log.ts).toLocaleString() : '??';
