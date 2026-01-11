@@ -116,7 +116,6 @@ function safeNum(v: any, fallback = 0) {
 // Hooks
 // --------------------
 
-// ML metrics poll
 const useMLMetrics = (mlBase: string) => {
   const [metrics, setMetrics] = useState<any>({});
 
@@ -145,7 +144,6 @@ const useMLMetrics = (mlBase: string) => {
   return metrics;
 };
 
-// ML health ping (so UI reflects reachability)
 const useMLHealth = (mlBase: string) => {
   const [health, setHealth] = useState<{ ok?: boolean } | null>(null);
 
@@ -341,27 +339,18 @@ const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) =>
 // Page
 // --------------------
 export default function Dashboard() {
-  /**
-   * Proxy mode (recommended):
-   * - NEXT_PUBLIC_USE_API_PROXY="true"
-   * - Dashboard hits /api/core/* and /api/ml/*
-   * - Secrets stay server-side (CORE_ADMIN_KEY)
-   */
   const USE_PROXY = String(process.env.NEXT_PUBLIC_USE_API_PROXY || 'false') === 'true';
 
-  // Public bases (browser)
   const CORE_URL_PUBLIC = process.env.NEXT_PUBLIC_CORE_URL || 'https://alphastream-core-1017433009054.us-east1.run.app';
   const ML_URL_PUBLIC = process.env.NEXT_PUBLIC_ML_URL || 'https://alphastream-ml-1017433009054.us-east1.run.app';
 
   const CORE_BASE = USE_PROXY ? '/api/core' : CORE_URL_PUBLIC;
   const ML_BASE = USE_PROXY ? '/api/ml' : ML_URL_PUBLIC;
 
-  // QUICK FIX (NOT SECURE): browser-visible admin key
   const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || '';
 
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
 
-  // core snapshot + ui state
   const [core, setCore] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -376,17 +365,14 @@ export default function Dashboard() {
   const [equityHistory, setEquityHistory] = useState<{ time: string; equity: number }[]>([]);
   const [realizedPnLHistory, setRealizedPnLHistory] = useState<{ time: string; pnl: number }[]>([]);
 
-  // rockets + flash + expand chart
   const [liveRockets, setLiveRockets] = useState<RocketT[]>([]);
   const [flashRockets, setFlashRockets] = useState<Set<string>>(new Set());
   const [expandedRocket, setExpandedRocket] = useState<string | null>(null);
   const [rocketCharts, setRocketCharts] = useState<Record<string, ChartData>>({});
 
-  // discoveries flash (kept)
   const [recentDiscoveries, setRecentDiscoveries] = useState<Discovery[]>([]);
   const [flashDiscoveries, setFlashDiscoveries] = useState<Set<string>>(new Set());
 
-  // add/remove + suggestions + modals
   const [showAddForm, setShowAddForm] = useState(false);
   const [showRemoveForm, setShowRemoveForm] = useState(false);
   const [showUniverse, setShowUniverse] = useState(false);
@@ -407,7 +393,6 @@ export default function Dashboard() {
   const [showAddSuggestions, setShowAddSuggestions] = useState(false);
   const [showRemoveSuggestions, setShowRemoveSuggestions] = useState(false);
 
-  // log drag-resize
   const [logHeight, setLogHeight] = useState<number>(256);
   const [draggingLogs, setDraggingLogs] = useState(false);
   const dragStartYRef = useRef<number>(0);
@@ -415,7 +400,6 @@ export default function Dashboard() {
   const logMinHeight = 140;
   const logMaxHeight = 560;
 
-  // background particles (stable)
   const particles = useMemo(() => {
     return [...Array(20)].map((_, i) => ({
       id: i,
@@ -426,7 +410,6 @@ export default function Dashboard() {
     }));
   }, []);
 
-  // ML signals
   const mlMetrics = useMLMetrics(ML_BASE);
   const mlHealth = useMLHealth(ML_BASE);
 
@@ -437,11 +420,8 @@ export default function Dashboard() {
     return false;
   }, [core?.mlHealthy, mlHealth?.ok, mlMetrics]);
 
-  // --------------------
-  // Admin headers helper
-  // --------------------
   const adminHeaders = useMemo(() => {
-    if (USE_PROXY) return {}; // server will attach secret
+    if (USE_PROXY) return {};
     if (!ADMIN_KEY) return {};
     return {
       'x-api-key': ADMIN_KEY,
@@ -472,13 +452,9 @@ export default function Dashboard() {
     [CORE_BASE, adminHeaders]
   );
 
-  // --------------------
-  // Core fetch (PUBLIC endpoint)
-  // --------------------
   const fetchCoreData = useCallback(
     async (forceSync = false) => {
       try {
-        // IMPORTANT: do NOT call /admin/status here (it 403s unless authorized)
         const url = `${CORE_BASE}/?universe=1${forceSync ? '&forceSync=1' : ''}`;
         const res = await axios.get(url, { timeout: 20000 });
 
@@ -487,7 +463,6 @@ export default function Dashboard() {
         const equityValue = safeNum(data.equity, 0);
         const realizedPnLValue = safeNum(data.realizedDailyPnL, 0);
 
-        // keep discoveries flashes if core returns them
         if (data.discoveries && Array.isArray(data.discoveries)) {
           const newSymbols = data.discoveries.map((d: Discovery) => d.symbol);
           if (newSymbols.length > 0) {
@@ -516,7 +491,6 @@ export default function Dashboard() {
           })
         );
 
-        // rockets flash
         if (Array.isArray(data.rockets) && data.rockets.length > 0) {
           const newSymbols = data.rockets.map((r: RocketT) => r.symbol);
           setFlashRockets(new Set(newSymbols));
@@ -537,9 +511,6 @@ export default function Dashboard() {
     [CORE_BASE]
   );
 
-  // --------------------
-  // Scan / Panic
-  // --------------------
   const forceScan = useCallback(async () => {
     if (scanning) return;
     setScanning(true);
@@ -578,9 +549,6 @@ export default function Dashboard() {
     }
   }, [adminRequest, fetchCoreData, panicClosing]);
 
-  // --------------------
-  // Add/remove tickers (admin)
-  // --------------------
   const updateAddSuggestions = useCallback(
     (input: string) => {
       const list: string[] = Array.isArray(core.universeSymbols) ? core.universeSymbols : [];
@@ -685,9 +653,6 @@ export default function Dashboard() {
     setTimeout(() => setMessage(''), 3000);
   }, [core.universeSymbols]);
 
-  // --------------------
-  // Finnhub mini chart for rockets
-  // -------------------- 
   const fetchRocketChart = useCallback(
     async (symbol: string) => {
       if (rocketCharts[symbol] || !FINNHUB_KEY) return;
@@ -742,9 +707,6 @@ export default function Dashboard() {
     [expandedRocket, fetchRocketChart]
   );
 
-  // --------------------
-  // Drag resize logs
-  // --------------------
   const startLogDrag = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -772,18 +734,12 @@ export default function Dashboard() {
     };
   }, [draggingLogs]);
 
-  // --------------------
-  // Poll core
-  // --------------------
   useEffect(() => {
     fetchCoreData();
     const interval = setInterval(() => fetchCoreData(), 8000);
     return () => clearInterval(interval);
   }, [fetchCoreData]);
 
-  // --------------------
-  // Derived UI data
-  // --------------------
   const equity = safeNum(core.equity, 0);
   const buyingPower = safeNum(core.buyingPower, 0);
   const dailyDrawdown = safeNum(core.dailyDrawdown, 0);
@@ -800,7 +756,6 @@ export default function Dashboard() {
 
   const logs: string[] = useMemo(() => {
     if (Array.isArray(core.tradeLog)) return core.tradeLog.slice().reverse().slice(0, 50);
-    // some versions send eventLogTail
     if (Array.isArray(core.eventLogTail)) return core.eventLogTail.slice().reverse().slice(0, 50);
     return [];
   }, [core.tradeLog, core.eventLogTail]);
@@ -959,4 +914,332 @@ export default function Dashboard() {
               <input
                 value={tickerInput}
                 onChange={(e) => {
-                  setTicker
+                  setTickerInput(e.target.value);
+                  updateAddSuggestions(e.target.value);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddTickers()}
+                onFocus={() => updateAddSuggestions(tickerInput)}
+                onBlur={() => setTimeout(() => setShowAddSuggestions(false), 200)}
+                placeholder="Add tickers (paste list ok)"
+                className="w-full px-2 py-1 bg-black/70 rounded border border-cyan-700/50 text-xs"
+              />
+              {showAddSuggestions && addSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-cyan-700/50 rounded shadow-lg z-10 max-h-40 overflow-y-auto">
+                  {addSuggestions.map((sym) => (
+                    <div
+                      key={sym}
+                      onMouseDown={() => setTickerInput((prev) => (prev ? `${prev} ${sym}` : sym))}
+                      className="px-3 py-1.5 text-xs hover:bg-cyan-900/50 cursor-pointer"
+                    >
+                      {sym}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={handleAddTickers}
+              disabled={addingTickers}
+              className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-purple-600 rounded text-xs flex items-center gap-1"
+            >
+              {addingTickers ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
+            </button>
+          </div>
+          {addMessage && <p className="text-center text-xs mt-1">{addMessage}</p>}
+        </div>
+      )}
+
+      {/* Remove Form */}
+      {showRemoveForm && (
+        <div className="shrink-0 px-3 py-1 bg-black/80 border-b border-red-900/50 relative">
+          <div className="flex gap-1">
+            <div className="relative flex-1">
+              <input
+                value={removeTickerInput}
+                onChange={(e) => {
+                  setRemoveTickerInput(e.target.value);
+                  updateRemoveSuggestions(e.target.value);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleRemoveTickers()}
+                onFocus={() => updateRemoveSuggestions(removeTickerInput)}
+                onBlur={() => setTimeout(() => setShowRemoveSuggestions(false), 200)}
+                placeholder="Remove tickers (paste list ok)"
+                className="w-full px-2 py-1 bg-black/70 rounded border border-red-700/50 text-xs"
+              />
+              {showRemoveSuggestions && removeSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-red-700/50 rounded shadow-lg z-10 max-h-40 overflow-y-auto">
+                  {removeSuggestions.map((sym) => (
+                    <div
+                      key={sym}
+                      onMouseDown={() => setRemoveTickerInput((prev) => (prev ? `${prev} ${sym}` : sym))}
+                      className="px-3 py-1.5 text-xs hover:bg-red-900/50 cursor-pointer"
+                    >
+                      {sym}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={handleRemoveTickers}
+              disabled={removingTickers}
+              className="px-3 py-1 bg-red-600 rounded text-xs flex items-center gap-1"
+            >
+              {removingTickers ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Remove'}
+            </button>
+          </div>
+          {removeMessage && <p className="text-center text-xs mt-1">{removeMessage}</p>}
+        </div>
+      )}
+
+      {/* Universe Modal */}
+      {showUniverse && (
+        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4" onClick={() => setShowUniverse(false)}>
+          <div
+            className="bg-gray-900/90 border border-cyan-500/50 rounded-lg p-5 max-w-4xl w-full max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-cyan-300 text-lg">Universe ({universeSize} tickers)</h3>
+              <div className="flex gap-2">
+                <button onClick={exportUniverse} className="px-3 py-1.5 bg-cyan-800 rounded text-xs flex items-center gap-1">
+                  <Copy className="w-3 h-3" /> Export
+                </button>
+                <input
+                  value={universeSearch}
+                  onChange={(e) => setUniverseSearch(e.target.value)}
+                  placeholder="Search..."
+                  className="px-3 py-1.5 bg-black/70 rounded border border-cyan-700/50 text-sm w-64"
+                />
+                <button onClick={() => setShowUniverse(false)} className="px-3 py-1.5 bg-gray-800 rounded text-sm">
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto bg-black/50 rounded border border-gray-800 p-3">
+              <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
+                {filteredUniverse.map((sym) => (
+                  <div
+                    key={sym}
+                    onClick={() => handleRemoveSingleTicker(sym)}
+                    className="group bg-gray-800/60 hover:bg-red-900/50 border border-gray-700/50 hover:border-red-600 rounded px-3 py-2 text-center text-sm cursor-pointer transition-all"
+                    title="Click to remove from universe"
+                  >
+                    <span className="font-mono">{sym}</span>
+                    <Trash2 className="w-3 h-3 inline ml-1 opacity-0 group-hover:opacity-100 text-red-400" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Grid */}
+      <div className="flex-1 grid grid-cols-12 gap-2 p-2 overflow-hidden">
+        {/* Left */}
+        <div className="col-span-7 space-y-2 overflow-y-auto pr-2">
+          {/* Core Stats */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-gradient-to-br from-cyan-900/40 to-black border border-cyan-500/30 rounded p-3 text-center">
+              <Wallet className="w-6 h-6 mx-auto text-cyan-400 mb-1" />
+              <p className="text-xl font-bold text-cyan-300">${equity.toFixed(0)}</p>
+              <p className="text-xs text-gray-500">Equity</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-green-900/40 to-black border border-green-500/30 rounded p-3 text-center">
+              <DollarSign className="w-6 h-6 mx-auto text-green-400 mb-1" />
+              <p className="text-xl font-bold text-green-300">${buyingPower.toFixed(0)}</p>
+              <p className="text-xs text-gray-500">Power</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-900/40 to-black border rounded p-3 text-center">
+              <Target className={`w-6 h-6 mx-auto mb-1 ${realizedDailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`} />
+              <p className={`text-xl font-bold ${realizedDailyPnL >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                {realizedDailyPnL >= 0 ? '+' : ''}${Math.abs(realizedDailyPnL).toFixed(0)}
+              </p>
+              <p className="text-xs text-gray-500">Daily PnL</p>
+            </div>
+          </div>
+
+          {/* Status + Exposure + Last update */}
+          <div className="grid grid-cols-5 gap-2">
+            <div
+              className={`bg-gradient-to-br ${mlConnected ? 'from-green-900/40' : 'from-red-900/40'} to-black border ${
+                mlConnected ? 'border-green-500/50' : 'border-red-500/50'
+              } rounded p-2 text-center`}
+            >
+              <Cpu className="w-5 h-5 mx-auto mb-1" />
+              <p className="text-xs font-bold">{mlConnected ? 'NEURAL ON' : 'ML OFF'}</p>
+            </div>
+
+            <div
+              className={`bg-gradient-to-br ${lossLimitHit ? 'from-red-900/40' : 'from-green-900/40'} to-black border ${
+                lossLimitHit ? 'border-red-500/50' : 'border-green-500/50'
+              } rounded p-2 text-center`}
+            >
+              <Shield className="w-5 h-5 mx-auto mb-1" />
+              <p className="text-xs font-bold">{lossLimitHit ? 'BREACH' : 'SAFE'}</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-yellow-900/40 to-black border border-yellow-500/30 rounded p-2 text-center">
+              <Gauge className="w-5 h-5 mx-auto mb-1" />
+              <p className="text-xs font-bold">{exposurePct}%</p>
+              <div className="h-10 mt-1">
+                <Doughnut data={exposureDoughnut} options={{ responsive: true, plugins: { legend: { display: false } } }} />
+              </div>
+            </div>
+
+            <div className="col-span-2 bg-gradient-to-br from-cyan-900/40 to-black border border-cyan-500/30 rounded p-2 text-center">
+              <Clock className="w-5 h-5 mx-auto mb-1" />
+              <p className="text-xs font-bold">{lastUpdate} ET</p>
+              <p className="text-xs text-gray-500">Live Sync</p>
+            </div>
+          </div>
+
+          {/* Flow Charts */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-gradient-to-br from-cyan-900/40 to-black border border-cyan-500/30 rounded p-2">
+              <p className="text-xs font-bold text-cyan-300 mb-1 flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" /> Equity Flow
+              </p>
+              <div className="h-24">
+                <Line
+                  data={equityChartData}
+                  options={{
+                    responsive: true,
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    scales: { x: { display: false }, y: { display: false } }
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-900/40 to-black border border-purple-500/30 rounded p-2">
+              <p className="text-xs font-bold text-purple-300 mb-1 flex items-center gap-1">
+                <Target className="w-3 h-3" /> Realized PnL
+              </p>
+              <div className="h-24">
+                <Line
+                  data={realizedPnLChartData}
+                  options={{
+                    responsive: true,
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    scales: { x: { display: false }, y: { display: false } }
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Neural Core */}
+          <div className="bg-gradient-to-r from-purple-900/50 via-cyan-900/30 to-black border border-purple-500/40 rounded p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Network className="w-5 h-5 text-purple-400" /> <span className="font-bold text-purple-300">NEURAL CORE</span>
+            </div>
+            <div className="grid grid-cols-5 gap-3 text-center">
+              <div>
+                <p className="text-xl font-bold text-cyan-300">{mlMetrics.activeSymbols || 0}</p>
+                <p className="text-xs text-gray-500">Active</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-purple-300">{mlMetrics.memorySize || 0}</p>
+                <p className="text-xs text-gray-500">Memory</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-yellow-300">{mlMetrics.learningSteps || 0}</p>
+                <p className="text-xs text-gray-500">Steps</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-green-300">{Number(mlMetrics.eps || 0).toFixed(3)}</p>
+                <p className="text-xs text-gray-500">ε</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-pink-300">{mlMetrics.qrQuantiles || 200}</p>
+                <p className="text-xs text-gray-500">Quantiles</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ML Bar Viz */}
+          <MLVisualization mlMetrics={mlMetrics} />
+
+          {/* Positions */}
+          <div className="bg-gradient-to-br from-gray-900/80 to-black border border-cyan-500/30 rounded p-2 max-h-40 overflow-y-auto">
+            <p className="font-bold text-cyan-300 text-xs mb-1">POSITIONS ({positions.length})</p>
+            {positions.length === 0 ? (
+              <p className="text-center text-gray-600 text-xs py-6">Flat — awaiting signal</p>
+            ) : (
+              positions.map((p: any, i: number) => {
+                const qty = safeNum(p.qty, 0);
+                const entry = safeNum(p.avgEntryPrice ?? p.avg_entry_price, 0);
+                return (
+                  <div key={i} className="flex justify-between items-center text-xs py-1 border-b border-gray-800/50">
+                    <span className="text-cyan-300 font-mono">{p.symbol}</span>
+                    <span>
+                      {qty} @ ${entry ? entry.toFixed(2) : '0.00'}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right */}
+        <div className="col-span-5 space-y-2 overflow-y-auto">
+          {/* Rockets */}
+          <div className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 max-h-56 overflow-y-auto">
+            <div className="flex justify-between items-center mb-1">
+              <p className="font-bold text-cyan-300 text-xs">HOT ROCKETS ({rockets.length})</p>
+              {rockets.length > 0 && <Zap className="w-5 h-5 text-yellow-400 animate-pulse" />}
+            </div>
+
+            {rockets.length === 0 ? (
+              <div className="text-center py-8 text-gray-600">
+                <Activity className="w-10 h-10 mx-auto mb-2 opacity-40 animate-pulse" />
+                <p className="text-xs">Scanning neural space...</p>
+              </div>
+            ) : (
+              rockets.map((rocket: RocketT, i: number) => {
+                const action = getActionDetails(rocket.mlAction);
+                const flashing = flashRockets.has(rocket.symbol);
+                const isExpanded = expandedRocket === rocket.symbol;
+                const chartData = rocketCharts[rocket.symbol];
+
+                return (
+                  <div
+                    key={i}
+                    className={`p-2 rounded mb-2 ${
+                      flashing ? 'bg-yellow-900/30 border border-yellow-400 shadow-lg shadow-yellow-500/20' : 'bg-gray-800/60 border border-gray-700/50'
+                    }`}
+                  >
+                    <div onClick={() => toggleRocketChart(rocket.symbol)} className="cursor-pointer flex justify-between items-center">
+                      <div>
+                        <span className="text-lg font-bold text-cyan-300">{rocket.symbol}</span>
+                        <span className="ml-2 text-xs text-gray-400">
+                          +{rocket.gap}% • {rocket.mlConfidence}% conf
+                        </span>
+                      </div>
+                      <span className={`px-3 py-1 rounded text-xs font-bold ${action.color}`}>{action.label}</span>
+                    </div>
+
+                    {isExpanded && chartData && (
+                      <div className="mt-2 h-20">
+                        <Line data={{ labels: chartData.labels, datasets: chartData.datasets }} options={chartData.options} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Logs (drag resizable) */}
+          <LogsPanel logs={logs} logHeight={logHeight} draggingLogs={draggingLogs} startLogDrag={startLogDrag} />
+        </div>
+      </div>
+    </div>
+  );
+}
