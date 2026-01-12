@@ -436,7 +436,7 @@ export default function Dashboard() {
       try {
         const url = `${CORE_BASE}${path}`;
         const config = {
-          timeout: 20000,
+          timeout: method === 'POST' ? 90000 : 20000,
           headers: adminHeaders
         };
         console.log(`[ADMIN REQUEST] ${method} ${path}`); // Debug
