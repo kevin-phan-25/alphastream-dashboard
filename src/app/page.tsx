@@ -126,6 +126,7 @@ const useMLMetrics = () => {
         const res = await axios.get('/api/ml/metrics', { timeout: 10000 });
         if (!alive) return;
         setMetrics(res.data || {});
+        console.log('[ML METRICS] Fetched:', res.data);
       } catch (err) {
         console.error('ML metrics fetch failed:', err);
         if (!alive) return;
@@ -155,6 +156,7 @@ const useMLHealth = () => {
         const res = await axios.get('/api/ml/health', { timeout: 8000 });
         if (!alive) return;
         setHealth(res.data || { ok: true });
+        console.log('[ML HEALTH] Fetched:', res.data);
       } catch (err) {
         console.error('ML health fetch failed:', err);
         if (!alive) return;
@@ -437,11 +439,13 @@ export default function Dashboard() {
           timeout: 20000,
           headers: adminHeaders
         };
+        console.log(`[ADMIN REQUEST] ${method} ${path}`); // Debug
         if (method === 'GET') {
           return await axios.get(url, config);
         }
         return await axios.post(url, body || {}, config);
       } catch (e: any) {
+        console.error(`[ADMIN REQUEST FAILED] ${method} ${path}:`, e.response?.data || e.message);
         const status = e?.response?.status;
         const msg = e?.response?.data?.error || e?.message || 'admin call failed';
         if (status === 403 || status === 401) {
@@ -456,10 +460,20 @@ export default function Dashboard() {
   const fetchCoreData = useCallback(
     async (forceSync = false) => {
       try {
-        const url = `${CORE_BASE}/?universe=1${forceSync ? '&forceSync=1' : ''}`;
-        const res = await axios.get(url, { timeout: 20000 });
+        console.log('[DASHBOARD] Fetching core data, forceSync=', forceSync);
+        const params = new URLSearchParams();
+        if (forceSync) params.append('forceSync', '1');
+        params.append('universe', '1'); // Always include universe now
+
+        const url = `${CORE_BASE}/?${params.toString()}`;
+
+        const res = await axios.get(url, {
+          timeout: 25000,
+          headers: adminHeaders
+        });
 
         const data = res.data || {};
+        console.log('[DASHBOARD] Core data received:', data);
 
         const equityValue = safeNum(data.equity, 0);
         const realizedPnLValue = safeNum(data.realizedDailyPnL, 0);
@@ -503,13 +517,14 @@ export default function Dashboard() {
 
         setError(null);
       } catch (e: any) {
+        console.error('[DASHBOARD] Core fetch error:', e);
         const msg = e?.response?.data?.error || e?.message || 'Cannot reach AlphaStream Core';
         setError(`CORE OFFLINE: ${msg}`);
       } finally {
         setLoading(false);
       }
     },
-    [CORE_BASE]
+    [CORE_BASE, adminHeaders]
   );
 
   const forceScan = useCallback(async () => {
@@ -522,6 +537,7 @@ export default function Dashboard() {
       setTimeout(() => fetchCoreData(true), 2000);
     } catch (err: any) {
       setMessage(`Scan failed: ${err.message}`);
+      console.error('[SCAN] Failed:', err);
     } finally {
       setScanning(false);
       setTimeout(() => setMessage(''), 5000);
@@ -543,6 +559,7 @@ export default function Dashboard() {
       setTimeout(() => fetchCoreData(true), 800);
     } catch (err: any) {
       setPanicMessage(`FAILED: ${err.message || 'unknown error'}`);
+      console.error('[PANIC] Failed:', err);
     } finally {
       setPanicClosing(false);
       setTimeout(() => setPanicMessage(''), 10000);
@@ -601,6 +618,7 @@ export default function Dashboard() {
       setTimeout(() => fetchCoreData(true), 600);
     } catch (e: any) {
       setAddMessage(e?.message?.includes('admin_required') ? 'ADMIN KEY REQUIRED' : 'Failed');
+      console.error('[ADD TICKERS] Failed:', e);
     } finally {
       setAddingTickers(false);
       setTimeout(() => setAddMessage(''), 3500);
@@ -627,6 +645,7 @@ export default function Dashboard() {
       setTimeout(() => fetchCoreData(true), 600);
     } catch (e: any) {
       setRemoveMessage(e?.message?.includes('admin_required') ? 'ADMIN KEY REQUIRED' : 'Failed');
+      console.error('[REMOVE TICKERS] Failed:', e);
     } finally {
       setRemovingTickers(false);
       setTimeout(() => setRemoveMessage(''), 3500);
@@ -735,9 +754,16 @@ export default function Dashboard() {
   }, [draggingLogs]);
 
   useEffect(() => {
-    fetchCoreData();
-    const interval = setInterval(() => fetchCoreData(), 8000);
-    return () => clearInterval(interval);
+    console.log('[DASHBOARD] Mounting - initial fetch');
+    fetchCoreData(true);
+    const interval = setInterval(() => {
+      console.log('[DASHBOARD] Interval fetch');
+      fetchCoreData();
+    }, 8000);
+    return () => {
+      console.log('[DASHBOARD] Unmounting');
+      clearInterval(interval);
+    };
   }, [fetchCoreData]);
 
   const equity = safeNum(core.equity, 0);
@@ -756,13 +782,13 @@ export default function Dashboard() {
 
   const logs: string[] = useMemo(() => {
     let raw = [];
-    if (Array.isArray(core.tradeLog)) raw = core.tradeLog;
+    if (Array.isArray(core.tradeLogTail)) raw = core.tradeLogTail;
     else if (Array.isArray(core.eventLogTail)) raw = core.eventLogTail;
 
     return raw
       .slice(-50)
       .reverse()
-      .map((log: any) => {  // Fixed: explicit any type to satisfy TS
+      .map((log: any) => {
         if (typeof log === 'string') return log;
         if (log && typeof log === 'object') {
           const ts = log.ts ? new Date(log.ts).toLocaleString() : '??';
@@ -774,7 +800,7 @@ export default function Dashboard() {
         }
         return String(log || '');
       });
-  }, [core.tradeLog, core.eventLogTail]);
+  }, [core.tradeLogTail, core.eventLogTail]);
 
   const universeSize = safeNum(core.universeSize, 0);
 
