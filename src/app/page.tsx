@@ -341,13 +341,11 @@ const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) =>
 // Page
 // --------------------
 export default function Dashboard() {
-  // Use the real Cloud Run URLs (update these if your service name changes)
+  // Vercel-hosted frontend → use proxy routes for protected actions
   const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
-  const ML_BASE = '/api/ml'; // Proxy for ML (keeps CORS happy)
+  const ADMIN_API_BASE = '/api/admin'; // Proxy route — key lives on Vercel server env
 
-  const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || '';
-
-  const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
+  const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY; // ← still public for now (consider proxy later)
 
   const [core, setCore] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -418,25 +416,18 @@ export default function Dashboard() {
     return false;
   }, [core?.mlHealthy, mlHealth?.ok, mlMetrics]);
 
-  const adminHeaders = useMemo(() => {
-    const key = ADMIN_KEY;
-    if (!key) console.warn('No NEXT_PUBLIC_ADMIN_KEY set - admin features limited');
-    return {
-      'x-admin-key': key,
-      'x-api-key': key,
-      authorization: `Bearer ${key}`
-    };
-  }, [ADMIN_KEY]);
-
   const adminRequest = useCallback(
     async (method: 'GET' | 'POST', path: string, body?: any) => {
       try {
-        const url = `${CORE_BASE}${path}`;
+        const url = `${ADMIN_API_BASE}${path.startsWith('/') ? path : '/' + path}`;
         const config = {
           timeout: method === 'POST' ? 90000 : 20000,
-          headers: adminHeaders
+          headers: {
+            'Content-Type': 'application/json'
+          }
         };
-        console.log(`[ADMIN REQUEST] ${method} ${path}`); // Debug
+        console.log(`[ADMIN REQUEST] ${method} ${url}`);
+
         if (method === 'GET') {
           return await axios.get(url, config);
         }
@@ -445,13 +436,13 @@ export default function Dashboard() {
         console.error(`[ADMIN REQUEST FAILED] ${method} ${path}:`, e.response?.data || e.message);
         const status = e?.response?.status;
         const msg = e?.response?.data?.error || e?.message || 'admin call failed';
-        if (status === 403 || status === 401) {
-          throw new Error(`admin_required: ${msg}`);
+        if (status === 401 || status === 403) {
+          throw new Error(`Admin authentication required: ${msg}`);
         }
         throw new Error(msg);
       }
     },
-    [CORE_BASE, adminHeaders]
+    []
   );
 
   const fetchCoreData = useCallback(
@@ -465,8 +456,8 @@ export default function Dashboard() {
         const url = `${CORE_BASE}/?${params.toString()}`;
 
         const res = await axios.get(url, {
-          timeout: 25000,
-          headers: adminHeaders
+          timeout: 25000
+          // No admin headers here — assuming / endpoint is public/read-only
         });
 
         const data = res.data || {};
@@ -521,7 +512,7 @@ export default function Dashboard() {
         setLoading(false);
       }
     },
-    [CORE_BASE, adminHeaders]
+    []
   );
 
   const forceScan = useCallback(async () => {
@@ -551,7 +542,7 @@ export default function Dashboard() {
     setPanicMessage('EXECUTING PANIC CLOSE...');
 
     try {
-      const res = await adminRequest('POST', `/admin/force-close`, {});
+      const res = await adminRequest('POST', '/force-close', {});
       setPanicMessage(res?.data?.message || 'EXECUTED');
       setTimeout(() => fetchCoreData(true), 800);
     } catch (err: any) {
@@ -607,14 +598,14 @@ export default function Dashboard() {
     setAddMessage('');
 
     try {
-      await adminRequest('POST', `/admin/add-ticker`, { symbols: validTickers.join(' ') });
+      await adminRequest('POST', '/add-ticker', { symbols: validTickers.join(' ') });
       setAddMessage(`+${validTickers.length}`);
       setTickerInput('');
       setAddSuggestions([]);
       setShowAddSuggestions(false);
       setTimeout(() => fetchCoreData(true), 600);
     } catch (e: any) {
-      setAddMessage(e?.message?.includes('admin_required') ? 'ADMIN KEY REQUIRED' : 'Failed');
+      setAddMessage(e?.message?.includes('authentication') ? 'ADMIN KEY REQUIRED' : 'Failed');
       console.error('[ADD TICKERS] Failed:', e);
     } finally {
       setAddingTickers(false);
@@ -634,14 +625,14 @@ export default function Dashboard() {
     setRemoveMessage('');
 
     try {
-      await adminRequest('POST', `/admin/remove-ticker`, { symbols: validTickers.join(' ') });
+      await adminRequest('POST', '/remove-ticker', { symbols: validTickers.join(' ') });
       setRemoveMessage(`-${validTickers.length}`);
       setRemoveTickerInput('');
       setRemoveSuggestions([]);
       setShowRemoveSuggestions(false);
       setTimeout(() => fetchCoreData(true), 600);
     } catch (e: any) {
-      setRemoveMessage(e?.message?.includes('admin_required') ? 'ADMIN KEY REQUIRED' : 'Failed');
+      setRemoveMessage(e?.message?.includes('authentication') ? 'ADMIN KEY REQUIRED' : 'Failed');
       console.error('[REMOVE TICKERS] Failed:', e);
     } finally {
       setRemovingTickers(false);
@@ -653,7 +644,7 @@ export default function Dashboard() {
     async (symbol: string) => {
       if (!window.confirm(`Remove ${symbol} from universe?`)) return;
       try {
-        await adminRequest('POST', `/admin/remove-ticker`, { symbols: symbol });
+        await adminRequest('POST', '/remove-ticker', { symbols: symbol });
         setTimeout(() => fetchCoreData(true), 600);
       } catch {
         // silent
@@ -875,7 +866,7 @@ export default function Dashboard() {
   }, []);
 
   // --------------------
-  // Render
+  // Render (unchanged)
   // --------------------
   if (loading) {
     return (
