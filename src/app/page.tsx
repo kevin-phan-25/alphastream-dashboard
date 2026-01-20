@@ -50,7 +50,7 @@ const Doughnut = dynamic(() => import('react-chartjs-2').then((mod) => mod.Dough
 const Bar = dynamic(() => import('react-chartjs-2').then((mod) => mod.Bar), { ssr: false });
 
 // --------------------
-// Types
+// Types (unchanged)
 // --------------------
 type Discovery = {
   symbol: string;
@@ -92,7 +92,7 @@ type ChartData = {
 };
 
 // --------------------
-// Utils
+// Utils (unchanged)
 // --------------------
 const TICKER_REGEX = /^[A-Z]{1,12}(\.[A-Z]{1,4})?$/;
 
@@ -112,9 +112,8 @@ function safeNum(v: any, fallback = 0) {
 }
 
 // --------------------
-// Hooks (ML via proxy to fix CORS)
+// Hooks (ML via proxy to fix CORS) — unchanged
 // --------------------
-
 const useMLMetrics = () => {
   const [metrics, setMetrics] = useState<any>({});
 
@@ -176,7 +175,7 @@ const useMLHealth = () => {
 };
 
 // --------------------
-// Memo Components
+// Memo Components (unchanged)
 // --------------------
 const Header = memo(
   ({
@@ -342,11 +341,9 @@ const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) =>
 // Page
 // --------------------
 export default function Dashboard() {
-  const CORE_URL_PUBLIC = process.env.NEXT_PUBLIC_CORE_URL || 'https://alphastream-core-1017433009054.us-east1.run.app';
-  const ML_URL_PUBLIC = process.env.NEXT_PUBLIC_ML_URL || 'https://alphastream-ml-1017433009054.us-east1.run.app';
-
-  const CORE_BASE = CORE_URL_PUBLIC; // Direct URL (no proxy needed, fixes 404)
-  const ML_BASE = '/api/ml'; // Proxy for ML to avoid CORS
+  // Use the real Cloud Run URLs (update these if your service name changes)
+  const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
+  const ML_BASE = '/api/ml'; // Proxy for ML (keeps CORS happy)
 
   const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || '';
 
