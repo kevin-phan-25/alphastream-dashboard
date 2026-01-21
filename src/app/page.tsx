@@ -342,7 +342,7 @@ const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) =>
 // --------------------
 export default function Dashboard() {
   const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
-  const ADMIN_API_BASE = '/api/admin'; // Proxy for admin actions
+  const ADMIN_API_BASE = '/api/admin'; // Proxy for admin actions (keep for add/remove)
 
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
 
@@ -511,17 +511,36 @@ export default function Dashboard() {
     setScanning(true);
     setMessage('Triggering scan...');
     try {
-      const res = await adminRequest('POST', '/scan', {});
-      setMessage(res.data.message || 'Scan triggered!');
-      setTimeout(() => fetchCoreData(true), 2000);
+      // FIXED: Direct call to core /admin/scan with admin key (bypass proxy until fixed)
+      const res = await axios.post(
+        `${CORE_BASE}/admin/scan`,
+        {},
+        {
+          headers: {
+            'x-admin-key': process.env.NEXT_PUBLIC_ADMIN_KEY || 'YOUR_ADMIN_KEY_HERE', // Use env or hardcode temporarily
+            'Content-Type': 'application/json'
+          },
+          timeout: 90000
+        }
+      );
+
+      console.log('[SCAN SUCCESS]', res.data);
+      setMessage(res.data.message || 'Scan completed successfully!');
+      setTimeout(() => fetchCoreData(true), 3000); // Give core time to finish scan
     } catch (err: any) {
-      setMessage(`Scan failed: ${err.message}`);
-      console.error('[SCAN] Failed:', err);
+      const status = err.response?.status;
+      let errMsg = err.message;
+      if (status === 405) errMsg = '405 Method Not Allowed - core missing POST /admin/scan route';
+      if (status === 401 || status === 403) errMsg = '401/403 Unauthorized - invalid or missing admin key';
+      if (status === 404) errMsg = '404 Not Found - /admin/scan route not found on core';
+
+      setMessage(`Scan failed: ${errMsg} (code ${status || 'unknown'})`);
+      console.error('[SCAN ERROR]', err.response?.data || err);
     } finally {
       setScanning(false);
-      setTimeout(() => setMessage(''), 5000);
+      setTimeout(() => setMessage(''), 7000);
     }
-  }, [scanning, adminRequest, fetchCoreData]);
+  }, [scanning, fetchCoreData]);
 
   const panicCloseAll = useCallback(async () => {
     if (panicClosing) return;
@@ -914,7 +933,7 @@ export default function Dashboard() {
       </div>
 
       <Header
-        universeSize={universeSize} // ← now defined above
+        universeSize={universeSize}
         onRefresh={() => fetchCoreData(true)}
         onScan={forceScan}
         scanning={scanning}
