@@ -185,7 +185,8 @@ const Header = memo(
     panicClosing,
     onToggleAdd,
     onToggleRemove,
-    onOpenUniverse
+    onOpenUniverse,
+    onTestTrade // NEW: button to trigger test trade
   }: any) => (
     <header className="shrink-0 bg-black/90 backdrop-blur border-b border-cyan-500/30 px-3 py-2 flex justify-between items-center">
       <div className="flex items-center gap-3">
@@ -216,6 +217,15 @@ const Header = memo(
 
         <button onClick={onToggleRemove} className="p-2 rounded bg-red-900/50 border border-red-600/50" title="Remove tickers">
           <Minus className="w-4 h-4 text-red-300" />
+        </button>
+
+        {/* NEW: Test Trade Button */}
+        <button
+          onClick={onTestTrade}
+          className="px-4 py-1.5 bg-gradient-to-r from-yellow-600 to-orange-700 rounded text-xs font-bold flex items-center gap-1"
+          title="Force a test PAPER trade (SPY 1 share + trail)"
+        >
+          <Zap className="w-3 h-3" /> TEST TRADE
         </button>
 
         <button
@@ -334,7 +344,7 @@ export default function Dashboard() {
   const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
 
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
-  const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'default-admin-key-for-testing';
+  const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'default-admin-key-for-testing'; // ← CHANGE THIS in .env.local or Vercel
 
   const [core, setCore] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -515,6 +525,23 @@ export default function Dashboard() {
       setTimeout(() => setMessage(''), 5000);
     }
   }, [scanning, fetchCoreData, coreRequest]);
+
+  // NEW: Trigger test trade
+  const forceTestTrade = useCallback(async () => {
+    if (window.confirm('Run a test PAPER trade (1 share SPY + 2% trail)?')) {
+      setMessage('Triggering test trade...');
+      try {
+        const res = await coreRequest('POST', '/admin/force-test-trade', {});
+        setMessage(res.data.message || 'Test trade completed!');
+        setTimeout(() => fetchCoreData(true), 5000); // give time for position to appear/disappear
+      } catch (err: any) {
+        setMessage(`Test trade failed: ${err.message}`);
+        console.error('[TEST TRADE] Failed:', err);
+      } finally {
+        setTimeout(() => setMessage(''), 7000);
+      }
+    }
+  }, [coreRequest, fetchCoreData]);
 
   const panicCloseAll = useCallback(async () => {
     if (panicClosing) return;
@@ -917,6 +944,7 @@ export default function Dashboard() {
         onToggleAdd={() => setShowAddForm((p) => !p)}
         onToggleRemove={() => setShowRemoveForm((p) => !p)}
         onOpenUniverse={() => setShowUniverse(true)}
+        onTestTrade={forceTestTrade} // NEW: pass the test trade handler
       />
 
       {message && <div className="shrink-0 bg-gradient-to-r from-cyan-600/80 to-purple-600/80 py-1 text-center text-xs font-bold">{message}</div>}
