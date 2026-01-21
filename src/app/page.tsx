@@ -233,7 +233,7 @@ const Header = memo(
           className="px-4 py-1.5 bg-gradient-to-r from-cyan-500 to-purple-600 rounded text-xs font-bold flex items-center gap-1"
           title="Run scan"
         >
-          {scanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} {scanning ? 'SCANNING...' : 'SCAN'}
+          {scanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Activity className="w-3 h-3" />} {scanning ? 'SCANNING...' : 'SCAN'}
         </button>
       </div>
     </header>
@@ -302,7 +302,7 @@ const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) =>
 
       <div className="overflow-y-auto pr-1" style={{ height: `${logHeight - 34}px` }}>
         {logs.length === 0 ? (
-          <p className="text-center text-gray-600 py-4">No logs yet — run a scan or wait for activity</p>
+          <p className="text-center text-gray-600 py-4">Core idle — awaiting market stimulus</p>
         ) : (
           logs.map((logLine: string, i: number) => (
             <div key={i} className="py-0.5 break-all">
@@ -334,7 +334,7 @@ export default function Dashboard() {
   const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
 
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
-  const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'default-admin-key-for-testing'; // ← Add this to .env.local or Vercel
+  const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'default-admin-key-for-testing';
 
   const [core, setCore] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -1008,7 +1008,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Universe Modal - no new window */}
+      {/* Universe Modal */}
       {showUniverse && (
         <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4" onClick={() => setShowUniverse(false)}>
           <div
