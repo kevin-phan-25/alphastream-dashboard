@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useRef, useState, useCallback, memo } from '
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import {
-  RefreshCw,
   Zap,
   Activity,
   Loader2,
@@ -175,12 +174,11 @@ const useMLHealth = () => {
 };
 
 // --------------------
-// Memo Components (unchanged)
+// Memo Components (Header without REFRESH)
 // --------------------
 const Header = memo(
   ({
     universeSize,
-    onRefresh,
     onScan,
     scanning,
     onPanic,
@@ -236,14 +234,6 @@ const Header = memo(
           title="Run scan"
         >
           {scanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} {scanning ? 'SCANNING...' : 'SCAN'}
-        </button>
-
-        <button
-          onClick={onRefresh}
-          className="px-4 py-1.5 bg-gradient-to-r from-cyan-500 to-purple-600 rounded text-xs font-bold flex items-center gap-1"
-          title="Refresh snapshot"
-        >
-          <RefreshCw className="w-3 h-3" /> REFRESH
         </button>
       </div>
     </header>
@@ -312,7 +302,7 @@ const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) =>
 
       <div className="overflow-y-auto pr-1" style={{ height: `${logHeight - 34}px` }}>
         {logs.length === 0 ? (
-          <p className="text-center text-gray-600 py-4">Core idle — awaiting market stimulus</p>
+          <p className="text-center text-gray-600 py-4">No logs yet — run a scan or wait for activity</p>
         ) : (
           logs.map((logLine: string, i: number) => (
             <div key={i} className="py-0.5 break-all">
@@ -342,9 +332,9 @@ const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) =>
 // --------------------
 export default function Dashboard() {
   const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
-  const ADMIN_API_BASE = '/api/admin'; // Proxy for admin actions (keep for add/remove)
 
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
+  const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'default-admin-key-for-testing'; // ← Add this to .env.local or Vercel
 
   const [core, setCore] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -415,25 +405,28 @@ export default function Dashboard() {
     return false;
   }, [core?.mlHealthy, mlHealth?.ok, mlMetrics]);
 
-  const adminRequest = useCallback(
+  // Direct core request helper (with admin key)
+  const coreRequest = useCallback(
     async (method: 'GET' | 'POST', path: string, body?: any) => {
       try {
-        const url = `${ADMIN_API_BASE}${path.startsWith('/') ? path : '/' + path}`;
+        const url = `${CORE_BASE}${path.startsWith('/') ? path : '/' + path}`;
         const config = {
           timeout: method === 'POST' ? 90000 : 20000,
-          headers: { 'Content-Type': 'application/json' }
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-key': ADMIN_KEY
+          }
         };
-        console.log(`[ADMIN REQUEST] ${method} ${url}`);
+        console.log(`[CORE REQUEST] ${method} ${url}`);
 
         if (method === 'GET') return await axios.get(url, config);
         return await axios.post(url, body || {}, config);
       } catch (e: any) {
-        console.error(`[ADMIN REQUEST FAILED] ${method} ${path}:`, e.response?.data || e.message);
-        const msg = e?.response?.data?.error || e?.message || 'admin call failed';
-        if (e?.response?.status === 401 || e?.response?.status === 403) {
-          throw new Error(`Admin key required: ${msg}`);
-        }
-        throw new Error(msg);
+        console.error(`[CORE REQUEST FAILED] ${method} ${path}:`, e.response?.data || e.message);
+        const msg = e?.response?.data?.error || e?.message || 'core call failed';
+        const status = e?.response?.status;
+        if (status === 401 || status === 403) throw new Error(`Admin key invalid: ${msg}`);
+        throw new Error(`${msg} (code ${status || 'unknown'})`);
       }
     },
     []
@@ -511,36 +504,17 @@ export default function Dashboard() {
     setScanning(true);
     setMessage('Triggering scan...');
     try {
-      // FIXED: Direct call to core /admin/scan with admin key (bypass proxy until fixed)
-      const res = await axios.post(
-        `${CORE_BASE}/admin/scan`,
-        {},
-        {
-          headers: {
-            'x-admin-key': process.env.NEXT_PUBLIC_ADMIN_KEY || 'YOUR_ADMIN_KEY_HERE', // Use env or hardcode temporarily
-            'Content-Type': 'application/json'
-          },
-          timeout: 90000
-        }
-      );
-
-      console.log('[SCAN SUCCESS]', res.data);
-      setMessage(res.data.message || 'Scan completed successfully!');
-      setTimeout(() => fetchCoreData(true), 3000); // Give core time to finish scan
+      const res = await coreRequest('POST', '/admin/scan', {});
+      setMessage(res.data.message || 'Scan completed!');
+      setTimeout(() => fetchCoreData(true), 3000);
     } catch (err: any) {
-      const status = err.response?.status;
-      let errMsg = err.message;
-      if (status === 405) errMsg = '405 Method Not Allowed - core missing POST /admin/scan route';
-      if (status === 401 || status === 403) errMsg = '401/403 Unauthorized - invalid or missing admin key';
-      if (status === 404) errMsg = '404 Not Found - /admin/scan route not found on core';
-
-      setMessage(`Scan failed: ${errMsg} (code ${status || 'unknown'})`);
-      console.error('[SCAN ERROR]', err.response?.data || err);
+      setMessage(`Scan failed: ${err.message}`);
+      console.error('[SCAN] Failed:', err);
     } finally {
       setScanning(false);
-      setTimeout(() => setMessage(''), 7000);
+      setTimeout(() => setMessage(''), 5000);
     }
-  }, [scanning, fetchCoreData]);
+  }, [scanning, fetchCoreData, coreRequest]);
 
   const panicCloseAll = useCallback(async () => {
     if (panicClosing) return;
@@ -552,7 +526,7 @@ export default function Dashboard() {
     setPanicMessage('EXECUTING PANIC CLOSE...');
 
     try {
-      const res = await adminRequest('POST', '/force-close', {});
+      const res = await coreRequest('POST', '/admin/force-close', {});
       setPanicMessage(res?.data?.message || 'EXECUTED');
       setTimeout(() => fetchCoreData(true), 800);
     } catch (err: any) {
@@ -562,7 +536,7 @@ export default function Dashboard() {
       setPanicClosing(false);
       setTimeout(() => setPanicMessage(''), 10000);
     }
-  }, [adminRequest, fetchCoreData, panicClosing]);
+  }, [panicClosing, fetchCoreData, coreRequest]);
 
   const updateAddSuggestions = useCallback(
     (input: string) => {
@@ -608,20 +582,20 @@ export default function Dashboard() {
     setAddMessage('');
 
     try {
-      await adminRequest('POST', '/add-ticker', { symbols: validTickers.join(' ') });
-      setAddMessage(`+${validTickers.length}`);
+      const res = await coreRequest('POST', '/admin/add-ticker', { symbols: validTickers.join(' ') });
+      setAddMessage(`+${validTickers.length} added`);
       setTickerInput('');
       setAddSuggestions([]);
       setShowAddSuggestions(false);
       setTimeout(() => fetchCoreData(true), 600);
     } catch (e: any) {
-      setAddMessage(e?.message?.includes('authentication') ? 'ADMIN KEY REQUIRED' : 'Failed');
+      setAddMessage(`Failed: ${e.message}`);
       console.error('[ADD TICKERS] Failed:', e);
     } finally {
       setAddingTickers(false);
       setTimeout(() => setAddMessage(''), 3500);
     }
-  }, [adminRequest, fetchCoreData, tickerInput]);
+  }, [tickerInput, fetchCoreData, coreRequest]);
 
   const handleRemoveTickers = useCallback(async () => {
     const validTickers = validateAndCleanTickers(removeTickerInput);
@@ -635,32 +609,32 @@ export default function Dashboard() {
     setRemoveMessage('');
 
     try {
-      await adminRequest('POST', '/remove-ticker', { symbols: validTickers.join(' ') });
-      setRemoveMessage(`-${validTickers.length}`);
+      const res = await coreRequest('POST', '/admin/remove-ticker', { symbols: validTickers.join(' ') });
+      setRemoveMessage(`-${validTickers.length} removed`);
       setRemoveTickerInput('');
       setRemoveSuggestions([]);
       setShowRemoveSuggestions(false);
       setTimeout(() => fetchCoreData(true), 600);
     } catch (e: any) {
-      setRemoveMessage(e?.message?.includes('authentication') ? 'ADMIN KEY REQUIRED' : 'Failed');
+      setRemoveMessage(`Failed: ${e.message}`);
       console.error('[REMOVE TICKERS] Failed:', e);
     } finally {
       setRemovingTickers(false);
       setTimeout(() => setRemoveMessage(''), 3500);
     }
-  }, [adminRequest, fetchCoreData, removeTickerInput]);
+  }, [removeTickerInput, fetchCoreData, coreRequest]);
 
   const handleRemoveSingleTicker = useCallback(
     async (symbol: string) => {
       if (!window.confirm(`Remove ${symbol} from universe?`)) return;
       try {
-        await adminRequest('POST', '/remove-ticker', { symbols: symbol });
+        await coreRequest('POST', '/admin/remove-ticker', { symbols: symbol });
         setTimeout(() => fetchCoreData(true), 600);
-      } catch {
-        // silent
+      } catch (e) {
+        console.error('[REMOVE SINGLE] Failed:', e);
       }
     },
-    [adminRequest, fetchCoreData]
+    [fetchCoreData, coreRequest]
   );
 
   const exportUniverse = useCallback(() => {
@@ -764,9 +738,8 @@ export default function Dashboard() {
     };
   }, [fetchCoreData]);
 
-  // Define universeSize here (this was missing/misplaced in your build)
+  // Derived values
   const universeSize = safeNum(core.universeSize, 0);
-
   const equity = safeNum(core.equity, 0);
   const buyingPower = safeNum(core.buyingPower, 0);
   const dailyDrawdown = safeNum(core.dailyDrawdown, 0);
@@ -855,7 +828,10 @@ export default function Dashboard() {
     [realizedPnLHistory, realizedDailyPnL]
   );
 
-  const rawUniverse: string[] = useMemo(() => (Array.isArray(core.universeSymbols) ? core.universeSymbols : []), [core.universeSymbols]);
+  const rawUniverse: string[] = useMemo(() => {
+    if (Array.isArray(core.universeSymbols)) return core.universeSymbols;
+    return [];
+  }, [core.universeSymbols]);
 
   const filteredUniverse = useMemo(() => {
     const q = universeSearch.toLowerCase().trim();
@@ -934,7 +910,6 @@ export default function Dashboard() {
 
       <Header
         universeSize={universeSize}
-        onRefresh={() => fetchCoreData(true)}
         onScan={forceScan}
         scanning={scanning}
         onPanic={panicCloseAll}
@@ -1033,7 +1008,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Universe Modal */}
+      {/* Universe Modal - no new window */}
       {showUniverse && (
         <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4" onClick={() => setShowUniverse(false)}>
           <div
