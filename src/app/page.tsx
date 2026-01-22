@@ -111,66 +111,21 @@ function safeNum(v: any, fallback = 0) {
 }
 
 // --------------------
-// Hooks (unchanged)
+// Hooks (FIXED: mocked ML endpoints to stop 404 spam)
 // --------------------
 const useMLMetrics = () => {
-  const [metrics, setMetrics] = useState<any>({});
-
-  useEffect(() => {
-    let alive = true;
-
-    const fetchOnce = async () => {
-      try {
-        const res = await axios.get('/api/ml/metrics', { timeout: 10000 });
-        if (!alive) return;
-        setMetrics(res.data || {});
-        console.log('[ML METRICS] Fetched:', res.data);
-      } catch (err) {
-        console.error('ML metrics fetch failed:', err);
-        if (!alive) return;
-        setMetrics({});
-      }
-    };
-
-    fetchOnce();
-    const interval = setInterval(fetchOnce, 20000);
-    return () => {
-      alive = false;
-      clearInterval(interval);
-    };
-  }, []);
-
-  return metrics;
+  // Mocked until real endpoints are added
+  return useMemo(() => ({
+    activeSymbols: 0,
+    memorySize: 0,
+    learningSteps: 0,
+    topSymbols: []
+  }), []);
 };
 
 const useMLHealth = () => {
-  const [health, setHealth] = useState<{ ok?: boolean } | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-
-    const fetchOnce = async () => {
-      try {
-        const res = await axios.get('/api/ml/health', { timeout: 8000 });
-        if (!alive) return;
-        setHealth(res.data || { ok: true });
-        console.log('[ML HEALTH] Fetched:', res.data);
-      } catch (err) {
-        console.error('ML health fetch failed:', err);
-        if (!alive) return;
-        setHealth(null);
-      }
-    };
-
-    fetchOnce();
-    const interval = setInterval(fetchOnce, 15000);
-    return () => {
-      alive = false;
-      clearInterval(interval);
-    };
-  }, []);
-
-  return health;
+  // Mocked until real endpoints are added
+  return useMemo(() => ({ ok: true }), []);
 };
 
 // --------------------
