@@ -111,23 +111,37 @@ function safeNum(v: any, fallback = 0) {
 }
 
 // --------------------
-// Hooks (UPDATED: fully mocked to eliminate 404 spam)
+// Hooks — fully mocked + guard against accidental fetches
 // --------------------
 const useMLMetrics = () => {
-  // Mocked completely — no network calls → stops /api/ml/* 404 spam
-  return useMemo(() => ({
-    activeSymbols: 0,
-    memorySize: 0,
-    learningSteps: 0,
-    eps: 0.15,
-    qrQuantiles: 200,
-    topSymbols: []
-  }), []);
+  // ADDED: console log to confirm this mock is actually running
+  useEffect(() => {
+    console.log('[ML MOCK] useMLMetrics hook mounted — returning static mock data');
+  }, []);
+
+  return useMemo(() => {
+    console.log('[ML MOCK] useMLMetrics memo returning static values');
+    return {
+      activeSymbols: 0,
+      memorySize: 0,
+      learningSteps: 0,
+      eps: 0.15,
+      qrQuantiles: 200,
+      topSymbols: []
+    };
+  }, []);
 };
 
 const useMLHealth = () => {
-  // Mocked completely — no network calls
-  return useMemo(() => ({ ok: true }), []);
+  // ADDED: console log to confirm this mock is actually running
+  useEffect(() => {
+    console.log('[ML MOCK] useMLHealth hook mounted — returning {ok: true}');
+  }, []);
+
+  return useMemo(() => {
+    console.log('[ML MOCK] useMLHealth memo returning {ok: true}');
+    return { ok: true };
+  }, []);
 };
 
 // --------------------
@@ -143,7 +157,7 @@ const Header = memo(
     onToggleAdd,
     onToggleRemove,
     onOpenUniverse,
-    onTestTrade // NEW: button to trigger test trade
+    onTestTrade
   }: any) => (
     <header className="shrink-0 bg-black/90 backdrop-blur border-b border-cyan-500/30 px-3 py-2 flex justify-between items-center">
       <div className="flex items-center gap-3">
@@ -176,7 +190,6 @@ const Header = memo(
           <Minus className="w-4 h-4 text-red-300" />
         </button>
 
-        {/* NEW: Test Trade Button */}
         <button
           onClick={onTestTrade}
           className="px-4 py-1.5 bg-gradient-to-r from-yellow-600 to-orange-700 rounded text-xs font-bold flex items-center gap-1"
@@ -352,6 +365,18 @@ export default function Dashboard() {
   const logMinHeight = 140;
   const logMaxHeight = 560;
 
+  const MAX_LOG_LINES = 500;
+
+  const addLogLine = useCallback((line: string) => {
+    setLogs((prev) => {
+      const updated = [...prev, line];
+      if (updated.length > MAX_LOG_LINES) {
+        return updated.slice(updated.length - MAX_LOG_LINES);
+      }
+      return updated;
+    });
+  }, []);
+
   const particles = useMemo(() => {
     return [...Array(20)].map((_, i) => ({
       id: i,
@@ -483,21 +508,24 @@ export default function Dashboard() {
     }
   }, [scanning, fetchCoreData, coreRequest]);
 
-  // UPDATED: More logging + longer delay after success to see positions update
   const forceTestTrade = useCallback(async () => {
     if (window.confirm('Run a test PAPER trade (1 share SPY + 2% trail)?')) {
-      setMessage('Triggering test trade... (this may take 10–20 seconds)');
+      setMessage('Triggering test trade... (expect 10–20s)');
       try {
-        console.log('[DASHBOARD] Sending test trade request...');
+        console.log('[TEST-TRADE] Sending POST /admin/force-test-trade with admin key');
         const res = await coreRequest('POST', '/admin/force-test-trade', {});
-        console.log('[DASHBOARD] Test trade success:', res.data);
+        console.log('[TEST-TRADE] Success — full response:', res.data);
         setMessage(res.data.message || 'Test trade completed!');
-        // Longer delay + force sync so positions appear quickly
         setTimeout(() => fetchCoreData(true), 10000);
       } catch (err: any) {
-        const errMsg = err.response?.data?.error || err.message || 'Unknown error';
-        console.error('[TEST TRADE] Failed:', errMsg, err.response?.data || err);
-        setMessage(`Test trade failed: ${errMsg}`);
+        const status = err.response?.status;
+        const serverError = err.response?.data?.error || err.message || 'Unknown backend error';
+        console.error('[TEST-TRADE] Failed:', {
+          status,
+          message: serverError,
+          fullError: err
+        });
+        setMessage(`Test trade failed: ${status || 'unknown'} - ${serverError}`);
       } finally {
         setTimeout(() => setMessage(''), 15000);
       }
@@ -742,12 +770,14 @@ export default function Dashboard() {
     [core.rockets, liveRockets]
   );
 
-  const logs: string[] = useMemo(() => {
+  const [logs, setLogs] = useState<string[]>([]);
+
+  useEffect(() => {
     let raw = [];
     if (Array.isArray(core.tradeLogTail)) raw = core.tradeLogTail;
     else if (Array.isArray(core.eventLogTail)) raw = core.eventLogTail;
 
-    return raw
+    const newLines = raw
       .slice(-50)
       .reverse()
       .map((log: any) => {
@@ -762,6 +792,14 @@ export default function Dashboard() {
         }
         return String(log || '');
       });
+
+    setLogs((prev) => {
+      const updated = [...prev, ...newLines];
+      if (updated.length > 500) {
+        return updated.slice(updated.length - 500);
+      }
+      return updated;
+    });
   }, [core.tradeLogTail, core.eventLogTail]);
 
   const totalExposure = useMemo(() => positions.reduce((sum, pos: any) => sum + safeNum(pos.marketValue, 0), 0), [positions]);
