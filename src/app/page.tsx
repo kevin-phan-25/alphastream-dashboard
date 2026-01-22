@@ -111,22 +111,22 @@ function safeNum(v: any, fallback = 0) {
 }
 
 // --------------------
-// Hooks (FIXED: extended mock type with eps & qrQuantiles)
+// Hooks (UPDATED: fully mocked to eliminate 404 spam)
 // --------------------
 const useMLMetrics = () => {
-  // Mocked — extended to match your JSX usage (eps & qrQuantiles)
+  // Mocked completely — no network calls → stops /api/ml/* 404 spam
   return useMemo(() => ({
     activeSymbols: 0,
     memorySize: 0,
     learningSteps: 0,
-    eps: 0.15,              // added to prevent TS error
-    qrQuantiles: 200,       // added to prevent TS error
+    eps: 0.15,
+    qrQuantiles: 200,
     topSymbols: []
   }), []);
 };
 
 const useMLHealth = () => {
-  // Mocked
+  // Mocked completely — no network calls
   return useMemo(() => ({ ok: true }), []);
 };
 
@@ -483,22 +483,23 @@ export default function Dashboard() {
     }
   }, [scanning, fetchCoreData, coreRequest]);
 
-  // NEW: Trigger test trade with better logging
+  // UPDATED: More logging + longer delay after success to see positions update
   const forceTestTrade = useCallback(async () => {
     if (window.confirm('Run a test PAPER trade (1 share SPY + 2% trail)?')) {
-      setMessage('Triggering test trade...');
+      setMessage('Triggering test trade... (this may take 10–20 seconds)');
       try {
         console.log('[DASHBOARD] Sending test trade request...');
         const res = await coreRequest('POST', '/admin/force-test-trade', {});
-        console.log('[DASHBOARD] Test trade response:', res.data);
+        console.log('[DASHBOARD] Test trade success:', res.data);
         setMessage(res.data.message || 'Test trade completed!');
-        setTimeout(() => fetchCoreData(true), 5000); // give time for position update
+        // Longer delay + force sync so positions appear quickly
+        setTimeout(() => fetchCoreData(true), 10000);
       } catch (err: any) {
         const errMsg = err.response?.data?.error || err.message || 'Unknown error';
-        console.error('[TEST TRADE] Failed:', errMsg, err);
+        console.error('[TEST TRADE] Failed:', errMsg, err.response?.data || err);
         setMessage(`Test trade failed: ${errMsg}`);
       } finally {
-        setTimeout(() => setMessage(''), 7000);
+        setTimeout(() => setMessage(''), 15000);
       }
     }
   }, [coreRequest, fetchCoreData]);
