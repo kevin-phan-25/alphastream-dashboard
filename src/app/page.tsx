@@ -111,20 +111,22 @@ function safeNum(v: any, fallback = 0) {
 }
 
 // --------------------
-// Hooks (FIXED: mocked ML endpoints to stop 404 spam)
+// Hooks (FIXED: extended mock type with eps & qrQuantiles)
 // --------------------
 const useMLMetrics = () => {
-  // Mocked until real endpoints are added
+  // Mocked — extended to match your JSX usage (eps & qrQuantiles)
   return useMemo(() => ({
     activeSymbols: 0,
     memorySize: 0,
     learningSteps: 0,
+    eps: 0.15,              // added to prevent TS error
+    qrQuantiles: 200,       // added to prevent TS error
     topSymbols: []
   }), []);
 };
 
 const useMLHealth = () => {
-  // Mocked until real endpoints are added
+  // Mocked
   return useMemo(() => ({ ok: true }), []);
 };
 
@@ -481,17 +483,20 @@ export default function Dashboard() {
     }
   }, [scanning, fetchCoreData, coreRequest]);
 
-  // NEW: Trigger test trade
+  // NEW: Trigger test trade with better logging
   const forceTestTrade = useCallback(async () => {
     if (window.confirm('Run a test PAPER trade (1 share SPY + 2% trail)?')) {
       setMessage('Triggering test trade...');
       try {
+        console.log('[DASHBOARD] Sending test trade request...');
         const res = await coreRequest('POST', '/admin/force-test-trade', {});
+        console.log('[DASHBOARD] Test trade response:', res.data);
         setMessage(res.data.message || 'Test trade completed!');
-        setTimeout(() => fetchCoreData(true), 5000); // give time for position to appear/disappear
+        setTimeout(() => fetchCoreData(true), 5000); // give time for position update
       } catch (err: any) {
-        setMessage(`Test trade failed: ${err.message}`);
-        console.error('[TEST TRADE] Failed:', err);
+        const errMsg = err.response?.data?.error || err.message || 'Unknown error';
+        console.error('[TEST TRADE] Failed:', errMsg, err);
+        setMessage(`Test trade failed: ${errMsg}`);
       } finally {
         setTimeout(() => setMessage(''), 7000);
       }
@@ -899,7 +904,7 @@ export default function Dashboard() {
         onToggleAdd={() => setShowAddForm((p) => !p)}
         onToggleRemove={() => setShowRemoveForm((p) => !p)}
         onOpenUniverse={() => setShowUniverse(true)}
-        onTestTrade={forceTestTrade} // NEW: pass the test trade handler
+        onTestTrade={forceTestTrade}
       />
 
       {message && <div className="shrink-0 bg-gradient-to-r from-cyan-600/80 to-purple-600/80 py-1 text-center text-xs font-bold">{message}</div>}
@@ -1155,11 +1160,11 @@ export default function Dashboard() {
                 <p className="text-xs text-gray-500">Steps</p>
               </div>
               <div>
-                <p className="text-xl font-bold text-green-300">{Number(mlMetrics.eps || 0).toFixed(3)}</p>
+                <p className="text-xl font-bold text-green-300">{Number(mlMetrics?.eps ?? 0).toFixed(3)}</p>
                 <p className="text-xs text-gray-500">ε</p>
               </div>
               <div>
-                <p className="text-xl font-bold text-pink-300">{mlMetrics.qrQuantiles || 200}</p>
+                <p className="text-xl font-bold text-pink-300">{mlMetrics?.qrQuantiles ?? 200}</p>
                 <p className="text-xs text-gray-500">Quantiles</p>
               </div>
             </div>
