@@ -114,7 +114,6 @@ function safeNum(v: any, fallback = 0) {
 // Hooks — fully mocked + guard against accidental fetches
 // --------------------
 const useMLMetrics = () => {
-  // ADDED: console log to confirm this mock is actually running
   useEffect(() => {
     console.log('[ML MOCK] useMLMetrics hook mounted — returning static mock data');
   }, []);
@@ -133,7 +132,6 @@ const useMLMetrics = () => {
 };
 
 const useMLHealth = () => {
-  // ADDED: console log to confirm this mock is actually running
   useEffect(() => {
     console.log('[ML MOCK] useMLHealth hook mounted — returning {ok: true}');
   }, []);
@@ -397,7 +395,7 @@ export default function Dashboard() {
     return false;
   }, [core?.mlHealthy, mlHealth?.ok, mlMetrics]);
 
-  // Direct core request helper (with admin key)
+  // Direct core request helper — FIXED: always send admin key
   const coreRequest = useCallback(
     async (method: 'GET' | 'POST', path: string, body?: any) => {
       try {
@@ -406,18 +404,28 @@ export default function Dashboard() {
           timeout: method === 'POST' ? 90000 : 20000,
           headers: {
             'Content-Type': 'application/json',
-            'x-admin-key': ADMIN_KEY
+            'x-admin-key': ADMIN_KEY // ← FIXED: always include admin key
           }
         };
-        console.log(`[CORE REQUEST] ${method} ${url}`);
+
+        console.log(`[CORE REQUEST] ${method} ${url} (admin key sent: ${!!ADMIN_KEY})`);
 
         if (method === 'GET') return await axios.get(url, config);
         return await axios.post(url, body || {}, config);
       } catch (e: any) {
-        console.error(`[CORE REQUEST FAILED] ${method} ${path}:`, e.response?.data || e.message);
+        console.error(`[CORE REQUEST FAILED] ${method} ${path}:`, {
+          status: e.response?.status,
+          data: e.response?.data,
+          message: e.message
+        });
+
         const msg = e?.response?.data?.error || e?.message || 'core call failed';
         const status = e?.response?.status;
-        if (status === 401 || status === 403) throw new Error(`Admin key invalid: ${msg}`);
+
+        if (status === 401 || status === 403) {
+          throw new Error(`Admin key invalid: ${msg}`);
+        }
+
         throw new Error(`${msg} (code ${status || 'unknown'})`);
       }
     },
@@ -946,8 +954,8 @@ export default function Dashboard() {
         onTestTrade={forceTestTrade}
       />
 
-      {message && <div className="shrink-0 bg-gradient-to-r from-cyan-600/80 to-purple-600/80 py-1 text-center text-xs font-bold">{message}</div>}
-      {panicMessage && <div className="shrink-0 bg-gradient-to-r from-red-600/90 to-pink-700/90 py-1 text-center text-xs font-bold">{panicMessage}</div>}
+      {message && <div className="shrink-0 px-3 py-1 bg-gradient-to-r from-cyan-600/80 to-purple-600/80 text-center text-xs font-bold">{message}</div>}
+      {panicMessage && <div className="shrink-0 px-3 py-1 bg-gradient-to-r from-red-600/90 to-pink-700/90 text-center text-xs font-bold">{panicMessage}</div>}
 
       {/* Add Form */}
       {showAddForm && (
