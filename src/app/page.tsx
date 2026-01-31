@@ -5,6 +5,8 @@
 //   - Added debug console logs for fetch failures and data received
 //   - Ensured universe modal shows message if universeSymbols empty or not array
 //   - Prefixed all logs with service name and timestamp for better visibility
+//   - Added graceful error handling for CORS and 404 in log fetches (fallback to empty logs)
+//   - Updated poller logs parsing to handle new structured format {logs: [{ts,level,msg}, ...]}
 //   - No lines removed — all original code preserved and extended for better log reporting and universe handling
 
 'use client';
@@ -867,20 +869,41 @@ export default function Dashboard() {
     return () => clearInterval(mlInterval);
   }, [addLogLine]);
 
-  // Fetch Poller data and logs
+  // Fetch Poller data and logs — UPDATED for structured JSON { logs: [{ts, level, msg}, ...] }
   useEffect(() => {
     const fetchPollerData = async () => {
       try {
         // Assume poller has /health or /metrics and /logs
         const [healthRes, logsRes] = await Promise.all([
-          axios.get(`${POLLER_BASE}/health`, { timeout: 5000 }),
-          axios.get(`${POLLER_BASE}/logs`, { timeout: 5000 }).catch(() => ({ data: [] })) // Fallback if no /logs
+          axios.get(`${POLLER_BASE}/health`, { timeout: 5000 }).catch(() => ({ data: { ok: false } })),
+          axios.get(`${POLLER_BASE}/logs`, { timeout: 5000 }).catch((err) => {
+            console.warn('[POLLER LOGS FETCH] Failed:', err.message, err.code, err.response?.status);
+            return { data: { logs: [] } };
+          })
         ]);
         console.log('[DASHBOARD] Poller health received:', healthRes.data);
         console.log('[DASHBOARD] Poller logs received:', logsRes.data);
-        // Add poller logs
-        const pollerLogs = Array.isArray(logsRes.data) ? logsRes.data : [];
-        pollerLogs.forEach((log: string) => addLogLine(`[POLLER] ${log}`));
+
+        // Handle new structured format
+        let pollerLogEntries = [];
+        if (logsRes.data && typeof logsRes.data === 'object' && Array.isArray(logsRes.data.logs)) {
+          pollerLogEntries = logsRes.data.logs;
+        } else if (Array.isArray(logsRes.data)) {
+          // fallback for old plain array format
+          pollerLogEntries = logsRes.data.map((line: string) => ({ msg: line }));
+        }
+
+        pollerLogEntries.forEach((entry: any) => {
+          const tsPart = entry.ts ? entry.ts.slice(11, 19) : ''; // e.g. "12:34:56"
+          const levelPart = entry.level ? `[${entry.level}]` : '';
+          const msgPart = entry.msg || String(entry);
+          const formatted = tsPart ? `${tsPart} ${levelPart} ${msgPart}` : `${levelPart} ${msgPart}`;
+          addLogLine(`[POLLER] ${formatted}`);
+        });
+
+        if (pollerLogEntries.length === 0) {
+          console.log('[POLLER] No logs returned in this interval');
+        }
       } catch (e) {
         console.error('[POLLER FETCH] Error:', e);
       }
