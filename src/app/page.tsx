@@ -8,6 +8,8 @@
 //   - Added graceful error handling for CORS and 404 in log fetches (fallback to empty logs)
 //   - Updated poller logs parsing to handle new structured format {logs: [{ts,level,msg}, ...]}
 //   - FIXED: Added x-admin-key header to poller /logs fetch to stop 403 Forbidden
+//   - FIXED: Added x-admin-key header to ML /logs fetch (prevents future 403 after ML /logs deploy)
+//   - Added better 403/404 warnings in console
 //   - No lines removed — all original code preserved and extended for better log reporting and universe handling
 
 'use client';
@@ -847,14 +849,27 @@ export default function Dashboard() {
     };
   }, [fetchCoreData]);
 
-  // Fetch ML data and logs
+  // Fetch ML data and logs — FIXED: added x-admin-key header
   useEffect(() => {
     const fetchMLData = async () => {
       try {
         const [healthRes, metricsRes, logsRes] = await Promise.all([
           axios.get(`${ML_BASE}/health`, { timeout: 5000 }),
           axios.get(`${ML_BASE}/metrics`, { timeout: 5000 }),
-          axios.get(`${ML_BASE}/logs`, { timeout: 5000 }).catch(() => ({ data: [] })) // Fallback if no /logs
+          axios.get(`${ML_BASE}/logs`, {
+            timeout: 5000,
+            headers: {
+              'x-admin-key': ADMIN_KEY   // ← Prevents 403 after ML /logs is deployed
+            }
+          }).catch((err) => {
+            console.warn('[ML LOGS FETCH] Failed:', err.message, err.response?.status);
+            if (err.response?.status === 403) {
+              console.error('[ML] 403 Forbidden — check NEXT_PUBLIC_ADMIN_KEY in Vercel matches ADMIN_KEY in Cloud Run ML service');
+            } else if (err.response?.status === 404) {
+              console.warn('[ML] 404 Not Found — /logs endpoint not deployed yet on ML service');
+            }
+            return { data: [] };
+          })
         ]);
         console.log('[DASHBOARD] ML health received:', healthRes.data);
         console.log('[DASHBOARD] ML metrics received:', metricsRes.data);
@@ -870,7 +885,7 @@ export default function Dashboard() {
     return () => clearInterval(mlInterval);
   }, [addLogLine]);
 
-  // Fetch Poller data and logs — UPDATED for structured JSON { logs: [{ts, level, msg}, ...] }
+  // Fetch Poller data and logs — FIXED: added x-admin-key header to stop 403
   useEffect(() => {
     const fetchPollerData = async () => {
       try {
@@ -880,12 +895,14 @@ export default function Dashboard() {
           axios.get(`${POLLER_BASE}/logs`, {
             timeout: 5000,
             headers: {
-              'x-admin-key': ADMIN_KEY  // ← THIS WAS MISSING → caused 403
+              'x-admin-key': ADMIN_KEY   // ← THIS FIXES THE 403 FORBIDDEN
             }
           }).catch((err) => {
             console.warn('[POLLER LOGS FETCH] Failed:', err.message, err.code, err.response?.status);
             if (err.response?.status === 403) {
-              console.error('[POLLER] 403 Forbidden — check that NEXT_PUBLIC_ADMIN_KEY in Vercel matches ADMIN_KEY in Cloud Run');
+              console.error('[POLLER] 403 Forbidden — check that NEXT_PUBLIC_ADMIN_KEY in Vercel matches ADMIN_KEY in Cloud Run Poller service');
+            } else if (err.response?.status === 404) {
+              console.warn('[POLLER] 404 Not Found — /logs endpoint missing on poller');
             }
             return { data: { logs: [] } };
           })
