@@ -49,7 +49,7 @@ const Doughnut = dynamic(() => import('react-chartjs-2').then((mod) => mod.Dough
 const Bar = dynamic(() => import('react-chartjs-2').then((mod) => mod.Bar), { ssr: false });
 
 // --------------------
-// Types (unchanged)
+// Types
 // --------------------
 type Discovery = {
   symbol: string;
@@ -91,7 +91,7 @@ type ChartData = {
 };
 
 // --------------------
-// Utils (unchanged)
+// Utils
 // --------------------
 const TICKER_REGEX = /^[A-Z]{1,12}(\.[A-Z]{1,4})?$/;
 
@@ -111,39 +111,25 @@ function safeNum(v: any, fallback = 0) {
 }
 
 // --------------------
-// Hooks — fully mocked + guard against accidental fetches
+// Mocked Hooks (no real fetches)
 // --------------------
 const useMLMetrics = () => {
-  useEffect(() => {
-    console.log('[ML MOCK] useMLMetrics hook mounted — returning static mock data');
-  }, []);
-
-  return useMemo(() => {
-    console.log('[ML MOCK] useMLMetrics memo returning static values');
-    return {
-      activeSymbols: 0,
-      memorySize: 0,
-      learningSteps: 0,
-      eps: 0.15,
-      qrQuantiles: 200,
-      topSymbols: []
-    };
-  }, []);
+  return useMemo(() => ({
+    activeSymbols: 0,
+    memorySize: 0,
+    learningSteps: 0,
+    eps: 0.15,
+    qrQuantiles: 200,
+    topSymbols: []
+  }), []);
 };
 
 const useMLHealth = () => {
-  useEffect(() => {
-    console.log('[ML MOCK] useMLHealth hook mounted — returning {ok: true}');
-  }, []);
-
-  return useMemo(() => {
-    console.log('[ML MOCK] useMLHealth memo returning {ok: true}');
-    return { ok: true };
-  }, []);
+  return useMemo(() => ({ ok: true }), []);
 };
 
 // --------------------
-// Memo Components (Header without REFRESH)
+// Memoized Components
 // --------------------
 const Header = memo(
   ({
@@ -156,7 +142,17 @@ const Header = memo(
     onToggleRemove,
     onOpenUniverse,
     onTestTrade
-  }: any) => (
+  }: {
+    universeSize: number;
+    onScan: () => void;
+    scanning: boolean;
+    onPanic: () => void;
+    panicClosing: boolean;
+    onToggleAdd: () => void;
+    onToggleRemove: () => void;
+    onOpenUniverse: () => void;
+    onTestTrade: () => void;
+  }) => (
     <header className="shrink-0 bg-black/90 backdrop-blur border-b border-cyan-500/30 px-3 py-2 flex justify-between items-center">
       <div className="flex items-center gap-3">
         <div className="relative">
@@ -172,7 +168,7 @@ const Header = memo(
 
         <button
           onClick={onOpenUniverse}
-          className="flex items-center gap-1 px-2 py-1 bg-cyan-900/40 border border-cyan-700/50 rounded text-xs cursor-pointer"
+          className="flex items-center gap-1 px-2 py-1 bg-cyan-900/40 border border-cyan-700/50 rounded text-xs cursor-pointer hover:bg-cyan-800/60 transition-colors"
           title="Open universe"
         >
           <Globe className="w-3 h-3" /> {universeSize}
@@ -180,17 +176,17 @@ const Header = memo(
       </div>
 
       <div className="flex items-center gap-2">
-        <button onClick={onToggleAdd} className="p-2 rounded bg-purple-900/50 border border-purple-600/50" title="Add tickers">
+        <button onClick={onToggleAdd} className="p-2 rounded bg-purple-900/50 border border-purple-600/50 hover:bg-purple-800/60 transition-colors" title="Add tickers">
           <Plus className="w-4 h-4 text-purple-300" />
         </button>
 
-        <button onClick={onToggleRemove} className="p-2 rounded bg-red-900/50 border border-red-600/50" title="Remove tickers">
+        <button onClick={onToggleRemove} className="p-2 rounded bg-red-900/50 border border-red-600/50 hover:bg-red-800/60 transition-colors" title="Remove tickers">
           <Minus className="w-4 h-4 text-red-300" />
         </button>
 
         <button
           onClick={onTestTrade}
-          className="px-4 py-1.5 bg-gradient-to-r from-yellow-600 to-orange-700 rounded text-xs font-bold flex items-center gap-1"
+          className="px-4 py-1.5 bg-gradient-to-r from-yellow-600 to-orange-700 rounded text-xs font-bold flex items-center gap-1 hover:brightness-110 transition-all"
           title="Force a test PAPER trade (SPY 1 share + trail)"
         >
           <Zap className="w-3 h-3" /> TEST TRADE
@@ -199,7 +195,7 @@ const Header = memo(
         <button
           onClick={onPanic}
           disabled={panicClosing}
-          className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-pink-700 rounded text-xs font-bold flex items-center gap-1"
+          className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-pink-700 rounded text-xs font-bold flex items-center gap-1 hover:brightness-110 transition-all disabled:opacity-50"
           title="Force close everything"
         >
           {panicClosing ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertTriangle className="w-3 h-3" />} PANIC
@@ -208,7 +204,7 @@ const Header = memo(
         <button
           onClick={onScan}
           disabled={scanning}
-          className="px-4 py-1.5 bg-gradient-to-r from-cyan-500 to-purple-600 rounded text-xs font-bold flex items-center gap-1"
+          className="px-4 py-1.5 bg-gradient-to-r from-cyan-500 to-purple-600 rounded text-xs font-bold flex items-center gap-1 hover:brightness-110 transition-all disabled:opacity-50"
           title="Run scan"
         >
           {scanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Activity className="w-3 h-3" />} {scanning ? 'SCANNING...' : 'SCAN'}
@@ -306,7 +302,7 @@ const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) =>
 });
 
 // --------------------
-// Page
+// Main Dashboard
 // --------------------
 export default function Dashboard() {
   const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -404,7 +400,7 @@ export default function Dashboard() {
           timeout: method === 'POST' ? 90000 : 20000,
           headers: {
             'Content-Type': 'application/json',
-            'x-admin-key': ADMIN_KEY // ← FIXED: always include admin key
+            'x-admin-key': ADMIN_KEY // ← Always include admin key
           }
         };
 
@@ -688,7 +684,7 @@ export default function Dashboard() {
               {
                 data: prices,
                 borderColor: '#00ffff',
-                backgroundColor: 'rgba(0, 255, 255, 0.08)',
+                backgroundColor: 'rgba(0,255,255,0.08)',
                 fill: true,
                 tension: 0.4,
                 pointRadius: 0,
@@ -991,7 +987,7 @@ export default function Dashboard() {
             <button
               onClick={handleAddTickers}
               disabled={addingTickers}
-              className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-purple-600 rounded text-xs flex items-center gap-1"
+              className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-purple-600 rounded text-xs flex items-center gap-1 hover:brightness-110 transition-all disabled:opacity-50"
             >
               {addingTickers ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
             </button>
@@ -1034,7 +1030,7 @@ export default function Dashboard() {
             <button
               onClick={handleRemoveTickers}
               disabled={removingTickers}
-              className="px-3 py-1 bg-red-600 rounded text-xs flex items-center gap-1"
+              className="px-3 py-1 bg-red-600 rounded text-xs flex items-center gap-1 hover:brightness-110 transition-all disabled:opacity-50"
             >
               {removingTickers ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Remove'}
             </button>
@@ -1053,7 +1049,7 @@ export default function Dashboard() {
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-cyan-300 text-lg">Universe ({universeSize} tickers)</h3>
               <div className="flex gap-2">
-                <button onClick={exportUniverse} className="px-3 py-1.5 bg-cyan-800 rounded text-xs flex items-center gap-1">
+                <button onClick={exportUniverse} className="px-3 py-1.5 bg-cyan-800 rounded text-xs flex items-center gap-1 hover:bg-cyan-700 transition-colors">
                   <Copy className="w-3 h-3" /> Export
                 </button>
                 <input
@@ -1062,7 +1058,7 @@ export default function Dashboard() {
                   placeholder="Search..."
                   className="px-3 py-1.5 bg-black/70 rounded border border-cyan-700/50 text-sm w-64"
                 />
-                <button onClick={() => setShowUniverse(false)} className="px-3 py-1.5 bg-gray-800 rounded text-sm">
+                <button onClick={() => setShowUniverse(false)} className="px-3 py-1.5 bg-gray-800 rounded text-sm hover:bg-gray-700 transition-colors">
                   Close
                 </button>
               </div>
