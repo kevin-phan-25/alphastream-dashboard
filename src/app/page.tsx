@@ -349,7 +349,7 @@ const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) =>
 export default function Dashboard() {
   const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
   const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app'; // Adjust if different
-  const POLLER_BASE = 'https://alphastream-poller-1017433009054.us-east1.run.app'; // Assume poller URL, adjust if needed
+  const POLLER_BASE = 'https://low-float-discovery-poller-service-1017433009054.us-east1.run.app';
 
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
   const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'default-admin-key-for-testing'; // ← CHANGE THIS in .env.local or Vercel
