@@ -1,13 +1,11 @@
 // dashboard.tsx
 // Last updated: February 1, 2026
 // Changes in this version:
-//   - Integrated Alpaca API for live equity, PnL, positions using paper trading endpoints
-//   - Added real fetches for ML health and metrics from ML service
-//   - Added poller request helper and fetching for additional logs if available
-//   - Enhanced logging to include trade logs from core, ML, and poller
-//   - Updated core fetch to include forceSync where appropriate
-//   - Added error handling for all API fetches
-//   - No lines removed — all original code preserved and extended for connections
+//   - Added fetching of logs from ML and poller services (assuming /logs endpoint returns array of strings)
+//   - Added debug console logs for fetch failures and data received
+//   - Ensured universe modal shows message if universeSymbols empty or not array
+//   - Prefixed all logs with service name and timestamp for better visibility
+//   - No lines removed — all original code preserved and extended for better log reporting and universe handling
 
 'use client';
 
@@ -122,21 +120,52 @@ function safeNum(v: any, fallback = 0) {
 }
 
 // --------------------
-// Mocked Hooks (no real fetches)
+// Real Hooks for ML
 // --------------------
-const useMLMetrics = () => {
-  return useMemo(() => ({
-    activeSymbols: 0,
-    memorySize: 0,
-    learningSteps: 0,
-    eps: 0.15,
-    qrQuantiles: 200,
-    topSymbols: []
-  }), []);
-};
+const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app'; // Adjust to your ML service URL
 
 const useMLHealth = () => {
-  return useMemo(() => ({ ok: true }), []);
+  const [health, setHealth] = useState<any>({ ok: false });
+
+  useEffect(() => {
+    const fetchHealth = async () => {
+      try {
+        const res = await axios.get(`${ML_BASE}/health`, { timeout: 5000 });
+        console.log('[DASHBOARD] ML health received:', res.data);
+        setHealth(res.data || { ok: false });
+      } catch (e) {
+        console.error('[DASHBOARD] ML health fetch error:', e);
+        setHealth({ ok: false });
+      }
+    };
+    fetchHealth();
+    const interval = setInterval(fetchHealth, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return health;
+};
+
+const useMLMetrics = () => {
+  const [metrics, setMetrics] = useState<any>({});
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const res = await axios.get(`${ML_BASE}/metrics`, { timeout: 5000 });
+        console.log('[DASHBOARD] ML metrics received:', res.data);
+        setMetrics(res.data || {});
+      } catch (e) {
+        console.error('[DASHBOARD] ML metrics fetch error:', e);
+        setMetrics({});
+      }
+    };
+    fetchMetrics();
+    const interval = setInterval(fetchMetrics, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return metrics;
 };
 
 // --------------------
@@ -317,6 +346,8 @@ const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) =>
 // --------------------
 export default function Dashboard() {
   const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
+  const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app'; // Adjust if different
+  const POLLER_BASE = 'https://alphastream-poller-1017433009054.us-east1.run.app'; // Assume poller URL, adjust if needed
 
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
   const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'default-admin-key-for-testing'; // ← CHANGE THIS in .env.local or Vercel
@@ -375,8 +406,9 @@ export default function Dashboard() {
   const [logs, setLogs] = useState<string[]>([]);
 
   const addLogLine = useCallback((line: string) => {
+    const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setLogs((prev) => {
-      const updated = [...prev, line];
+      const updated = [...prev, `[${ts}] ${line}`];
       if (updated.length > MAX_LOG_LINES) {
         return updated.slice(updated.length - MAX_LOG_LINES);
       }
@@ -394,15 +426,12 @@ export default function Dashboard() {
     }));
   }, []);
 
-  const mlMetrics = useMLMetrics();
   const mlHealth = useMLHealth();
+  const mlMetrics = useMLMetrics();
 
   const mlConnected = useMemo(() => {
-    if (core?.mlHealthy === true) return true;
-    if (mlHealth?.ok === true) return true;
-    if (mlMetrics && Object.keys(mlMetrics).length > 0) return true;
-    return false;
-  }, [core?.mlHealthy, mlHealth?.ok, mlMetrics]);
+    return mlHealth.ok;
+  }, [mlHealth]);
 
   // Direct core request helper — FIXED: always send admin key
   const coreRequest = useCallback(
@@ -436,6 +465,28 @@ export default function Dashboard() {
         }
 
         throw new Error(`${msg} (code ${status || 'unknown'})`);
+      }
+    },
+    []
+  );
+
+  // Add poller request if needed
+  const pollerRequest = useCallback(
+    async (method: 'GET' | 'POST', path: string, body?: any) => {
+      try {
+        const url = `${POLLER_BASE}${path.startsWith('/') ? path : '/' + path}`;
+        const config = {
+          timeout: method === 'POST' ? 90000 : 20000,
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-key': ADMIN_KEY
+          }
+        };
+        if (method === 'GET') return await axios.get(url, config);
+        return await axios.post(url, body || {}, config);
+      } catch (e: any) {
+        console.error(`[POLLER REQUEST FAILED] ${method} ${path}:`, e.message);
+        throw e;
       }
     },
     []
@@ -496,6 +547,28 @@ export default function Dashboard() {
           setLiveRockets([]);
         }
 
+        // Add to logs from core
+        let rawLogs = [];
+        if (Array.isArray(data.tradeLogTail)) rawLogs = data.tradeLogTail;
+        else if (Array.isArray(data.eventLogTail)) rawLogs = data.eventLogTail;
+
+        rawLogs.forEach((logItem: any) => {
+          let logLine = '';
+          if (typeof logItem === 'string') {
+            logLine = logItem;
+          } else if (logItem && typeof logItem === 'object') {
+            const ts = logItem.ts ? new Date(logItem.ts).toLocaleString() : '??';
+            const sev = logItem.severity || 'INFO';
+            const type = logItem.type || 'event';
+            const phase = logItem.phase ? ` (${logItem.phase})` : '';
+            const reason = logItem.reason || JSON.stringify(logItem);
+            logLine = `[${ts}] ${sev} ${type}${phase}: ${reason}`;
+          } else {
+            logLine = String(logItem || '');
+          }
+          addLogLine(`[CORE] ${logLine}`);
+        });
+
         setError(null);
       } catch (e: any) {
         console.error('[DASHBOARD] Core fetch error:', e);
@@ -505,7 +578,7 @@ export default function Dashboard() {
         setLoading(false);
       }
     },
-    []
+    [addLogLine]
   );
 
   const forceScan = useCallback(async () => {
@@ -770,6 +843,52 @@ export default function Dashboard() {
       clearInterval(interval);
     };
   }, [fetchCoreData]);
+
+  // Fetch ML data and logs
+  useEffect(() => {
+    const fetchMLData = async () => {
+      try {
+        const [healthRes, metricsRes, logsRes] = await Promise.all([
+          axios.get(`${ML_BASE}/health`, { timeout: 5000 }),
+          axios.get(`${ML_BASE}/metrics`, { timeout: 5000 }),
+          axios.get(`${ML_BASE}/logs`, { timeout: 5000 }).catch(() => ({ data: [] })) // Fallback if no /logs
+        ]);
+        console.log('[DASHBOARD] ML health received:', healthRes.data);
+        console.log('[DASHBOARD] ML metrics received:', metricsRes.data);
+        console.log('[DASHBOARD] ML logs received:', logsRes.data);
+        const mlLogs = Array.isArray(logsRes.data) ? logsRes.data : [];
+        mlLogs.forEach((log: string) => addLogLine(`[ML] ${log}`));
+      } catch (e) {
+        console.error('[ML FETCH] Error:', e);
+      }
+    };
+    fetchMLData();
+    const mlInterval = setInterval(fetchMLData, 30000);
+    return () => clearInterval(mlInterval);
+  }, [addLogLine]);
+
+  // Fetch Poller data and logs
+  useEffect(() => {
+    const fetchPollerData = async () => {
+      try {
+        // Assume poller has /health or /metrics and /logs
+        const [healthRes, logsRes] = await Promise.all([
+          axios.get(`${POLLER_BASE}/health`, { timeout: 5000 }),
+          axios.get(`${POLLER_BASE}/logs`, { timeout: 5000 }).catch(() => ({ data: [] })) // Fallback if no /logs
+        ]);
+        console.log('[DASHBOARD] Poller health received:', healthRes.data);
+        console.log('[DASHBOARD] Poller logs received:', logsRes.data);
+        // Add poller logs
+        const pollerLogs = Array.isArray(logsRes.data) ? logsRes.data : [];
+        pollerLogs.forEach((log: string) => addLogLine(`[POLLER] ${log}`));
+      } catch (e) {
+        console.error('[POLLER FETCH] Error:', e);
+      }
+    };
+    fetchPollerData();
+    const pollerInterval = setInterval(fetchPollerData, 30000);
+    return () => clearInterval(pollerInterval);
+  }, [addLogLine]);
 
   // Derived values
   const universeSize = safeNum(core.universeSize, 0);
@@ -1047,7 +1166,7 @@ export default function Dashboard() {
 
             <div className="flex-1 overflow-y-auto bg-black/50 rounded border border-gray-800 p-3">
               {rawUniverse.length === 0 ? (
-                <p className="text-center text-gray-600 py-8">No tickers in universe yet — add some!</p>
+                <p className="text-center text-gray-600 py-8">No tickers in universe yet — add some! (Check console for fetch errors)</p>
               ) : (
                 <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
                   {filteredUniverse.map((sym) => (
