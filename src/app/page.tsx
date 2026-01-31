@@ -7,6 +7,7 @@
 //   - Prefixed all logs with service name and timestamp for better visibility
 //   - Added graceful error handling for CORS and 404 in log fetches (fallback to empty logs)
 //   - Updated poller logs parsing to handle new structured format {logs: [{ts,level,msg}, ...]}
+//   - FIXED: Added x-admin-key header to poller /logs fetch to stop 403 Forbidden
 //   - No lines removed — all original code preserved and extended for better log reporting and universe handling
 
 'use client';
@@ -876,8 +877,16 @@ export default function Dashboard() {
         // Assume poller has /health or /metrics and /logs
         const [healthRes, logsRes] = await Promise.all([
           axios.get(`${POLLER_BASE}/health`, { timeout: 5000 }).catch(() => ({ data: { ok: false } })),
-          axios.get(`${POLLER_BASE}/logs`, { timeout: 5000 }).catch((err) => {
+          axios.get(`${POLLER_BASE}/logs`, {
+            timeout: 5000,
+            headers: {
+              'x-admin-key': ADMIN_KEY  // ← THIS WAS MISSING → caused 403
+            }
+          }).catch((err) => {
             console.warn('[POLLER LOGS FETCH] Failed:', err.message, err.code, err.response?.status);
+            if (err.response?.status === 403) {
+              console.error('[POLLER] 403 Forbidden — check that NEXT_PUBLIC_ADMIN_KEY in Vercel matches ADMIN_KEY in Cloud Run');
+            }
             return { data: { logs: [] } };
           })
         ]);
