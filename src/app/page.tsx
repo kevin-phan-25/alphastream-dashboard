@@ -3,9 +3,9 @@
 // Critical: This file MUST be named page.tsx (not page.ts) for JSX to work
 // FIXED: Safe error handling in all catch blocks (prevents "e is unknown" TS error)
 // ADDED: Global + per-rocket position sizing UI
-//       FORCE SELL button per rocket
-//       Loading spinners + qty display on forced trade buttons
-// RESTORED: All original lines, comments, logs, render blocks — nothing removed
+//       Per-rocket loading spinner support
+//       Parallel force buys using Promise.all (faster UI feedback)
+//       No nuclear mode / loop / throttle added
 
 'use client';
 
@@ -61,9 +61,9 @@ const Line = dynamic(() => import('react-chartjs-2').then((mod) => mod.Line), { 
 const Doughnut = dynamic(() => import('react-chartjs-2').then((mod) => mod.Doughnut), { ssr: false });
 const Bar = dynamic(() => import('react-chartjs-2').then((mod) => mod.Bar), { ssr: false });
 
-// --------------------
+// ─────────────────────────────────────────
 // Types
-// --------------------
+// ─────────────────────────────────────────
 type Discovery = {
   symbol: string;
   confidence: number;
@@ -103,9 +103,9 @@ type ChartData = {
   options?: any;
 };
 
-// --------------------
+// ─────────────────────────────────────────
 // Utils
-// --------------------
+// ─────────────────────────────────────────
 const TICKER_REGEX = /^[A-Z]{1,12}(\.[A-Z]{1,4})?$/;
 
 function validateAndCleanTickers(input: string): string[] {
@@ -127,9 +127,9 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-// --------------------
-// Real Hooks for ML
-// --------------------
+// ─────────────────────────────────────────
+// ML Hooks
+// ─────────────────────────────────────────
 const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
 
 const useMLHealth = () => {
@@ -176,9 +176,9 @@ const useMLMetrics = () => {
   return metrics;
 };
 
-// --------------------
+// ─────────────────────────────────────────
 // Memoized Components
-// --------------------
+// ─────────────────────────────────────────
 const Header = memo(
   ({
     universeSize,
@@ -232,18 +232,18 @@ const Header = memo(
       <div className="flex items-center gap-3 flex-wrap">
         {/* Global position size selector */}
         <div className="flex items-center gap-2 bg-gray-900/70 px-3 py-1 rounded border border-cyan-700/50">
-          <span className="text-xs text-cyan-300">Position size:</span>
+          <span className="text-xs text-cyan-300">Size:</span>
           <select
             value={positionSize}
             onChange={(e) => setPositionSize(Number(e.target.value))}
             className="bg-black border border-cyan-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
           >
-            <option value={1}>1 share</option>
-            <option value={5}>5 shares</option>
-            <option value={10}>10 shares</option>
-            <option value={25}>25 shares</option>
-            <option value={50}>50 shares</option>
-            <option value={100}>100 shares</option>
+            <option value={1}>1</option>
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
           </select>
         </div>
 
@@ -381,9 +381,9 @@ const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) =>
   );
 });
 
-// --------------------
+// ─────────────────────────────────────────
 // Main Dashboard
-// --------------------
+// ─────────────────────────────────────────
 export default function Dashboard() {
   const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
   const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
@@ -446,8 +446,9 @@ export default function Dashboard() {
   const [logs, setLogs] = useState<string[]>([]);
 
   const [forceTradeLoading, setForceTradeLoading] = useState<string | null>(null);
+  const [rocketLoadingMap, setRocketLoadingMap] = useState<Record<string, boolean>>({});
 
-  // Position sizing state
+  // Position sizing
   const [globalPositionSize, setGlobalPositionSize] = useState<number>(1);
   const [perRocketSizes, setPerRocketSizes] = useState<Record<string, number>>({});
 
@@ -475,148 +476,109 @@ export default function Dashboard() {
   const mlHealth = useMLHealth();
   const mlMetrics = useMLMetrics();
 
-  const mlConnected = useMemo(() => {
-    return mlHealth.ok;
-  }, [mlHealth]);
+  const mlConnected = useMemo(() => mlHealth.ok, [mlHealth]);
 
-  // Direct core request helper
-  const coreRequest = useCallback(
-    async (method: 'GET' | 'POST', path: string, body?: any) => {
-      try {
-        const url = `${CORE_BASE}${path.startsWith('/') ? path : '/' + path}`;
-        const config = {
-          timeout: method === 'POST' ? 90000 : 20000,
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-key': ADMIN_KEY
-          }
-        };
-
-        console.log(`[CORE REQUEST] ${method} ${url} (admin key sent: ${!!ADMIN_KEY})`);
-
-        if (method === 'GET') return await axios.get(url, config);
-        return await axios.post(url, body || {}, config);
-      } catch (e: any) {
-        console.error(`[CORE REQUEST FAILED] ${method} ${path}:`, {
-          status: e.response?.status,
-          data: e.response?.data,
-          message: e.message
-        });
-
-        throw e;
-      }
-    },
-    []
-  );
-
-  const pollerRequest = useCallback(
-    async (method: 'GET' | 'POST', path: string, body?: any) => {
-      try {
-        const url = `${POLLER_BASE}${path.startsWith('/') ? path : '/' + path}`;
-        const config = {
-          timeout: method === 'POST' ? 90000 : 20000,
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-key': ADMIN_KEY
-          }
-        };
-        if (method === 'GET') return await axios.get(url, config);
-        return await axios.post(url, body || {}, config);
-      } catch (e: any) {
-        console.error(`[POLLER REQUEST FAILED] ${method} ${path}:`, e.message);
-        throw e;
-      }
-    },
-    []
-  );
-
-  const fetchCoreData = useCallback(
-    async (forceSync = false) => {
-      try {
-        console.log('[DASHBOARD] Fetching core data, forceSync=', forceSync);
-        const params = new URLSearchParams();
-        if (forceSync) params.append('forceSync', '1');
-        params.append('universe', '1');
-
-        const url = `${CORE_BASE}/?${params.toString()}`;
-
-        const res = await axios.get(url, { timeout: 25000 });
-
-        const data = res.data || {};
-        console.log('[DASHBOARD] Core data received:', data);
-
-        setCore(data);
-
-        const equityValue = safeNum(data.equity, 0);
-        const realizedPnLValue = safeNum(data.realizedDailyPnL, 0);
-
-        if (data.discoveries && Array.isArray(data.discoveries)) {
-          const newSymbols = data.discoveries.map((d: Discovery) => d.symbol);
-          if (newSymbols.length > 0) {
-            setFlashDiscoveries(new Set(newSymbols));
-            setTimeout(() => setFlashDiscoveries(new Set()), 4000);
-            setRecentDiscoveries(data.discoveries);
-          }
+  const coreRequest = useCallback(async (method: 'GET' | 'POST', path: string, body?: any) => {
+    try {
+      const url = `${CORE_BASE}${path.startsWith('/') ? path : '/' + path}`;
+      const config = {
+        timeout: method === 'POST' ? 90000 : 20000,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': ADMIN_KEY
         }
+      };
+      console.log(`[CORE REQUEST] ${method} ${url}`);
+      return method === 'GET' ? await axios.get(url, config) : await axios.post(url, body || {}, config);
+    } catch (e: any) {
+      console.error(`[CORE REQUEST FAILED] ${method} ${path}:`, e);
+      throw e;
+    }
+  }, []);
 
-        setEquityHistory((prev) =>
-          [...prev, { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), equity: equityValue }].slice(-40)
-        );
+  const pollerRequest = useCallback(async (method: 'GET' | 'POST', path: string, body?: any) => {
+    try {
+      const url = `${POLLER_BASE}${path.startsWith('/') ? path : '/' + path}`;
+      const config = {
+        timeout: method === 'POST' ? 90000 : 20000,
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': ADMIN_KEY }
+      };
+      return method === 'GET' ? await axios.get(url, config) : await axios.post(url, body || {}, config);
+    } catch (e: any) {
+      console.error(`[POLLER REQUEST FAILED] ${method} ${path}:`, e);
+      throw e;
+    }
+  }, []);
 
-        setRealizedPnLHistory((prev) =>
-          [...prev, { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), pnl: realizedPnLValue }].slice(-40)
-        );
+  const fetchCoreData = useCallback(async (forceSync = false) => {
+    try {
+      const params = new URLSearchParams();
+      if (forceSync) params.append('forceSync', '1');
+      params.append('universe', '1');
 
-        setLastUpdate(
-          new Date().toLocaleTimeString('en-US', {
-            timeZone: 'America/New_York',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-          })
-        );
+      const url = `${CORE_BASE}/?${params.toString()}`;
+      const res = await axios.get(url, { timeout: 25000 });
+      const data = res.data || {};
+      setCore(data);
 
-        if (Array.isArray(data.rockets) && data.rockets.length > 0) {
-          const newSymbols = data.rockets.map((r: RocketT) => r.symbol);
-          setFlashRockets(new Set(newSymbols));
-          setTimeout(() => setFlashRockets(new Set()), 3000);
-          setLiveRockets(data.rockets);
+      const equityValue = safeNum(data.equity, 0);
+      const realizedPnLValue = safeNum(data.realizedDailyPnL, 0);
+
+      if (Array.isArray(data.discoveries)) {
+        const newSymbols = data.discoveries.map((d: Discovery) => d.symbol);
+        if (newSymbols.length > 0) {
+          setFlashDiscoveries(new Set(newSymbols));
+          setTimeout(() => setFlashDiscoveries(new Set()), 4000);
+          setRecentDiscoveries(data.discoveries);
+        }
+      }
+
+      setEquityHistory(prev => [...prev, { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), equity: equityValue }].slice(-40));
+      setRealizedPnLHistory(prev => [...prev, { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), pnl: realizedPnLValue }].slice(-40));
+
+      setLastUpdate(new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+
+      if (Array.isArray(data.rockets) && data.rockets.length > 0) {
+        const newSymbols = data.rockets.map((r: RocketT) => r.symbol);
+        setFlashRockets(new Set(newSymbols));
+        setTimeout(() => setFlashRockets(new Set()), 3000);
+        setLiveRockets(data.rockets);
+      } else {
+        setLiveRockets([]);
+      }
+
+      let rawLogs = [];
+      if (Array.isArray(data.tradeLogTail)) rawLogs = data.tradeLogTail;
+      else if (Array.isArray(data.eventLogTail)) rawLogs = data.eventLogTail;
+
+      rawLogs.forEach((logItem: any) => {
+        let logLine = '';
+        if (typeof logItem === 'string') logLine = logItem;
+        else if (logItem && typeof logItem === 'object') {
+          const ts = logItem.ts ? new Date(logItem.ts).toLocaleString() : '??';
+          const sev = logItem.severity || 'INFO';
+          const type = logItem.type || 'event';
+          const phase = logItem.phase ? ` (${logItem.phase})` : '';
+          const reason = logItem.reason || JSON.stringify(logItem);
+          logLine = `[${ts}] ${sev} ${type}${phase}: ${reason}`;
         } else {
-          setLiveRockets([]);
+          logLine = String(logItem || '');
         }
+        addLogLine(`[CORE] ${logLine}`);
+      });
 
-        let rawLogs = [];
-        if (Array.isArray(data.tradeLogTail)) rawLogs = data.tradeLogTail;
-        else if (Array.isArray(data.eventLogTail)) rawLogs = data.eventLogTail;
+      setError(null);
+    } catch (e: any) {
+      console.error('[DASHBOARD] Core fetch error:', e);
+      setError(`CORE OFFLINE: ${getErrorMessage(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [addLogLine]);
 
-        rawLogs.forEach((logItem: any) => {
-          let logLine = '';
-          if (typeof logItem === 'string') {
-            logLine = logItem;
-          } else if (logItem && typeof logItem === 'object') {
-            const ts = logItem.ts ? new Date(logItem.ts).toLocaleString() : '??';
-            const sev = logItem.severity || 'INFO';
-            const type = logItem.type || 'event';
-            const phase = logItem.phase ? ` (${logItem.phase})` : '';
-            const reason = logItem.reason || JSON.stringify(logItem);
-            logLine = `[${ts}] ${sev} ${type}${phase}: ${reason}`;
-          } else {
-            logLine = String(logItem || '');
-          }
-          addLogLine(`[CORE] ${logLine}`);
-        });
-
-        setError(null);
-      } catch (e: any) {
-        console.error('[DASHBOARD] Core fetch error:', e);
-        const msg = getErrorMessage(e);
-        setError(`CORE OFFLINE: ${msg}`);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [addLogLine]
-  );
+  // ─────────────────────────────────────────
+  // Action Handlers
+  // ─────────────────────────────────────────
 
   const forceScan = useCallback(async () => {
     if (scanning) return;
@@ -628,7 +590,6 @@ export default function Dashboard() {
       setTimeout(() => fetchCoreData(true), 3000);
     } catch (err: any) {
       setMessage(`Scan failed: ${getErrorMessage(err)}`);
-      console.error('[SCAN] Failed:', err);
     } finally {
       setScanning(false);
       setTimeout(() => setMessage(''), 5000);
@@ -636,41 +597,29 @@ export default function Dashboard() {
   }, [scanning, fetchCoreData, coreRequest]);
 
   const forceTestTrade = useCallback(async () => {
-    if (window.confirm('Run a test PAPER trade (1 share SPY + 2% trail)?')) {
-      setMessage('Triggering test trade... (expect 10–20s)');
-      try {
-        console.log('[TEST-TRADE] Sending POST /admin/force-test-trade with admin key');
-        const res = await coreRequest('POST', '/admin/force-test-trade', {});
-        console.log('[TEST-TRADE] Success — full response:', res.data);
-        setMessage(res.data.message || 'Test trade completed!');
-        setTimeout(() => fetchCoreData(true), 10000);
-      } catch (err: any) {
-        const status = err.response?.status;
-        const serverError = getErrorMessage(err);
-        console.error('[TEST-TRADE] Failed:', { status, message: serverError });
-        setMessage(`Test trade failed: ${status || 'unknown'} - ${serverError}`);
-      } finally {
-        setTimeout(() => setMessage(''), 15000);
-      }
+    if (!window.confirm('Run a test PAPER trade (1 share SPY + 2% trail)?')) return;
+    setMessage('Triggering test trade...');
+    try {
+      const res = await coreRequest('POST', '/admin/force-test-trade', {});
+      setMessage(res.data.message || 'Test trade completed!');
+      setTimeout(() => fetchCoreData(true), 10000);
+    } catch (err: any) {
+      setMessage(`Test trade failed: ${getErrorMessage(err)}`);
+    } finally {
+      setTimeout(() => setMessage(''), 15000);
     }
   }, [coreRequest, fetchCoreData]);
 
   const panicCloseAll = useCallback(async () => {
-    if (panicClosing) return;
-
-    const ok = window.confirm('⚠️ PANIC CLOSE: Liquidate all and enable HARD FLAT?');
-    if (!ok) return;
-
+    if (panicClosing || !window.confirm('⚠️ PANIC CLOSE: Liquidate all?')) return;
     setPanicClosing(true);
     setPanicMessage('EXECUTING PANIC CLOSE...');
-
     try {
       const res = await coreRequest('POST', '/admin/force-close', {});
       setPanicMessage(res?.data?.message || 'EXECUTED');
       setTimeout(() => fetchCoreData(true), 800);
     } catch (err: any) {
       setPanicMessage(`FAILED: ${getErrorMessage(err)}`);
-      console.error('[PANIC] Failed:', err);
     } finally {
       setPanicClosing(false);
       setTimeout(() => setPanicMessage(''), 10000);
@@ -721,7 +670,7 @@ export default function Dashboard() {
     setAddMessage('');
 
     try {
-      const res = await coreRequest('POST', '/admin/add-ticker', { symbols: validTickers.join(' ') });
+      await coreRequest('POST', '/admin/add-ticker', { symbols: validTickers.join(' ') });
       setAddMessage(`+${validTickers.length} added`);
       setTickerInput('');
       setAddSuggestions([]);
@@ -729,7 +678,6 @@ export default function Dashboard() {
       setTimeout(() => fetchCoreData(true), 600);
     } catch (e: any) {
       setAddMessage(`Failed: ${getErrorMessage(e)}`);
-      console.error('[ADD TICKERS] Failed:', e);
     } finally {
       setAddingTickers(false);
       setTimeout(() => setAddMessage(''), 3500);
@@ -748,7 +696,7 @@ export default function Dashboard() {
     setRemoveMessage('');
 
     try {
-      const res = await coreRequest('POST', '/admin/remove-ticker', { symbols: validTickers.join(' ') });
+      await coreRequest('POST', '/admin/remove-ticker', { symbols: validTickers.join(' ') });
       setRemoveMessage(`-${validTickers.length} removed`);
       setRemoveTickerInput('');
       setRemoveSuggestions([]);
@@ -756,7 +704,6 @@ export default function Dashboard() {
       setTimeout(() => fetchCoreData(true), 600);
     } catch (e: any) {
       setRemoveMessage(`Failed: ${getErrorMessage(e)}`);
-      console.error('[REMOVE TICKERS] Failed:', e);
     } finally {
       setRemovingTickers(false);
       setTimeout(() => setRemoveMessage(''), 3500);
@@ -877,7 +824,6 @@ export default function Dashboard() {
     };
   }, [fetchCoreData]);
 
-  // Fetch ML data and logs
   useEffect(() => {
     const fetchMLData = async () => {
       try {
@@ -887,15 +833,8 @@ export default function Dashboard() {
           axios.get(`${ML_BASE}/logs`, {
             timeout: 5000,
             headers: { 'x-admin-key': ADMIN_KEY }
-          }).catch((err) => {
-            console.warn('[ML LOGS FETCH] Failed:', err.message, err.response?.status);
-            return { data: [] };
-          })
+          }).catch(() => ({ data: [] }))
         ]);
-
-        console.log('[DASHBOARD] ML health received:', healthRes.data);
-        console.log('[DASHBOARD] ML metrics received:', metricsRes.data);
-        console.log('[DASHBOARD] ML logs received:', logsRes.data);
 
         const mlLogs = Array.isArray(logsRes.data) ? logsRes.data : [];
         mlLogs.forEach((log: string) => addLogLine(`[ML] ${log}`));
@@ -908,7 +847,6 @@ export default function Dashboard() {
     return () => clearInterval(mlInterval);
   }, [addLogLine]);
 
-  // Fetch Poller data and logs
   useEffect(() => {
     const fetchPollerData = async () => {
       try {
@@ -917,17 +855,11 @@ export default function Dashboard() {
           axios.get(`${POLLER_BASE}/logs`, {
             timeout: 5000,
             headers: { 'x-admin-key': ADMIN_KEY }
-          }).catch((err) => {
-            console.warn('[POLLER LOGS FETCH] Failed:', err.message, err.response?.status);
-            return { data: { logs: [] } };
-          })
+          }).catch(() => ({ data: { logs: [] } }))
         ]);
 
-        console.log('[DASHBOARD] Poller health received:', healthRes.data);
-        console.log('[DASHBOARD] Poller logs received:', logsRes.data);
-
         let pollerLogEntries = [];
-        if (logsRes.data && typeof logsRes.data === 'object' && Array.isArray(logsRes.data.logs)) {
+        if (logsRes.data && Array.isArray(logsRes.data.logs)) {
           pollerLogEntries = logsRes.data.logs;
         } else if (Array.isArray(logsRes.data)) {
           pollerLogEntries = logsRes.data.map((line: string) => ({ msg: line }));
@@ -940,10 +872,6 @@ export default function Dashboard() {
           const formatted = tsPart ? `${tsPart} ${levelPart} ${msgPart}` : `${levelPart} ${msgPart}`;
           addLogLine(`[POLLER] ${formatted}`);
         });
-
-        if (pollerLogEntries.length === 0) {
-          console.log('[POLLER] No logs returned in this interval');
-        }
       } catch (e) {
         console.error('[POLLER FETCH] Error:', e);
       }
@@ -1028,9 +956,7 @@ export default function Dashboard() {
 
   const filteredUniverse = useMemo(() => {
     const q = universeSearch.toLowerCase().trim();
-    return rawUniverse
-      .filter((sym) => sym.toLowerCase().includes(q))
-      .sort();
+    return rawUniverse.filter((sym) => sym.toLowerCase().includes(q)).sort();
   }, [rawUniverse, universeSearch]);
 
   const getActionDetails = useCallback((action: number = 2) => {
@@ -1045,11 +971,15 @@ export default function Dashboard() {
     return { label: labels[action] || 'HOLD', color: colors[action] || colors[2] };
   }, []);
 
-  // Force scan + buy every rocket with selected size
+  // ─────────────────────────────────────────
+  // Trade Handlers (with position sizing & parallel execution)
+  // ─────────────────────────────────────────
+
   const forceScanAndTradeAll = useCallback(async () => {
     if (scanning) return;
+
     setScanning(true);
-    setMessage('Forcing scan + buy all rockets...');
+    setMessage('Scanning & buying all rockets...');
 
     try {
       await coreRequest('POST', '/admin/scan', {});
@@ -1057,45 +987,63 @@ export default function Dashboard() {
       await fetchCoreData(true);
 
       if (liveRockets.length === 0) {
-        setMessage('No rockets after scan');
+        setMessage('No rockets found after scan');
         return;
       }
 
-      setMessage(`Buying ${liveRockets.length} rockets (using selected sizes)...`);
+      setMessage(`Buying ${liveRockets.length} rockets in parallel...`);
 
-      for (const r of liveRockets) {
-        try {
+      // Prepare loading map
+      const loadingMap: Record<string, boolean> = {};
+      liveRockets.forEach(r => { loadingMap[r.symbol] = true; });
+      setRocketLoadingMap(loadingMap);
+
+      // Parallel buys
+      await Promise.all(
+        liveRockets.map(async (r) => {
           const qty = perRocketSizes[r.symbol] || globalPositionSize;
-          const res = await coreRequest('POST', '/admin/force-buy-rocket', {
-            symbol: r.symbol,
-            qty,
-            comment: 'force_all_dashboard'
-          });
-          addLogLine(`[FORCE-ALL] Buy ${r.symbol} qty=${qty} OK`);
-        } catch (e) {
-          addLogLine(`[FORCE-ALL] Failed ${r.symbol}: ${getErrorMessage(e)}`);
-        }
-      }
+          try {
+            await coreRequest('POST', '/admin/force-buy-rocket', {
+              symbol: r.symbol,
+              qty,
+              comment: 'force_all_dashboard'
+            });
+            addLogLine(`[FORCE-ALL] Buy ${r.symbol} qty=${qty} OK`);
+          } catch (e) {
+            addLogLine(`[FORCE-ALL] Failed ${r.symbol}: ${getErrorMessage(e)}`);
+          } finally {
+            setRocketLoadingMap(prev => ({ ...prev, [r.symbol]: false }));
+          }
+        })
+      );
 
-      setMessage('Force buy all attempt complete');
-      setTimeout(() => fetchCoreData(true), 8000);
+      setMessage('Buy cycle complete');
+      setTimeout(() => fetchCoreData(true), 6000);
     } catch (e) {
-      setMessage(`Force all failed: ${getErrorMessage(e)}`);
+      setMessage(`Force buy cycle failed: ${getErrorMessage(e)}`);
     } finally {
       setScanning(false);
       setTimeout(() => setMessage(''), 8000);
     }
-  }, [scanning, liveRockets, globalPositionSize, perRocketSizes, coreRequest, fetchCoreData, addLogLine]);
+  }, [
+    scanning,
+    liveRockets,
+    globalPositionSize,
+    perRocketSizes,
+    coreRequest,
+    fetchCoreData,
+    addLogLine
+  ]);
 
-  // Force buy single rocket with selected size
   const forceBuyRocket = useCallback(async (rocket: RocketT) => {
     const qty = perRocketSizes[rocket.symbol] || globalPositionSize;
 
     if (!window.confirm(`Force BUY ${qty} share(s) of ${rocket.symbol}?`)) return;
 
-    setForceTradeLoading(rocket.symbol);
+    setRocketLoadingMap(prev => ({ ...prev, [rocket.symbol]: true }));
+
     try {
-      const res = await coreRequest('POST', '/admin/force-buy-rocket', {
+      await coreRequest('POST', '/admin/force-buy-rocket', {
         symbol: rocket.symbol,
         qty,
         comment: 'dashboard_force_buy'
@@ -1107,20 +1055,20 @@ export default function Dashboard() {
       setMessage(`BUY failed ${rocket.symbol}: ${getErrorMessage(e)}`);
       addLogLine(`[FORCE-BUY] Failed ${rocket.symbol}: ${getErrorMessage(e)}`);
     } finally {
-      setForceTradeLoading(null);
+      setRocketLoadingMap(prev => ({ ...prev, [rocket.symbol]: false }));
     }
   }, [globalPositionSize, perRocketSizes, coreRequest, fetchCoreData, addLogLine]);
 
-  // Force sell single rocket/position
   const forceSellRocket = useCallback(async (rocket: RocketT) => {
     const pos = positions.find(p => p.symbol === rocket.symbol);
     const qty = pos ? Math.abs(pos.qty) : 1;
 
     if (!window.confirm(`Force SELL ${qty} share(s) of ${rocket.symbol}?`)) return;
 
-    setForceTradeLoading(`${rocket.symbol}-sell`);
+    setRocketLoadingMap(prev => ({ ...prev, [rocket.symbol + '-sell']: true }));
+
     try {
-      const res = await coreRequest('POST', '/admin/force-sell-rocket', {
+      await coreRequest('POST', '/admin/force-sell-rocket', {
         symbol: rocket.symbol,
         qty,
         comment: 'dashboard_force_sell'
@@ -1132,13 +1080,13 @@ export default function Dashboard() {
       setMessage(`SELL failed ${rocket.symbol}: ${getErrorMessage(e)}`);
       addLogLine(`[FORCE-SELL] Failed ${rocket.symbol}: ${getErrorMessage(e)}`);
     } finally {
-      setForceTradeLoading(null);
+      setRocketLoadingMap(prev => ({ ...prev, [rocket.symbol + '-sell']: false }));
     }
   }, [positions, coreRequest, fetchCoreData, addLogLine]);
 
-  // --------------------
+  // ─────────────────────────────────────────
   // Render
-  // --------------------
+  // ─────────────────────────────────────────
   if (loading) {
     return (
       <div className="h-screen bg-black flex items-center justify-center text-cyan-400">
@@ -1198,8 +1146,8 @@ export default function Dashboard() {
         scanning={scanning}
         onPanic={panicCloseAll}
         panicClosing={panicClosing}
-        onToggleAdd={() => setShowAddForm((p) => !p)}
-        onToggleRemove={() => setShowRemoveForm((p) => !p)}
+        onToggleAdd={() => setShowAddForm(p => !p)}
+        onToggleRemove={() => setShowRemoveForm(p => !p)}
         onOpenUniverse={() => setShowUniverse(true)}
         onTestTrade={forceTestTrade}
         onForceScanAndTradeAll={forceScanAndTradeAll}
@@ -1232,7 +1180,7 @@ export default function Dashboard() {
                   {addSuggestions.map((sym) => (
                     <div
                       key={sym}
-                      onMouseDown={() => setTickerInput((prev) => (prev ? `${prev} ${sym}` : sym))}
+                      onMouseDown={() => setTickerInput(prev => prev ? `${prev} ${sym}` : sym)}
                       className="px-3 py-1.5 text-xs hover:bg-cyan-900/50 cursor-pointer"
                     >
                       {sym}
@@ -1275,7 +1223,7 @@ export default function Dashboard() {
                   {removeSuggestions.map((sym) => (
                     <div
                       key={sym}
-                      onMouseDown={() => setRemoveTickerInput((prev) => (prev ? `${prev} ${sym}` : sym))}
+                      onMouseDown={() => setRemoveTickerInput(prev => prev ? `${prev} ${sym}` : sym)}
                       className="px-3 py-1.5 text-xs hover:bg-red-900/50 cursor-pointer"
                     >
                       {sym}
@@ -1301,7 +1249,7 @@ export default function Dashboard() {
         <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4" onClick={() => setShowUniverse(false)}>
           <div
             className="bg-gray-900/90 border border-cyan-500/50 rounded-lg p-5 max-w-4xl w-full max-h-[80vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-cyan-300 text-lg">Universe ({universeSize} tickers)</h3>
@@ -1311,7 +1259,7 @@ export default function Dashboard() {
                 </button>
                 <input
                   value={universeSearch}
-                  onChange={(e) => setUniverseSearch(e.target.value)}
+                  onChange={e => setUniverseSearch(e.target.value)}
                   placeholder="Search..."
                   className="px-3 py-1.5 bg-black/70 rounded border border-cyan-700/50 text-sm w-64"
                 />
@@ -1333,7 +1281,7 @@ export default function Dashboard() {
                 <p className="text-center text-gray-600 py-8">No tickers in universe yet — add some! (Check console for fetch errors)</p>
               ) : (
                 <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
-                  {filteredUniverse.map((sym) => (
+                  {filteredUniverse.map(sym => (
                     <div
                       key={sym}
                       onClick={() => handleRemoveSingleTicker(sym)}
@@ -1353,7 +1301,7 @@ export default function Dashboard() {
 
       {/* Main Grid */}
       <div className="flex-1 grid grid-cols-12 gap-2 p-2 overflow-hidden">
-        {/* Left */}
+        {/* Left column */}
         <div className="col-span-7 space-y-2 overflow-y-auto pr-2">
           {/* Core Stats */}
           <div className="grid grid-cols-3 gap-2">
@@ -1502,20 +1450,18 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Right */}
+        {/* Right column - Rockets */}
         <div className="col-span-5 space-y-2 overflow-y-auto">
-          {/* Rockets */}
-          <div className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 max-h-[70vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-2 sticky top-0 bg-gray-900/90 backdrop-blur z-10 p-1">
-              <p className="font-bold text-cyan-300 text-sm">HOT ROCKETS ({rockets.length})</p>
-              {rockets.length > 0 && <Rocket className="w-5 h-5 text-yellow-400 animate-pulse" />}
+          <div className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 max-h-56 overflow-y-auto">
+            <div className="flex justify-between items-center mb-1">
+              <p className="font-bold text-cyan-300 text-xs">HOT ROCKETS ({rockets.length})</p>
+              {rockets.length > 0 && <Zap className="w-5 h-5 text-yellow-400 animate-pulse" />}
             </div>
 
             {rockets.length === 0 ? (
-              <div className="text-center py-12 text-gray-600">
-                <Activity className="w-12 h-12 mx-auto mb-3 opacity-40 animate-pulse" />
-                <p className="text-sm">No rockets detected yet</p>
-                <p className="text-xs mt-2 opacity-70">Click SCAN or wait for poller</p>
+              <div className="text-center py-8 text-gray-600">
+                <Activity className="w-10 h-10 mx-auto mb-2 opacity-40 animate-pulse" />
+                <p className="text-xs">Scanning neural space...</p>
               </div>
             ) : (
               rockets.map((rocket: RocketT, i: number) => {
@@ -1523,59 +1469,45 @@ export default function Dashboard() {
                 const flashing = flashRockets.has(rocket.symbol);
                 const isExpanded = expandedRocket === rocket.symbol;
                 const chartData = rocketCharts[rocket.symbol];
-                const lowConf = rocket.mlConfidence < 70;
 
                 const pos = positions.find(p => p.symbol === rocket.symbol);
                 const hasPosition = pos && Math.abs(pos.qty) > 0;
-                const isBuying = forceTradeLoading === rocket.symbol;
-                const isSelling = forceTradeLoading === `${rocket.symbol}-sell`;
+                const isBuying = rocketLoadingMap[rocket.symbol];
+                const isSelling = rocketLoadingMap[rocket.symbol + '-sell'];
 
                 const rocketSize = perRocketSizes[rocket.symbol] || globalPositionSize;
 
                 return (
                   <div
                     key={i}
-                    className={`p-3 rounded mb-3 border ${
-                      flashing
-                        ? 'bg-yellow-900/40 border-yellow-400 shadow-lg shadow-yellow-500/30'
-                        : lowConf
-                        ? 'bg-gray-800/70 border-gray-600 opacity-80'
-                        : 'bg-gray-800/60 border-gray-700/50'
+                    className={`p-2 rounded mb-2 ${
+                      flashing ? 'bg-yellow-900/30 border border-yellow-400 shadow-lg shadow-yellow-500/20' : 'bg-gray-800/60 border border-gray-700/50'
                     }`}
                   >
-                    <div className="flex justify-between items-center mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl font-bold text-cyan-300">{rocket.symbol}</span>
-                        <span className="text-sm text-gray-400">
-                          Gap +{rocket.gap}% • Conf {rocket.mlConfidence}%
+                    <div onClick={() => toggleRocketChart(rocket.symbol)} className="cursor-pointer flex justify-between items-center">
+                      <div>
+                        <span className="text-lg font-bold text-cyan-300">{rocket.symbol}</span>
+                        <span className="ml-2 text-xs text-gray-400">
+                          +{rocket.gap}% • {rocket.mlConfidence}% conf
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-3 py-1 rounded text-xs font-bold ${action.color}`}>
-                          {action.label}
-                        </span>
-                      </div>
+                      <span className={`px-3 py-1 rounded text-xs font-bold ${action.color}`}>{action.label}</span>
                     </div>
 
                     {isExpanded && chartData && (
-                      <div className="mt-3 h-28">
+                      <div className="mt-2 h-20">
                         <Line data={{ labels: chartData.labels, datasets: chartData.datasets }} options={chartData.options} />
                       </div>
                     )}
 
-                    <div className="text-xs text-gray-400 mt-1">
-                      RVOL: {rocket.rvol || 'N/A'} • Price: ${rocket.price}
-                    </div>
-
-                    {/* Position sizing + trade buttons */}
-                    <div className="flex flex-wrap gap-2 mt-3 items-center justify-end">
+                    <div className="flex flex-wrap gap-2 mt-2 items-center justify-end">
                       <select
                         value={perRocketSizes[rocket.symbol] ?? ''}
-                        onChange={(e) => {
+                        onChange={e => {
                           const val = e.target.value ? Number(e.target.value) : undefined;
                           setPerRocketSizes(prev => ({ ...prev, [rocket.symbol]: val }));
                         }}
-                        className="bg-black border border-cyan-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        className="bg-black border border-cyan-600 rounded px-2 py-1 text-xs text-white"
                         title="Custom size for this rocket (overrides global)"
                       >
                         <option value="">Global ({globalPositionSize})</option>
@@ -1603,7 +1535,7 @@ export default function Dashboard() {
                         className={`px-3 py-1 rounded text-xs font-bold flex items-center gap-1 hover:brightness-110 transition-all disabled:opacity-50 ${
                           hasPosition ? 'bg-gradient-to-r from-red-600 to-rose-700' : 'bg-gray-700 cursor-not-allowed'
                         }`}
-                        title={hasPosition ? `Force SELL entire position (${Math.abs(pos?.qty || 0)})` : "No position to sell"}
+                        title={hasPosition ? "Force SELL entire position" : "No position to sell"}
                       >
                         {isSelling ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowDownToLine className="w-3 h-3" />}
                         SELL
@@ -1615,7 +1547,6 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Logs */}
           <LogsPanel logs={logs} logHeight={logHeight} draggingLogs={draggingLogs} startLogDrag={startLogDrag} />
         </div>
       </div>
