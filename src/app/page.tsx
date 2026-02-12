@@ -1,19 +1,12 @@
 // dashboard.tsx
-// Last updated: February 1, 2026
-// Changes in this version:
-//   - Added fetching of logs from ML and poller services (assuming /logs endpoint returns array of strings)
-//   - Added debug console logs for fetch failures and data received
-//   - Ensured universe modal shows message if universeSymbols empty or not array
-//   - Prefixed all logs with service name and timestamp for better visibility
-//   - Added graceful error handling for CORS and 404 in log fetches (fallback to empty logs)
-//   - Updated poller logs parsing to handle new structured format {logs: [{ts,level,msg}, ...]}
-//   - FIXED: Added x-admin-key header to poller /logs fetch to stop 403 Forbidden
-//   - FIXED: Added x-admin-key header to ML /logs fetch (prevents future 403 after ML /logs deploy)
-//   - Added better 403/404 warnings in console
-//   - No lines removed — all original code preserved and extended for better log reporting and universe handling
-//   - FIXED: Auto-refresh universe size after add/remove
-//   - FIXED: Better error messages for admin key issues
-//   - FIXED: Added refresh button for universe modal
+// Last updated: February 12, 2026
+// Critical: This file MUST be named page.tsx (not page.ts) for JSX to work
+// If Vercel still fails: 
+//   1. Rename src/app/page.ts → src/app/page.tsx locally
+//   2. git add src/app/page.tsx && git rm src/app/page.ts
+//   3. git commit -m "Rename page.ts to page.tsx for JSX support"
+//   4. git push
+// Also ensure tsconfig.json has: "jsx": "preserve"
 
 'use client';
 
@@ -1345,4 +1338,112 @@ export default function Dashboard() {
           </div>
 
           {/* Neural Core */}
-          <div className="bg-gradient-to-r from-purple-
+          <div className="bg-gradient-to-r from-purple-900/50 via-cyan-900/30 to-black border border-purple-500/40 rounded p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Network className="w-5 h-5 text-purple-400" /> <span className="font-bold text-purple-300">NEURAL CORE</span>
+            </div>
+            <div className="grid grid-cols-5 gap-3 text-center">
+              <div>
+                <p className="text-xl font-bold text-cyan-300">{mlMetrics.activeSymbols || 0}</p>
+                <p className="text-xs text-gray-500">Active</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-purple-300">{mlMetrics.memorySize || 0}</p>
+                <p className="text-xs text-gray-500">Memory</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-yellow-300">{mlMetrics.learningSteps || 0}</p>
+                <p className="text-xs text-gray-500">Steps</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-green-300">{Number(mlMetrics?.eps ?? 0).toFixed(3)}</p>
+                <p className="text-xs text-gray-500">ε</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-pink-300">{mlMetrics?.qrQuantiles ?? 200}</p>
+                <p className="text-xs text-gray-500">Quantiles</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ML Bar Viz */}
+          <MLVisualization mlMetrics={mlMetrics} />
+
+          {/* Positions */}
+          <div className="bg-gradient-to-br from-gray-900/80 to-black border border-cyan-500/30 rounded p-2 max-h-40 overflow-y-auto">
+            <p className="font-bold text-cyan-300 text-xs mb-1">POSITIONS ({positions.length})</p>
+            {positions.length === 0 ? (
+              <p className="text-center text-gray-600 text-xs py-6">Flat — awaiting signal</p>
+            ) : (
+              positions.map((p: any, i: number) => {
+                const qty = safeNum(p.qty, 0);
+                const entry = safeNum(p.avgEntryPrice, 0);
+                return (
+                  <div key={i} className="flex justify-between items-center text-xs py-1 border-b border-gray-800/50">
+                    <span className="text-cyan-300 font-mono">{p.symbol}</span>
+                    <span>
+                      {qty} @ ${entry ? entry.toFixed(2) : '0.00'}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right */}
+        <div className="col-span-5 space-y-2 overflow-y-auto">
+          {/* Rockets */}
+          <div className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 max-h-56 overflow-y-auto">
+            <div className="flex justify-between items-center mb-1">
+              <p className="font-bold text-cyan-300 text-xs">HOT ROCKETS ({rockets.length})</p>
+              {rockets.length > 0 && <Zap className="w-5 h-5 text-yellow-400 animate-pulse" />}
+            </div>
+
+            {rockets.length === 0 ? (
+              <div className="text-center py-8 text-gray-600">
+                <Activity className="w-10 h-10 mx-auto mb-2 opacity-40 animate-pulse" />
+                <p className="text-xs">Scanning neural space...</p>
+              </div>
+            ) : (
+              rockets.map((rocket: RocketT, i: number) => {
+                const action = getActionDetails(rocket.mlAction);
+                const flashing = flashRockets.has(rocket.symbol);
+                const isExpanded = expandedRocket === rocket.symbol;
+                const chartData = rocketCharts[rocket.symbol];
+
+                return (
+                  <div
+                    key={i}
+                    className={`p-2 rounded mb-2 ${
+                      flashing ? 'bg-yellow-900/30 border border-yellow-400 shadow-lg shadow-yellow-500/20' : 'bg-gray-800/60 border border-gray-700/50'
+                    }`}
+                  >
+                    <div onClick={() => toggleRocketChart(rocket.symbol)} className="cursor-pointer flex justify-between items-center">
+                      <div>
+                        <span className="text-lg font-bold text-cyan-300">{rocket.symbol}</span>
+                        <span className="ml-2 text-xs text-gray-400">
+                          +{rocket.gap}% • {rocket.mlConfidence}% conf
+                        </span>
+                      </div>
+                      <span className={`px-3 py-1 rounded text-xs font-bold ${action.color}`}>{action.label}</span>
+                    </div>
+
+                    {isExpanded && chartData && (
+                      <div className="mt-2 h-20">
+                        <Line data={{ labels: chartData.labels, datasets: chartData.datasets }} options={chartData.options} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Logs */}
+          <LogsPanel logs={logs} logHeight={logHeight} draggingLogs={draggingLogs} startLogDrag={startLogDrag} />
+        </div>
+      </div>
+    </div>
+  );
+}
