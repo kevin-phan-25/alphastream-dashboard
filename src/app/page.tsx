@@ -1,10 +1,8 @@
 // dashboard.tsx
 // Last updated: February 12, 2026
 // Critical: This file MUST be named page.tsx (not page.ts) for JSX to work
-// New features to force trades:
-//   - "FORCE BUY" button per rocket → places 1-share bracket buy immediately
-//   - "FORCE SCAN + AUTO-TRADE ALL" button in header → scans then buys every rocket
-//   - Lowered visual confidence threshold display so more rockets are visible
+// New: FORCE SELL button per rocket (sells entire position or 1 share if flat)
+//       Visual feedback + loading spinner for forced trades
 
 'use client';
 
@@ -37,7 +35,9 @@ import {
   BarChart3,
   AlertOctagon,
   RefreshCw,
-  Rocket
+  Rocket,
+  ArrowDownToLine,
+  ArrowUpFromLine
 } from 'lucide-react';
 
 import {
@@ -253,14 +253,13 @@ const Header = memo(
           {scanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Activity className="w-3 h-3" />} {scanning ? 'SCANNING...' : 'SCAN'}
         </button>
 
-        {/* New: Force scan + try to buy everything */}
         <button
           onClick={onForceScanAndTradeAll}
           disabled={scanning}
           className="px-4 py-1.5 bg-gradient-to-r from-pink-600 to-rose-700 rounded text-xs font-bold flex items-center gap-1 hover:brightness-110 transition-all disabled:opacity-50"
           title="Scan now + force buy every detected rocket"
         >
-          <Rocket className="w-3 h-3" /> FORCE ALL
+          <Rocket className="w-3 h-3" /> FORCE ALL BUY
         </button>
       </div>
     </header>
@@ -359,11 +358,11 @@ const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) =>
 // --------------------
 export default function Dashboard() {
   const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
-  const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
+  const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app'; // Adjust if different
   const POLLER_BASE = 'https://low-float-discovery-poller-service-1017433009054.us-east1.run.app';
 
   const FINNHUB_KEY = process.env.NEXT_PUBLIC_FINNHUB_KEY;
-  const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'default-admin-key-for-testing';
+  const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'default-admin-key-for-testing'; // ← CHANGE THIS in .env.local or Vercel
 
   const [core, setCore] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -418,6 +417,8 @@ export default function Dashboard() {
 
   const [logs, setLogs] = useState<string[]>([]);
 
+  const [forceTradeLoading, setForceTradeLoading] = useState<string | null>(null); // symbol or symbol-sell
+
   const addLogLine = useCallback((line: string) => {
     const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setLogs((prev) => {
@@ -446,7 +447,7 @@ export default function Dashboard() {
     return mlHealth.ok;
   }, [mlHealth]);
 
-  // Direct core request helper
+  // Direct core request helper — FIXED: always send admin key
   const coreRequest = useCallback(
     async (method: 'GET' | 'POST', path: string, body?: any) => {
       try {
@@ -455,7 +456,7 @@ export default function Dashboard() {
           timeout: method === 'POST' ? 90000 : 20000,
           headers: {
             'Content-Type': 'application/json',
-            'x-admin-key': ADMIN_KEY
+            'x-admin-key': ADMIN_KEY // ← Always include admin key
           }
         };
 
@@ -483,6 +484,7 @@ export default function Dashboard() {
     []
   );
 
+  // Add poller request if needed
   const pollerRequest = useCallback(
     async (method: 'GET' | 'POST', path: string, body?: any) => {
       try {
@@ -559,6 +561,7 @@ export default function Dashboard() {
           setLiveRockets([]);
         }
 
+        // Add to logs from core
         let rawLogs = [];
         if (Array.isArray(data.tradeLogTail)) rawLogs = data.tradeLogTail;
         else if (Array.isArray(data.eventLogTail)) rawLogs = data.eventLogTail;
@@ -655,84 +658,477 @@ export default function Dashboard() {
     }
   }, [panicClosing, fetchCoreData, coreRequest]);
 
-  // New: Force scan + try to buy every rocket
+  const updateAddSuggestions = useCallback(
+    (input: string) => {
+      const list: string[] = Array.isArray(core.universeSymbols) ? core.universeSymbols : [];
+      if (!input.trim()) {
+        setAddSuggestions([]);
+        setShowAddSuggestions(false);
+        return;
+      }
+      const query = input.toUpperCase().trim().replace(/[^A-Z.]/g, '');
+      const matches = list.filter((sym: string) => sym.startsWith(query)).slice(0, 8);
+      setAddSuggestions(matches);
+      setShowAddSuggestions(matches.length > 0);
+    },
+    [core.universeSymbols]
+  );
+
+  const updateRemoveSuggestions = useCallback(
+    (input: string) => {
+      const list: string[] = Array.isArray(core.universeSymbols) ? core.universeSymbols : [];
+      if (!input.trim()) {
+        setRemoveSuggestions([]);
+        setShowRemoveSuggestions(false);
+        return;
+      }
+      const query = input.toUpperCase().trim().replace(/[^A-Z.]/g, '');
+      const matches = list.filter((sym: string) => sym.startsWith(query)).slice(0, 8);
+      setRemoveSuggestions(matches);
+      setShowRemoveSuggestions(matches.length > 0);
+    },
+    [core.universeSymbols]
+  );
+
+  const handleAddTickers = useCallback(async () => {
+    const validTickers = validateAndCleanTickers(tickerInput);
+    if (validTickers.length === 0) {
+      setAddMessage('Invalid tickers');
+      setTimeout(() => setAddMessage(''), 3000);
+      return;
+    }
+
+    setAddingTickers(true);
+    setAddMessage('');
+
+    try {
+      const res = await coreRequest('POST', '/admin/add-ticker', { symbols: validTickers.join(' ') });
+      setAddMessage(`+${validTickers.length} added`);
+      setTickerInput('');
+      setAddSuggestions([]);
+      setShowAddSuggestions(false);
+      setTimeout(() => fetchCoreData(true), 600);
+    } catch (e: any) {
+      setAddMessage(`Failed: ${e.message}`);
+      console.error('[ADD TICKERS] Failed:', e);
+    } finally {
+      setAddingTickers(false);
+      setTimeout(() => setAddMessage(''), 3500);
+    }
+  }, [tickerInput, fetchCoreData, coreRequest]);
+
+  const handleRemoveTickers = useCallback(async () => {
+    const validTickers = validateAndCleanTickers(removeTickerInput);
+    if (validTickers.length === 0) {
+      setRemoveMessage('Invalid tickers');
+      setTimeout(() => setRemoveMessage(''), 3000);
+      return;
+    }
+
+    setRemovingTickers(true);
+    setRemoveMessage('');
+
+    try {
+      const res = await coreRequest('POST', '/admin/remove-ticker', { symbols: validTickers.join(' ') });
+      setRemoveMessage(`-${validTickers.length} removed`);
+      setRemoveTickerInput('');
+      setRemoveSuggestions([]);
+      setShowRemoveSuggestions(false);
+      setTimeout(() => fetchCoreData(true), 600);
+    } catch (e: any) {
+      setRemoveMessage(`Failed: ${e.message}`);
+      console.error('[REMOVE TICKERS] Failed:', e);
+    } finally {
+      setRemovingTickers(false);
+      setTimeout(() => setRemoveMessage(''), 3500);
+    }
+  }, [removeTickerInput, fetchCoreData, coreRequest]);
+
+  const handleRemoveSingleTicker = useCallback(
+    async (symbol: string) => {
+      if (!window.confirm(`Remove ${symbol} from universe?`)) return;
+      try {
+        await coreRequest('POST', '/admin/remove-ticker', { symbols: symbol });
+        setTimeout(() => fetchCoreData(true), 600);
+      } catch (e) {
+        console.error('[REMOVE SINGLE] Failed:', e);
+      }
+    },
+    [fetchCoreData, coreRequest]
+  );
+
+  const exportUniverse = useCallback(() => {
+    const symbols = (Array.isArray(core.universeSymbols) ? core.universeSymbols : []).join(' ');
+    navigator.clipboard.writeText(symbols);
+    setMessage('Universe copied to clipboard');
+    setTimeout(() => setMessage(''), 3000);
+  }, [core.universeSymbols]);
+
+  const fetchRocketChart = useCallback(
+    async (symbol: string) => {
+      if (rocketCharts[symbol] || !FINNHUB_KEY) return;
+      try {
+        const end = Math.floor(Date.now() / 1000);
+        const start = end - 86400;
+        const res = await axios.get(
+          `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(symbol)}&resolution=1&from=${start}&to=${end}&token=${FINNHUB_KEY}`,
+          { timeout: 12000 }
+        );
+
+        if (res.data?.s === 'ok' && Array.isArray(res.data?.t) && res.data.t.length > 0) {
+          const labels = res.data.t.map(() => '');
+          const prices = res.data.c || [];
+          const chartData: ChartData = {
+            labels,
+            datasets: [
+              {
+                data: prices,
+                borderColor: '#00ffff',
+                backgroundColor: 'rgba(0,255,255,0.08)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+                borderWidth: 2
+              }
+            ],
+            options: {
+              elements: { line: { borderWidth: 2 } },
+              plugins: { legend: { display: false }, tooltip: { enabled: false } },
+              scales: { x: { display: false }, y: { display: false } }
+            }
+          };
+          setRocketCharts((prev) => ({ ...prev, [symbol]: chartData }));
+        }
+      } catch {
+        // silent
+      }
+    },
+    [FINNHUB_KEY, rocketCharts]
+  );
+
+  const toggleRocketChart = useCallback(
+    (symbol: string) => {
+      if (expandedRocket === symbol) {
+        setExpandedRocket(null);
+      } else {
+        setExpandedRocket(symbol);
+        fetchRocketChart(symbol);
+      }
+    },
+    [expandedRocket, fetchRocketChart]
+  );
+
+  const startLogDrag = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDraggingLogs(true);
+    dragStartYRef.current = e.clientY;
+    dragStartHeightRef.current = logHeight;
+  }, [logHeight]);
+
+  useEffect(() => {
+    if (!draggingLogs) return;
+
+    const onMove = (e: MouseEvent) => {
+      const dy = e.clientY - dragStartYRef.current;
+      const next = Math.max(logMinHeight, Math.min(logMaxHeight, dragStartHeightRef.current + dy));
+      setLogHeight(next);
+    };
+
+    const onUp = () => setDraggingLogs(false);
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [draggingLogs]);
+
+  useEffect(() => {
+    console.log('[DASHBOARD] Mounting - initial fetch');
+    fetchCoreData(true);
+    const interval = setInterval(() => {
+      console.log('[DASHBOARD] Interval fetch');
+      fetchCoreData();
+    }, 8000);
+    return () => {
+      console.log('[DASHBOARD] Unmounting');
+      clearInterval(interval);
+    };
+  }, [fetchCoreData]);
+
+  // Fetch ML data and logs — FIXED: added x-admin-key header
+  useEffect(() => {
+    const fetchMLData = async () => {
+      try {
+        const [healthRes, metricsRes, logsRes] = await Promise.all([
+          axios.get(`${ML_BASE}/health`, { timeout: 5000 }),
+          axios.get(`${ML_BASE}/metrics`, { timeout: 5000 }),
+          axios.get(`${ML_BASE}/logs`, {
+            timeout: 5000,
+            headers: {
+              'x-admin-key': ADMIN_KEY   // ← Prevents 403 after ML /logs is deployed
+            }
+          }).catch((err) => {
+            console.warn('[ML LOGS FETCH] Failed:', err.message, err.response?.status);
+            if (err.response?.status === 403) {
+              console.error('[ML] 403 Forbidden — check NEXT_PUBLIC_ADMIN_KEY in Vercel matches ADMIN_KEY in Cloud Run ML service');
+            } else if (err.response?.status === 404) {
+              console.warn('[ML] 404 Not Found — /logs endpoint not deployed yet on ML service');
+            }
+            return { data: [] };
+          })
+        ]);
+        console.log('[DASHBOARD] ML health received:', healthRes.data);
+        console.log('[DASHBOARD] ML metrics received:', metricsRes.data);
+        console.log('[DASHBOARD] ML logs received:', logsRes.data);
+        const mlLogs = Array.isArray(logsRes.data) ? logsRes.data : [];
+        mlLogs.forEach((log: string) => addLogLine(`[ML] ${log}`));
+      } catch (e) {
+        console.error('[ML FETCH] Error:', e);
+      }
+    };
+    fetchMLData();
+    const mlInterval = setInterval(fetchMLData, 30000);
+    return () => clearInterval(mlInterval);
+  }, [addLogLine]);
+
+  // Fetch Poller data and logs — FIXED: added x-admin-key header to stop 403
+  useEffect(() => {
+    const fetchPollerData = async () => {
+      try {
+        const [healthRes, logsRes] = await Promise.all([
+          axios.get(`${POLLER_BASE}/health`, { timeout: 5000 }).catch(() => ({ data: { ok: false } })),
+          axios.get(`${POLLER_BASE}/logs`, {
+            timeout: 5000,
+            headers: {
+              'x-admin-key': ADMIN_KEY   // ← THIS FIXES THE 403 FORBIDDEN
+            }
+          }).catch((err) => {
+            console.warn('[POLLER LOGS FETCH] Failed:', err.message, err.code, err.response?.status);
+            if (err.response?.status === 403) {
+              console.error('[POLLER] 403 Forbidden — check that NEXT_PUBLIC_ADMIN_KEY in Vercel matches ADMIN_KEY in Cloud Run Poller service');
+            } else if (err.response?.status === 404) {
+              console.warn('[POLLER] 404 Not Found — /logs endpoint missing on poller');
+            }
+            return { data: { logs: [] } };
+          })
+        ]);
+        console.log('[DASHBOARD] Poller health received:', healthRes.data);
+        console.log('[DASHBOARD] Poller logs received:', logsRes.data);
+
+        // Handle new structured format
+        let pollerLogEntries = [];
+        if (logsRes.data && typeof logsRes.data === 'object' && Array.isArray(logsRes.data.logs)) {
+          pollerLogEntries = logsRes.data.logs;
+        } else if (Array.isArray(logsRes.data)) {
+          pollerLogEntries = logsRes.data.map((line: string) => ({ msg: line }));
+        }
+
+        pollerLogEntries.forEach((entry: any) => {
+          const tsPart = entry.ts ? entry.ts.slice(11, 19) : '';
+          const levelPart = entry.level ? `[${entry.level}]` : '';
+          const msgPart = entry.msg || String(entry);
+          const formatted = tsPart ? `${tsPart} ${levelPart} ${msgPart}` : `${levelPart} ${msgPart}`;
+          addLogLine(`[POLLER] ${formatted}`);
+        });
+
+        if (pollerLogEntries.length === 0) {
+          console.log('[POLLER] No logs returned in this interval');
+        }
+      } catch (e) {
+        console.error('[POLLER FETCH] Error:', e);
+      }
+    };
+    fetchPollerData();
+    const pollerInterval = setInterval(fetchPollerData, 30000);
+    return () => clearInterval(pollerInterval);
+  }, [addLogLine]);
+
+  // Derived values
+  const universeSize = safeNum(core.universeSize, 0);
+  const equity = safeNum(core.equity, 0);
+  const buyingPower = safeNum(core.buyingPower, 0);
+  const dailyDrawdown = safeNum(core.dailyDrawdown, 0);
+  const realizedDailyPnL = safeNum(core.realizedDailyPnL, 0);
+
+  const DAILY_LOSS_LIMIT = 1500;
+  const lossLimitHit = Math.abs(dailyDrawdown) >= DAILY_LOSS_LIMIT;
+
+  const positions: PositionT[] = useMemo(() => (Array.isArray(core.positions) ? core.positions : []), [core.positions]);
+  const rockets: RocketT[] = useMemo(
+    () => (liveRockets.length > 0 ? liveRockets : Array.isArray(core.rockets) ? core.rockets : []),
+    [core.rockets, liveRockets]
+  );
+
+  const totalExposure = useMemo(() => positions.reduce((sum, pos: any) => sum + safeNum(pos.marketValue, 0), 0), [positions]);
+  const exposurePct = useMemo(() => (equity > 0 ? ((totalExposure / equity) * 100).toFixed(1) : '0.0'), [equity, totalExposure]);
+
+  const exposureDoughnut = useMemo(
+    () => ({
+      labels: ['Exposure', 'Cash'],
+      datasets: [
+        {
+          data: [parseFloat(exposurePct), 100 - parseFloat(exposurePct)],
+          backgroundColor: ['#00ffff', '#0a0a0a'],
+          borderWidth: 0,
+          cutout: '80%'
+        }
+      ]
+    }),
+    [exposurePct]
+  );
+
+  const equityChartData = useMemo(
+    () => ({
+      labels: equityHistory.map((d) => d.time),
+      datasets: [
+        {
+          data: equityHistory.map((d) => d.equity),
+          borderColor: '#00ffff',
+          backgroundColor: 'rgba(0,255,255,0.1)',
+          fill: true,
+          tension: 0.5,
+          pointRadius: 0
+        }
+      ]
+    }),
+    [equityHistory]
+  );
+
+  const realizedPnLChartData = useMemo(
+    () => ({
+      labels: realizedPnLHistory.map((d) => d.time),
+      datasets: [
+        {
+          data: realizedPnLHistory.map((d) => d.pnl),
+          borderColor: realizedDailyPnL >= 0 ? '#00ff88' : '#ff3366',
+          backgroundColor: 'rgba(0,255,136,0.08)',
+          fill: true,
+          tension: 0.5,
+          pointRadius: 0
+        }
+      ]
+    }),
+    [realizedPnLHistory, realizedDailyPnL]
+  );
+
+  const rawUniverse: string[] = useMemo(() => {
+    if (Array.isArray(core.universeSymbols)) return core.universeSymbols;
+    return [];
+  }, [core.universeSymbols]);
+
+  const filteredUniverse = useMemo(() => {
+    const q = universeSearch.toLowerCase().trim();
+    return rawUniverse
+      .filter((sym) => sym.toLowerCase().includes(q))
+      .sort();
+  }, [rawUniverse, universeSearch]);
+
+  const getActionDetails = useCallback((action: number = 2) => {
+    const labels = ['STRONG BUY', 'BUY', 'HOLD', 'NEUTRAL', 'SELL'];
+    const colors = [
+      'text-green-400 bg-green-900/70',
+      'text-cyan-400 bg-cyan-900/70',
+      'text-yellow-400 bg-yellow-900/50',
+      'text-gray-400 bg-gray-800/70',
+      'text-red-400 bg-red-900/70'
+    ];
+    return { label: labels[action] || 'HOLD', color: colors[action] || colors[2] };
+  }, []);
+
+  // New: Force scan + buy every rocket
   const forceScanAndTradeAll = useCallback(async () => {
     if (scanning) return;
     setScanning(true);
-    setMessage('Forcing full scan + auto-buy all rockets...');
+    setMessage('Forcing scan + buy all rockets...');
 
     try {
-      // Step 1: Force scan
       await coreRequest('POST', '/admin/scan', {});
-
-      // Step 2: Wait briefly for rockets to populate
-      await new Promise(resolve => setTimeout(resolve, 4000));
-
-      // Step 3: Fetch latest data
+      await new Promise(r => setTimeout(r, 4000));
       await fetchCoreData(true);
 
-      // Step 4: Force buy every visible rocket (qty=1)
       if (liveRockets.length === 0) {
-        setMessage('No rockets found after scan');
+        setMessage('No rockets after scan');
         return;
       }
 
-      setMessage(`Buying ${liveRockets.length} rockets (1 share each)...`);
+      setMessage(`Buying ${liveRockets.length} rockets...`);
 
-      for (const rocket of liveRockets) {
+      for (const r of liveRockets) {
         try {
-          const symbol = rocket.symbol;
-          const qty = 1;
-
-          const res = await coreRequest('POST', '/admin/force-buy-rocket', {
-            symbol,
-            qty,
-            comment: 'dashboard_force_all'
+          await coreRequest('POST', '/admin/force-buy-rocket', {
+            symbol: r.symbol,
+            qty: 1,
+            comment: 'force_all_dashboard'
           });
-
-          addLogLine(`[FORCE-ALL] Buy placed for ${symbol} qty=${qty} → ${res.data.message || 'OK'}`);
-        } catch (err: any) {
-          addLogLine(`[FORCE-ALL] Failed ${rocket.symbol}: ${err.message}`);
+          addLogLine(`[FORCE-ALL] Buy ${r.symbol}`);
+        } catch (e) {
+          addLogLine(`[FORCE-ALL] Failed ${r.symbol}: ${e.message}`);
         }
       }
 
-      setMessage(`Forced buy attempt complete for ${liveRockets.length} rockets`);
+      setMessage('Force buy all complete');
       setTimeout(() => fetchCoreData(true), 8000);
-    } catch (err: any) {
-      setMessage(`Force all failed: ${err.message}`);
-      console.error('[FORCE-ALL]', err);
+    } catch (e) {
+      setMessage(`Force all failed: ${e.message}`);
     } finally {
       setScanning(false);
       setTimeout(() => setMessage(''), 8000);
     }
-  }, [scanning, fetchCoreData, coreRequest, liveRockets, addLogLine]);
+  }, [scanning, liveRockets, coreRequest, fetchCoreData, addLogLine]);
 
-  // New: Force buy single rocket from dashboard
+  // Force buy single rocket
   const forceBuyRocket = useCallback(async (rocket: RocketT) => {
-    if (!window.confirm(`Force BUY 1 share of ${rocket.symbol} now? (bracket order)`)) return;
+    if (!window.confirm(`Force BUY 1 share ${rocket.symbol}?`)) return;
 
-    setMessage(`Forcing BUY ${rocket.symbol}...`);
-
+    setForceTradeLoading(rocket.symbol);
     try {
       const res = await coreRequest('POST', '/admin/force-buy-rocket', {
         symbol: rocket.symbol,
         qty: 1,
-        comment: 'dashboard_force_single'
+        comment: 'dashboard_force_buy'
       });
-
-      setMessage(`Buy placed for ${rocket.symbol}: ${res.data.message || 'OK'}`);
-      addLogLine(`[FORCE-BUY] Success ${rocket.symbol}: ${res.data.message || 'OK'}`);
+      setMessage(`BUY placed: ${rocket.symbol}`);
+      addLogLine(`[FORCE-BUY] ${rocket.symbol} OK`);
       setTimeout(() => fetchCoreData(true), 6000);
-    } catch (err: any) {
-      setMessage(`Buy failed for ${rocket.symbol}: ${err.message}`);
-      console.error('[FORCE-BUY]', err);
-      addLogLine(`[FORCE-BUY] Failed ${rocket.symbol}: ${err.message}`);
+    } catch (e) {
+      setMessage(`BUY failed ${rocket.symbol}: ${e.message}`);
+      addLogLine(`[FORCE-BUY] Failed ${rocket.symbol}`);
+    } finally {
+      setForceTradeLoading(null);
     }
   }, [coreRequest, fetchCoreData, addLogLine]);
 
-  // ... (all your other functions: updateAddSuggestions, handleAddTickers, etc. remain unchanged)
+  // Force sell single rocket/position
+  const forceSellRocket = useCallback(async (rocket: RocketT) => {
+    const pos = positions.find(p => p.symbol === rocket.symbol);
+    const qty = pos ? Math.abs(pos.qty) : 1;
 
+    if (!window.confirm(`Force SELL ${qty} ${rocket.symbol}?`)) return;
+
+    setForceTradeLoading(`${rocket.symbol}-sell`);
+    try {
+      const res = await coreRequest('POST', '/admin/force-sell-rocket', {
+        symbol: rocket.symbol,
+        qty,
+        comment: 'dashboard_force_sell'
+      });
+      setMessage(`SELL placed: ${rocket.symbol}`);
+      addLogLine(`[FORCE-SELL] ${rocket.symbol} qty=${qty} OK`);
+      setTimeout(() => fetchCoreData(true), 6000);
+    } catch (e) {
+      setMessage(`SELL failed ${rocket.symbol}: ${e.message}`);
+      addLogLine(`[FORCE-SELL] Failed ${rocket.symbol}`);
+    } finally {
+      setForceTradeLoading(null);
+    }
+  }, [positions, coreRequest, fetchCoreData, addLogLine]);
+
+  // --------------------
   // Render
+  // --------------------
   if (loading) {
     return (
       <div className="h-screen bg-black flex items-center justify-center text-cyan-400">
@@ -1097,17 +1493,16 @@ export default function Dashboard() {
         {/* Right */}
         <div className="col-span-5 space-y-2 overflow-y-auto">
           {/* Rockets */}
-          <div className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 max-h-[70vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-2 sticky top-0 bg-gray-900/90 backdrop-blur z-10 p-1">
-              <p className="font-bold text-cyan-300 text-sm">HOT ROCKETS ({rockets.length})</p>
-              {rockets.length > 0 && <Rocket className="w-5 h-5 text-yellow-400 animate-pulse" />}
+          <div className="bg-gradient-to-br from-gray-900/90 to-black border border-cyan-500/30 rounded p-2 max-h-56 overflow-y-auto">
+            <div className="flex justify-between items-center mb-1">
+              <p className="font-bold text-cyan-300 text-xs">HOT ROCKETS ({rockets.length})</p>
+              {rockets.length > 0 && <Zap className="w-5 h-5 text-yellow-400 animate-pulse" />}
             </div>
 
             {rockets.length === 0 ? (
-              <div className="text-center py-12 text-gray-600">
-                <Activity className="w-12 h-12 mx-auto mb-3 opacity-40 animate-pulse" />
-                <p className="text-sm">No rockets detected yet</p>
-                <p className="text-xs mt-2 opacity-70">Click SCAN or wait for poller</p>
+              <div className="text-center py-8 text-gray-600">
+                <Activity className="w-10 h-10 mx-auto mb-2 opacity-40 animate-pulse" />
+                <p className="text-xs">Scanning neural space...</p>
               </div>
             ) : (
               rockets.map((rocket: RocketT, i: number) => {
@@ -1115,49 +1510,57 @@ export default function Dashboard() {
                 const flashing = flashRockets.has(rocket.symbol);
                 const isExpanded = expandedRocket === rocket.symbol;
                 const chartData = rocketCharts[rocket.symbol];
-                const lowConf = rocket.mlConfidence < 70;
+
+                const pos = positions.find(p => p.symbol === rocket.symbol);
+                const hasPosition = pos && Math.abs(pos.qty) > 0;
+                const isBuying = forceTradeLoading === rocket.symbol;
+                const isSelling = forceTradeLoading === `${rocket.symbol}-sell`;
 
                 return (
                   <div
                     key={i}
-                    className={`p-3 rounded mb-3 border ${
-                      flashing
-                        ? 'bg-yellow-900/40 border-yellow-400 shadow-lg shadow-yellow-500/30'
-                        : lowConf
-                        ? 'bg-gray-800/70 border-gray-600 opacity-80'
-                        : 'bg-gray-800/60 border-gray-700/50'
+                    className={`p-2 rounded mb-2 ${
+                      flashing ? 'bg-yellow-900/30 border border-yellow-400 shadow-lg shadow-yellow-500/20' : 'bg-gray-800/60 border border-gray-700/50'
                     }`}
                   >
-                    <div className="flex justify-between items-center mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl font-bold text-cyan-300">{rocket.symbol}</span>
-                        <span className="text-sm text-gray-400">
-                          Gap +{rocket.gap}% • Conf {rocket.mlConfidence}%
+                    <div onClick={() => toggleRocketChart(rocket.symbol)} className="cursor-pointer flex justify-between items-center">
+                      <div>
+                        <span className="text-lg font-bold text-cyan-300">{rocket.symbol}</span>
+                        <span className="ml-2 text-xs text-gray-400">
+                          +{rocket.gap}% • {rocket.mlConfidence}% conf
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-3 py-1 rounded text-xs font-bold ${action.color}`}>
-                          {action.label}
-                        </span>
-                        {/* New: Force buy button per rocket */}
-                        <button
-                          onClick={() => forceBuyRocket(rocket)}
-                          className="px-3 py-1 bg-gradient-to-r from-green-600 to-emerald-700 rounded text-xs font-bold flex items-center gap-1 hover:brightness-110 transition-all"
-                          title="Force 1-share bracket BUY now"
-                        >
-                          <Zap className="w-3 h-3" /> BUY NOW
-                        </button>
-                      </div>
+                      <span className={`px-3 py-1 rounded text-xs font-bold ${action.color}`}>{action.label}</span>
                     </div>
 
                     {isExpanded && chartData && (
-                      <div className="mt-3 h-28">
+                      <div className="mt-2 h-20">
                         <Line data={{ labels: chartData.labels, datasets: chartData.datasets }} options={chartData.options} />
                       </div>
                     )}
 
-                    <div className="text-xs text-gray-400 mt-1">
-                      RVOL: {rocket.rvol || 'N/A'} • Price: ${rocket.price}
+                    <div className="flex gap-2 mt-2 justify-end">
+                      <button
+                        onClick={() => forceBuyRocket(rocket)}
+                        disabled={isBuying || isSelling}
+                        className="px-3 py-1 bg-gradient-to-r from-green-600 to-emerald-700 rounded text-xs font-bold flex items-center gap-1 hover:brightness-110 transition-all disabled:opacity-50"
+                        title="Force 1-share bracket BUY now"
+                      >
+                        {isBuying ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowUpFromLine className="w-3 h-3" />}
+                        BUY
+                      </button>
+
+                      <button
+                        onClick={() => forceSellRocket(rocket)}
+                        disabled={isBuying || isSelling || !hasPosition}
+                        className={`px-3 py-1 rounded text-xs font-bold flex items-center gap-1 hover:brightness-110 transition-all disabled:opacity-50 ${
+                          hasPosition ? 'bg-gradient-to-r from-red-600 to-rose-700' : 'bg-gray-700 cursor-not-allowed'
+                        }`}
+                        title={hasPosition ? "Force SELL entire position" : "No position to sell"}
+                      >
+                        {isSelling ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowDownToLine className="w-3 h-3" />}
+                        SELL
+                      </button>
                     </div>
                   </div>
                 );
