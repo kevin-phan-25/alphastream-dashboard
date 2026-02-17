@@ -640,18 +640,14 @@ export default function Dashboard() {
       try {
         console.log('[TEST-TRADE] Sending POST /admin/force-test-trade with admin key');
         const res = await coreRequest('POST', '/admin/force-test-trade', {});
-        console.log('[TEST-TRADE] Success — full response:', res.data);
-        setMessage(res.data.message || 'Test trade completed!');
+        const data = res.data || {};
+        console.log('[TEST-TRADE] Success — full response:', data);
+        setMessage(data.message || 'Test trade completed!');
         setTimeout(() => fetchCoreData(true), 10000);
       } catch (err: any) {
-        const status = err.response?.status;
-        const serverError = getErrorMessage(err);
-        console.error('[TEST-TRADE] Failed:', {
-          status,
-          message: serverError,
-          fullError: err
-        });
-        setMessage(`Test trade failed: ${status || 'unknown'} - ${serverError}`);
+        const serverError = err.response?.data?.error || err.response?.data?.message || getErrorMessage(err);
+        setMessage(`Test trade failed: ${serverError}`);
+        console.error('[TEST-TRADE] Failed:', err, err.response?.data);
       } finally {
         setTimeout(() => setMessage(''), 15000);
       }
@@ -669,11 +665,19 @@ export default function Dashboard() {
 
     try {
       const res = await coreRequest('POST', '/admin/force-close', {});
-      setPanicMessage(res?.data?.message || 'EXECUTED');
+      const data = res.data || {};
+
+      if (data.ok) {
+        setPanicMessage(`SUCCESS: ${data.message || 'All positions closed'}`);
+      } else {
+        setPanicMessage(`FAILED: ${data.message || 'Unknown error'} — ${data.error || ''}`);
+      }
+
       setTimeout(() => fetchCoreData(true), 800);
     } catch (err: any) {
-      setPanicMessage(`FAILED: ${getErrorMessage(err)}`);
-      console.error('[PANIC] Failed:', err);
+      const serverError = err.response?.data?.error || err.response?.data?.message || getErrorMessage(err);
+      setPanicMessage(`PANIC FAILED: ${serverError}`);
+      console.error('[PANIC] Failed:', err, err.response?.data);
     } finally {
       setPanicClosing(false);
       setTimeout(() => setPanicMessage(''), 10000);
@@ -1212,7 +1216,13 @@ export default function Dashboard() {
       />
 
       {message && <div className="shrink-0 px-3 py-1 bg-gradient-to-r from-cyan-600/80 to-purple-600/80 text-center text-xs font-bold">{message}</div>}
-      {panicMessage && <div className="shrink-0 px-3 py-1 bg-gradient-to-r from-red-600/90 to-pink-700/90 text-center text-xs font-bold">{panicMessage}</div>}
+      {panicMessage && (
+        <div className={`shrink-0 px-3 py-2 text-center text-sm font-bold border-b ${
+          panicMessage.includes('SUCCESS') ? 'bg-green-900/70 border-green-500' : 'bg-red-900/70 border-red-500'
+        }`}>
+          {panicMessage}
+        </div>
+      )}
 
       {/* Add Form */}
       {showAddForm && (
