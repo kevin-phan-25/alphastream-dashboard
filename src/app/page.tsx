@@ -1,5 +1,14 @@
 'use client';
 
+// ─────────────────────────────────────────
+// Dashboard — alphastream-core frontend
+// Last major update: February 18, 2026
+// Fixes in this version:
+// - 2026-02-18: Fixed TS error "Parameter 'r' implicitly has an 'any' type"
+//   → Added explicit type (r: RocketT) in rockets.map
+// - Previous: Reduced verbosity, added forceMarket: true to panic close
+// ─────────────────────────────────────────
+
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
@@ -165,7 +174,7 @@ export default function Dashboard() {
     try {
       const res = await axios.post(`${CORE_BASE}/admin/force-close`, {
         all: true,
-        forceMarket: true  // ← forces pure MARKET orders
+        forceMarket: true
       }, {
         headers: { 'x-admin-key': process.env.NEXT_PUBLIC_ADMIN_KEY || 'default' }
       });
@@ -294,8 +303,8 @@ export default function Dashboard() {
               <p className="text-gray-500 text-center py-4">No open positions</p>
             ) : (
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {positions.map((p: PositionT) => (
-                  <div key={p.symbol} className="flex justify-between text-sm">
+                {positions.map((p: PositionT, i: number) => (
+                  <div key={i} className="flex justify-between text-sm">
                     <span className="font-mono">{p.symbol}</span>
                     <span>{p.qty} @ ${safeNum(p.avgEntryPrice).toFixed(2)}</span>
                   </div>
@@ -325,7 +334,7 @@ export default function Dashboard() {
               <p className="text-gray-500 text-center py-6">Scanning...</p>
             ) : (
               <div className="space-y-2">
-                {rockets.map(r => (
+                {rockets.map((r: RocketT) => (
                   <div key={r.symbol} className="flex justify-between items-center bg-gray-800/50 p-2 rounded">
                     <div>
                       <span className="font-bold text-cyan-300">{r.symbol}</span>
@@ -335,13 +344,13 @@ export default function Dashboard() {
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => {/* force buy single */}}
+                        onClick={() => { /* TODO: implement force buy single rocket */ }}
                         className="px-3 py-1 bg-green-700 rounded text-xs hover:bg-green-600"
                       >
                         BUY
                       </button>
                       <button
-                        onClick={() => {/* force sell single */}}
+                        onClick={() => { /* TODO: implement force sell single rocket */ }}
                         className="px-3 py-1 bg-red-700 rounded text-xs hover:bg-red-600"
                       >
                         SELL
