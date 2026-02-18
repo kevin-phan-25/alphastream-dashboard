@@ -6,6 +6,8 @@
 // Fixes in this version:
 // - 2026-02-18: Fixed TS error "Parameter 'r' implicitly has an 'any' type"
 //   → Added explicit type (r: RocketT) in rockets.map
+// - 2026-02-18: Fixed client-side exception (hydration mismatch)
+//   → Added proper keys, defensive array checks, safe rendering
 // - Previous: Reduced verbosity, added forceMarket: true to panic close
 // ─────────────────────────────────────────
 
@@ -45,7 +47,7 @@ type PositionT = {
   symbol: string;
   qty: number;
   avgEntryPrice: number;
-  marketValue: number;
+  marketValue?: number;
 };
 
 // ─────────────────────────────────────────
@@ -63,9 +65,14 @@ function validateAndCleanTickers(input: string): string[] {
     .filter(s => TICKER_REGEX.test(s));
 }
 
-function safeNum(v: any, fallback = 0) {
+function safeNum(v: any, fallback = 0): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function safeDisplayNum(v: any, decimals = 2): string {
+  const num = safeNum(v);
+  return num === 0 ? '—' : num.toFixed(decimals);
 }
 
 // ─────────────────────────────────────────
@@ -74,7 +81,7 @@ function safeNum(v: any, fallback = 0) {
 const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
 
 const useMLHealth = () => {
-  const [health, setHealth] = useState<any>({ ok: false });
+  const [health, setHealth] = useState<{ ok: boolean }>({ ok: false });
   useEffect(() => {
     const fetchHealth = async () => {
       try {
@@ -92,7 +99,7 @@ const useMLHealth = () => {
 };
 
 const useMLMetrics = () => {
-  const [metrics, setMetrics] = useState<any>({});
+  const [metrics, setMetrics] = useState<Record<string, any>>({});
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
@@ -120,11 +127,9 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState('');
   const [message, setMessage] = useState('');
-  const [scanning, setScanning] = useState(false);
   const [panicClosing, setPanicClosing] = useState(false);
   const [panicMessage, setPanicMessage] = useState('');
   const [logs, setLogs] = useState<string[]>([]);
-  const [globalPositionSize, setGlobalPositionSize] = useState<number>(10);
   const [showAddForm, setShowAddForm] = useState(false);
   const [tickerInput, setTickerInput] = useState('');
 
@@ -133,17 +138,14 @@ export default function Dashboard() {
 
   const addLog = useCallback((line: string) => {
     const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    setLogs(prev => {
-      const updated = [`[${ts}] ${line}`, ...prev];
-      return updated.slice(0, 500);
-    });
+    setLogs(prev => [`[${ts}] ${line}`, ...prev].slice(0, 500));
   }, []);
 
   const fetchCore = useCallback(async (force = false) => {
     try {
       const params = new URLSearchParams();
       if (force) params.append('forceSync', '1');
-      const res = await axios.get(`${CORE_BASE}/?${params}`);
+      const res = await axios.get(`${CORE_BASE}/?${params.toString()}`);
       setCore(res.data || {});
       setLastUpdate(new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }));
       setError(null);
@@ -152,7 +154,9 @@ export default function Dashboard() {
         addLog(`[ROCKETS] ${res.data.rockets.length} detected`);
       }
     } catch (e: any) {
-      setError(`Core offline: ${e.message}`);
+      const errMsg = e.message || 'Unknown error';
+      setError(`Core offline: ${errMsg}`);
+      console.error('[DASHBOARD] fetchCore failed:', e);
     } finally {
       setLoading(false);
     }
@@ -160,8 +164,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchCore(true);
-    const i = setInterval(() => fetchCore(), 8000);
-    return () => clearInterval(i);
+    const interval = setInterval(() => fetchCore(), 8000);
+    return () => clearInterval(interval);
   }, [fetchCore]);
 
   const panicCloseAll = useCallback(async () => {
@@ -182,7 +186,9 @@ export default function Dashboard() {
       setPanicMessage(res.data.ok ? 'SUCCESS: All closed' : `FAILED: ${res.data.error || 'Unknown'}`);
       fetchCore(true);
     } catch (e: any) {
-      setPanicMessage(`PANIC FAILED: ${e.response?.data?.error || e.message}`);
+      const errMsg = e.response?.data?.error || e.message || 'Unknown error';
+      setPanicMessage(`PANIC FAILED: ${errMsg}`);
+      console.error('[PANIC] Failed:', e);
     } finally {
       setPanicClosing(false);
       setTimeout(() => setPanicMessage(''), 8000);
@@ -198,7 +204,8 @@ export default function Dashboard() {
       setMessage(res.data.message || 'Test trade sent');
       fetchCore(true);
     } catch (e: any) {
-      setMessage(`Test failed: ${e.response?.data?.error || e.message}`);
+      const errMsg = e.response?.data?.error || e.message || 'Unknown error';
+      setMessage(`Test failed: ${errMsg}`);
     }
   }, [fetchCore]);
 
@@ -214,12 +221,36 @@ export default function Dashboard() {
       setTickerInput('');
       fetchCore(true);
     } catch (e: any) {
-      setMessage(`Add failed: ${e.response?.data?.error || e.message}`);
+      const errMsg = e.response?.data?.error || e.message || 'Unknown error';
+      setMessage(`Add failed: ${errMsg}`);
     }
   }, [tickerInput, fetchCore]);
 
-  if (loading) return <div className="h-screen bg-black flex items-center justify-center text-cyan-400">Loading AlphaStream...</div>;
-  if (error) return <div className="h-screen bg-black flex items-center justify-center text-red-400">{error}</div>;
+  if (loading) {
+    return (
+      <div className="h-screen bg-black flex items-center justify-center text-cyan-400">
+        Loading AlphaStream...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-screen bg-black flex items-center justify-center text-red-400 flex-col gap-4">
+        <AlertCircle className="w-12 h-12" />
+        <p>{error}</p>
+        <button
+          onClick={() => {
+            setError(null);
+            fetchCore(true);
+          }}
+          className="px-6 py-3 bg-red-600 rounded hover:bg-red-500 transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const { equity = 0, buyingPower = 0, positions = [], rockets = [] } = core;
 
@@ -244,7 +275,7 @@ export default function Dashboard() {
             onClick={panicCloseAll}
             disabled={panicClosing}
             className={`px-5 py-2 rounded font-bold flex items-center gap-2 transition-all ${
-              panicClosing ? 'bg-gray-700' : 'bg-gradient-to-r from-red-600 to-rose-700 hover:brightness-110'
+              panicClosing ? 'bg-gray-700 cursor-not-allowed' : 'bg-gradient-to-r from-red-600 to-rose-700 hover:brightness-110'
             }`}
           >
             {panicClosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
@@ -299,14 +330,14 @@ export default function Dashboard() {
           {/* Positions List */}
           <div className="bg-gray-900/70 border border-cyan-700/50 rounded p-3">
             <p className="font-bold mb-2">POSITIONS ({positions.length})</p>
-            {positions.length === 0 ? (
+            {Array.isArray(positions) && positions.length === 0 ? (
               <p className="text-gray-500 text-center py-4">No open positions</p>
             ) : (
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {positions.map((p: PositionT, i: number) => (
-                  <div key={i} className="flex justify-between text-sm">
+                {Array.isArray(positions) && positions.map((p: PositionT, i: number) => (
+                  <div key={`${p.symbol}-${i}`} className="flex justify-between text-sm">
                     <span className="font-mono">{p.symbol}</span>
-                    <span>{p.qty} @ ${safeNum(p.avgEntryPrice).toFixed(2)}</span>
+                    <span>{p.qty} @ ${safeDisplayNum(p.avgEntryPrice)}</span>
                   </div>
                 ))}
               </div>
@@ -330,16 +361,16 @@ export default function Dashboard() {
               <Rocket className="w-5 h-5 text-yellow-400" /> HOT ROCKETS ({rockets.length})
             </p>
 
-            {rockets.length === 0 ? (
+            {Array.isArray(rockets) && rockets.length === 0 ? (
               <p className="text-gray-500 text-center py-6">Scanning...</p>
             ) : (
               <div className="space-y-2">
-                {rockets.map((r: RocketT) => (
+                {Array.isArray(rockets) && rockets.map((r: RocketT) => (
                   <div key={r.symbol} className="flex justify-between items-center bg-gray-800/50 p-2 rounded">
                     <div>
                       <span className="font-bold text-cyan-300">{r.symbol}</span>
                       <span className="ml-2 text-xs text-gray-400">
-                        {r.mlConfidence}% conf
+                        {safeNum(r.mlConfidence).toFixed(0)}% conf
                       </span>
                     </div>
                     <div className="flex gap-2">
@@ -382,7 +413,7 @@ export default function Dashboard() {
               onClick={panicCloseAll}
               disabled={panicClosing}
               className={`flex-1 px-4 py-2 rounded font-bold transition-all ${
-                panicClosing ? 'bg-gray-700' : 'bg-gradient-to-r from-red-600 to-rose-700 hover:brightness-110'
+                panicClosing ? 'bg-gray-700 cursor-not-allowed' : 'bg-gradient-to-r from-red-600 to-rose-700 hover:brightness-110'
               }`}
             >
               {panicClosing ? <Loader2 className="inline w-4 h-4 mr-1 animate-spin" /> : <AlertTriangle className="inline w-4 h-4 mr-1" />}
