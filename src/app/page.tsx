@@ -1,7 +1,7 @@
 // src/app/page.tsx
-// Last updated: February 27, 2026 – 12:15 PM EST
-// FIXED: TypeScript error "Parameter 'sum' implicitly has an 'any' type" in positions.reduce
-// All previous fixes included (filteredUniverse typing, Header memo, force trades, ML features, etc.)
+// Last updated: February 27, 2026 – 12:20 PM EST
+// FIXED: "Cannot find name 'MLModelViz'" – now fully defined before usage
+// All features restored: header, add/remove, universe modal, charts, logs, force trades, real-time ML, interactive viz
 
 'use client';
 
@@ -149,7 +149,7 @@ const useMLPrediction = (symbol: string) => {
 };
 
 // ────────────────────────────────────────────────
-// Memoized Components (Header fully restored)
+// Memoized Components
 // ────────────────────────────────────────────────
 const Header = memo(function Header({
   universeSize,
@@ -263,10 +263,178 @@ const Header = memo(function Header({
   );
 });
 
-// ... (MLVisualization, LogsPanel, MLModelViz components remain unchanged from previous version)
+const MLVisualization = memo(({ mlMetrics }: { mlMetrics: any }) => {
+  const topSymbols = useMemo(() => (mlMetrics?.topSymbols || []).slice(0, 10), [mlMetrics?.topSymbols]);
+  const barData = useMemo(() => ({
+    labels: topSymbols.map((s: MLSymbolMetric) => s.symbol),
+    datasets: [{
+      label: 'Learning Count',
+      data: topSymbols.map((s: MLSymbolMetric) => s.count),
+      backgroundColor: 'rgba(0, 255, 255, 0.6)',
+      borderColor: '#00ffff',
+      borderWidth: 1
+    }]
+  }), [topSymbols]);
+
+  const options = useMemo(() => ({
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { x: { display: false }, y: { display: false } }
+  }), []);
+
+  return (
+    <div className="bg-gradient-to-r from-purple-900/50 via-cyan-900/30 to-black border border-purple-500/40 rounded p-3">
+      <div className="flex items-center gap-2 mb-3">
+        <BarChart3 className="w-5 h-5 text-purple-400" />
+        <span className="font-bold text-purple-300">TOP LEARNED SYMBOLS</span>
+      </div>
+      {topSymbols.length > 0 ? (
+        <div className="h-32">
+          <Bar data={barData} options={options} />
+        </div>
+      ) : (
+        <p className="text-center text-gray-500 text-xs py-8">No learning data yet</p>
+      )}
+    </div>
+  );
+});
+
+const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) => (
+  <div
+    className={`shrink-0 bg-gradient-to-br from-gray-900 to-black border border-cyan-500/30 rounded p-2 font-mono text-xs relative overflow-hidden ${draggingLogs ? 'select-none' : ''}`}
+    style={{ height: `${logHeight}px` }}
+  >
+    <p className="font-bold text-cyan-300 mb-1 flex items-center gap-1">
+      <Activity className="w-4 h-4" /> NEURAL LOG ({logs.length})
+      <span className="ml-auto text-[10px] text-gray-500 flex items-center gap-1">
+        <span className="opacity-70">drag handle ↓</span>
+      </span>
+    </p>
+    <div className="overflow-y-auto pr-1" style={{ height: `${logHeight - 34}px` }}>
+      {logs.length === 0 ? (
+        <p className="text-center text-gray-600 py-4">Core idle — awaiting market stimulus</p>
+      ) : (
+        logs.map((logLine: string, i: number) => (
+          <div key={i} className="py-0.5 break-all">{logLine}</div>
+        ))
+      )}
+    </div>
+    <div
+      onMouseDown={startLogDrag}
+      className="absolute left-2 right-2 bottom-2 h-4 rounded bg-black/50 border border-cyan-700/40 flex items-center justify-center cursor-row-resize"
+      title="Drag to resize log box"
+    >
+      <div className="flex gap-1 opacity-80">
+        <div className="w-10 h-0.5 bg-cyan-500/60 rounded" />
+        <div className="w-10 h-0.5 bg-cyan-500/30 rounded" />
+        <div className="w-10 h-0.5 bg-cyan-500/60 rounded" />
+      </div>
+    </div>
+  </div>
+));
+
+const MLModelViz = memo(({ mlMetrics }: { mlMetrics: any }) => {
+  const topSymbols = useMemo(() => (mlMetrics?.topSymbols || []).slice(0, 8), [mlMetrics?.topSymbols]);
+
+  const barData = useMemo(() => ({
+    labels: topSymbols.map((s: MLSymbolMetric) => s.symbol),
+    datasets: [{
+      label: 'Feedback Count',
+      data: topSymbols.map((s: MLSymbolMetric) => s.count || 0),
+      backgroundColor: 'rgba(0, 255, 255, 0.7)',
+      borderColor: '#00ffff',
+      borderWidth: 1
+    }]
+  }), [topSymbols]);
+
+  const barOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: true, callbacks: { label: (ctx: any) => `${ctx.label}: ${ctx.raw} feedback` } }
+    },
+    scales: {
+      x: { ticks: { color: '#a0a0a0', font: { size: 10 } } },
+      y: { ticks: { color: '#a0a0a0', font: { size: 10 } } }
+    },
+    onClick: (e: any, els: any[]) => {
+      if (els.length) {
+        const idx = els[0].index;
+        const sym = barData.labels[idx];
+        alert(`Symbol: ${sym}\nFeedback count: ${barData.datasets[0].data[idx]}`);
+      }
+    },
+    onHover: (e: any, els: any[]) => {
+      e.native.target.style.cursor = els.length ? 'pointer' : 'default';
+    }
+  }), [barData]);
+
+  const pieData = useMemo(() => ({
+    labels: ['Feedback', 'Steps', 'Capacity Left'],
+    datasets: [{
+      data: [
+        mlMetrics?.feedbackCount || 0,
+        mlMetrics?.totalSteps || 0,
+        1000 - (mlMetrics?.totalSteps || 0)
+      ],
+      backgroundColor: ['#00ffff', '#ff00ff', '#333333'],
+      borderColor: '#000',
+      borderWidth: 1
+    }]
+  }), [mlMetrics]);
+
+  const pieOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom' as const, labels: { color: '#a0a0a0', font: { size: 10 } } },
+      tooltip: { enabled: true }
+    },
+    cutout: '60%'
+  }), []);
+
+  return (
+    <div className="bg-gradient-to-br from-gray-900/80 to-black border border-cyan-500/40 rounded-lg p-3 shadow-lg">
+      <div className="flex items-center gap-2 mb-3">
+        <Cpu className="w-5 h-5 text-cyan-400" />
+        <h3 className="text-sm font-bold text-cyan-300">ML MODEL LEARNING</h3>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="h-40">
+          <p className="text-xs text-gray-400 mb-1 text-center">Top Learned Symbols</p>
+          {topSymbols.length > 0 ? <Bar data={barData} options={barOptions} /> : (
+            <div className="h-full flex items-center justify-center text-gray-600 text-xs">No symbols learned yet</div>
+          )}
+        </div>
+
+        <div className="h-40">
+          <p className="text-xs text-gray-400 mb-1 text-center">Learning Progress</p>
+          <Doughnut data={pieData} options={pieOptions} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 mt-3 text-center text-xs">
+        <div className="bg-black/50 rounded p-2">
+          <p className="text-cyan-400 font-bold">{mlMetrics?.feedbackCount || 0}</p>
+          <p className="text-gray-500">Feedback</p>
+        </div>
+        <div className="bg-black/50 rounded p-2">
+          <p className="text-purple-400 font-bold">{mlMetrics?.totalSteps || 0}</p>
+          <p className="text-gray-500">Steps</p>
+        </div>
+        <div className="bg-black/50 rounded p-2">
+          <p className="text-green-400 font-bold">{mlMetrics?.tdLossAvgLast100?.toFixed(4) || '—'}</p>
+          <p className="text-gray-500">Avg TD Loss</p>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 // ────────────────────────────────────────────────
-// Main Dashboard Component
+// Main Dashboard
 // ────────────────────────────────────────────────
 export default function Dashboard() {
   const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -695,8 +863,10 @@ export default function Dashboard() {
 
         {/* Right Column */}
         <div className="col-span-4 space-y-4 overflow-y-auto">
+          {/* ML Model Viz */}
           <MLModelViz mlMetrics={mlMetrics} />
 
+          {/* HOT ROCKETS */}
           <div className="bg-gray-900/70 border border-cyan-700/50 rounded-lg p-4">
             <p className="text-lg font-semibold text-cyan-300 mb-3 flex items-center gap-2">
               <Rocket size={20} /> Hot Rockets ({rockets.length})
@@ -750,6 +920,7 @@ export default function Dashboard() {
             )}
           </div>
 
+          {/* Logs */}
           <LogsPanel
             logs={logs}
             logHeight={logHeight}
