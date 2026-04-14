@@ -1,4 +1,3 @@
-// src/app/page.tsx
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
@@ -39,7 +38,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 
 const Line = dynamic(() => import('react-chartjs-2').then((mod) => mod.Line), { ssr: false });
 
-// Types matching your current Core response
+// Types
 type RocketT = {
   symbol: string;
   price?: number | string;
@@ -66,119 +65,8 @@ function safeToFixed(v: any, decimals = 2, fallback = '0.00'): string {
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
 const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
-const ADMIN_KEY = 'your-admin-key-here'; // Set this in .env or hardcode for testing
 
-// ML Hooks
-const useMLHealth = () => {
-  const [health, setHealth] = useState({ ok: false, ready: false });
-  useEffect(() => {
-    const fetchHealth = async () => {
-      try {
-        const res = await axios.get(`${ML_BASE}/health`, { timeout: 5000 });
-        setHealth(res.data || { ok: false, ready: false });
-      } catch {
-        setHealth({ ok: false, ready: false });
-      }
-    };
-    fetchHealth();
-    const i = setInterval(fetchHealth, 30000);
-    return () => clearInterval(i);
-  }, []);
-  return health;
-};
-
-const useMLMetrics = () => {
-  const [metrics, setMetrics] = useState<any>({});
-  useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        const res = await axios.get(`${ML_BASE}/metrics`, { timeout: 8000 });
-        setMetrics(res.data || {});
-      } catch {
-        setMetrics({});
-      }
-    };
-    fetchMetrics();
-    const i = setInterval(fetchMetrics, 45000);
-    return () => clearInterval(i);
-  }, []);
-  return metrics;
-};
-
-const Header = memo(({ 
-  equity, 
-  positionsCount, 
-  onScan, 
-  scanning, 
-  onPanic, 
-  panicClosing, 
-  onTestTrade 
-}: any) => (
-  <header className="shrink-0 bg-black/95 border-b border-cyan-500/30 px-6 py-4 flex justify-between items-center">
-    <div className="flex items-center gap-4">
-      <Bot className="w-10 h-10 text-cyan-400" />
-      <div>
-        <h1 className="text-3xl font-black tracking-tighter text-cyan-300">ALPHASTREAM</h1>
-        <p className="text-xs text-emerald-400 font-mono">MAG7 PAPER • SAFE COMPOUNDING</p>
-      </div>
-    </div>
-
-    <div className="flex items-center gap-4">
-      <div className="text-right">
-        <div className="text-2xl font-bold text-cyan-300">${safeToFixed(equity, 0)}</div>
-        <div className="text-xs text-gray-400">EQUITY</div>
-      </div>
-
-      <button
-        onClick={onTestTrade}
-        className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2"
-      >
-        <Zap className="w-4 h-4" /> TEST TRADE (NVDA)
-      </button>
-
-      <button
-        onClick={onScan}
-        disabled={scanning}
-        className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-60"
-      >
-        {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
-        SCAN MAG7
-      </button>
-
-      <button
-        onClick={onPanic}
-        disabled={panicClosing}
-        className="px-6 py-2.5 bg-gradient-to-r from-red-600 to-rose-700 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-60"
-      >
-        {panicClosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
-        PANIC CLOSE ALL
-      </button>
-    </div>
-  </header>
-));
-
-const LogsPanel = memo(({ logs, logHeight, draggingLogs, startLogDrag }: any) => (
-  <div className="bg-zinc-950 border border-cyan-500/30 rounded-2xl p-5 font-mono text-xs flex flex-col" style={{ height: logHeight }}>
-    <div className="flex justify-between mb-3 text-cyan-400">
-      <div>LIVE LOGS ({logs.length})</div>
-      <div className="text-[10px] text-gray-500">Mag7 Strategy</div>
-    </div>
-    <div className="flex-1 overflow-y-auto space-y-0.5 pr-2 text-gray-300" style={{ maxHeight: logHeight - 60 }}>
-      {logs.length === 0 ? (
-        <div className="text-center py-12 text-gray-600">Waiting for activity...</div>
-      ) : (
-        logs.map((line: string, i: number) => <div key={i} className="break-all">{line}</div>)
-      )}
-    </div>
-    <div onMouseDown={startLogDrag} className="h-5 mt-2 border-t border-cyan-900 flex items-center justify-center cursor-row-resize hover:bg-cyan-950">
-      <div className="flex gap-1">
-        {Array.from({ length: 3 }).map((_, i) => <div key={i} className="w-8 h-0.5 bg-cyan-600/50 rounded" />)}
-      </div>
-    </div>
-  </div>
-));
-
-export default function Dashboard() {
+const Dashboard = () => {
   const [core, setCore] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<string[]>([]);
@@ -190,8 +78,8 @@ export default function Dashboard() {
   const dragStartYRef = useRef(0);
   const dragStartHeightRef = useRef(280);
 
-  const mlHealth = useMLHealth();
-  const mlMetrics = useMLMetrics();
+  // ML Status
+  const [mlHealth, setMlHealth] = useState({ ok: false, ready: false });
 
   const addLogLine = useCallback((line: string) => {
     const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -200,14 +88,19 @@ export default function Dashboard() {
 
   const coreRequest = useCallback(async (method: 'GET' | 'POST', path: string, body?: any) => {
     const url = `${CORE_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
-    return axios({
-      method,
-      url,
-      data: body,
-      headers: { 'x-admin-key': ADMIN_KEY },
-      timeout: 45000,
-    });
-  }, []);
+    try {
+      const res = await axios({
+        method,
+        url,
+        data: body,
+        timeout: 45000,
+      });
+      return res;
+    } catch (e: any) {
+      addLogLine(`[CORE ERROR] ${method} ${path} → ${e.message}`);
+      throw e;
+    }
+  }, [addLogLine]);
 
   const fetchCoreData = useCallback(async () => {
     try {
@@ -216,7 +109,7 @@ export default function Dashboard() {
       setLoading(false);
     } catch (e: any) {
       console.error(e);
-      addLogLine(`[ERROR] Core fetch failed: ${e.message}`);
+      addLogLine(`[CORE FETCH FAILED] ${e.message}`);
     }
   }, [addLogLine]);
 
@@ -232,11 +125,11 @@ export default function Dashboard() {
   }, [coreRequest, fetchCoreData, addLogLine]);
 
   const panicCloseAll = useCallback(async () => {
-    if (!confirm('PANIC CLOSE: Close ALL positions?')) return;
+    if (!confirm('PANIC CLOSE: Close ALL positions? This cannot be undone.')) return;
     setPanicClosing(true);
     try {
       await coreRequest('POST', '/admin/force-close', {});
-      addLogLine('[DASHBOARD] Panic close executed');
+      addLogLine('[DASHBOARD] Panic close executed — all positions closed');
       fetchCoreData();
     } catch (e: any) {
       addLogLine(`[PANIC FAILED] ${e.message}`);
@@ -281,11 +174,27 @@ export default function Dashboard() {
     };
   }, [draggingLogs]);
 
+  // Fetch core data
   useEffect(() => {
     fetchCoreData();
     const interval = setInterval(fetchCoreData, 8000);
     return () => clearInterval(interval);
   }, [fetchCoreData]);
+
+  // ML Health
+  useEffect(() => {
+    const fetchMLHealth = async () => {
+      try {
+        const res = await axios.get(`${ML_BASE}/health`, { timeout: 5000 });
+        setMlHealth(res.data || { ok: false, ready: false });
+      } catch {
+        setMlHealth({ ok: false, ready: false });
+      }
+    };
+    fetchMLHealth();
+    const i = setInterval(fetchMLHealth, 30000);
+    return () => clearInterval(i);
+  }, []);
 
   const equity = safeNum(core.equity, 8000);
   const positions: PositionT[] = Array.isArray(core.positions) ? core.positions : [];
@@ -293,15 +202,48 @@ export default function Dashboard() {
 
   return (
     <div className="h-screen bg-black text-gray-100 flex flex-col overflow-hidden">
-      <Header 
-        equity={equity}
-        positionsCount={positions.length}
-        onScan={forceScan}
-        scanning={scanning}
-        onPanic={panicCloseAll}
-        panicClosing={panicClosing}
-        onTestTrade={forceTestTrade}
-      />
+      {/* Header */}
+      <header className="shrink-0 bg-black/95 border-b border-cyan-500/30 px-6 py-4 flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <Bot className="w-10 h-10 text-cyan-400" />
+          <div>
+            <h1 className="text-3xl font-black tracking-tighter text-cyan-300">ALPHASTREAM</h1>
+            <p className="text-xs text-emerald-400 font-mono">MAG7 PAPER • $8K AGGRESSIVE MODE</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="text-2xl font-bold text-cyan-300">${equity.toFixed(0)}</div>
+            <div className="text-xs text-gray-400">EQUITY</div>
+          </div>
+
+          <button
+            onClick={forceTestTrade}
+            className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2"
+          >
+            <Zap className="w-4 h-4" /> TEST TRADE (NVDA)
+          </button>
+
+          <button
+            onClick={forceScan}
+            disabled={scanning}
+            className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-60"
+          >
+            {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
+            SCAN MAG7
+          </button>
+
+          <button
+            onClick={panicCloseAll}
+            disabled={panicClosing}
+            className="px-6 py-2.5 bg-gradient-to-r from-red-600 to-rose-700 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-60"
+          >
+            {panicClosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
+            PANIC CLOSE ALL
+          </button>
+        </div>
+      </header>
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
         {/* Left Column - Stats + Positions */}
@@ -384,14 +326,38 @@ export default function Dashboard() {
           </div>
 
           {/* Logs */}
-          <LogsPanel 
-            logs={logs} 
-            logHeight={logHeight} 
-            draggingLogs={draggingLogs} 
-            startLogDrag={startLogDrag} 
-          />
+          <div className="bg-zinc-950 border border-cyan-500/30 rounded-2xl p-5 font-mono text-xs flex flex-col" style={{ height: logHeight }}>
+            <div className="flex justify-between mb-3 text-cyan-400">
+              <div>LIVE LOGS ({logs.length})</div>
+              <div className="text-[10px] text-gray-500">Mag7 Strategy</div>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-0.5 pr-2 text-gray-300" style={{ maxHeight: logHeight - 60 }}>
+              {logs.length === 0 ? (
+                <div className="text-center py-12 text-gray-600">Waiting for activity...</div>
+              ) : (
+                logs.map((line: string, i: number) => <div key={i} className="break-all">{line}</div>)
+              )}
+            </div>
+            <div 
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setDraggingLogs(true);
+                dragStartYRef.current = e.clientY;
+                dragStartHeightRef.current = logHeight;
+              }}
+              className="h-5 mt-2 border-t border-cyan-900 flex items-center justify-center cursor-row-resize hover:bg-cyan-950"
+            >
+              <div className="flex gap-1">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="w-8 h-0.5 bg-cyan-600/50 rounded" />
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default Dashboard;
