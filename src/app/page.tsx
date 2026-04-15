@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
+import React, { useEffect, useState, useCallback, memo } from 'react';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
 import {
@@ -11,15 +11,12 @@ import {
   DollarSign,
   Wallet,
   Bot,
-  TrendingUp,
   AlertTriangle,
   Clock,
   Shield,
   Target,
   Cpu,
-  Rocket,
-  ArrowUpFromLine,
-  ArrowDownToLine
+  Rocket
 } from 'lucide-react';
 
 import {
@@ -78,7 +75,7 @@ const Dashboard = () => {
   const dragStartYRef = useRef(0);
   const dragStartHeightRef = useRef(280);
 
-  // ML Status
+  // ML Health
   const [mlHealth, setMlHealth] = useState({ ok: false, ready: false });
 
   const addLogLine = useCallback((line: string) => {
@@ -220,7 +217,7 @@ const Dashboard = () => {
 
           <button
             onClick={forceTestTrade}
-            className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2"
+            className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-60"
           >
             <Zap className="w-4 h-4" /> TEST TRADE (NVDA)
           </button>
