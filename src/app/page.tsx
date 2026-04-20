@@ -11,25 +11,14 @@ import {
   Bot,
   Target,
   Cpu,
-  Rocket,
-  Shield
+  Rocket
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
 const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
 
-type RocketT = {
-  symbol: string;
-  price?: number | string;
-  mlConfidence?: number;
-  gap?: string;
-};
-
-type PositionT = {
-  symbol: string;
-  qty: number;
-  avgEntryPrice: number;
-};
+type RocketT = { symbol: string; price?: number | string; mlConfidence?: number; gap?: string; };
+type PositionT = { symbol: string; qty: number; avgEntryPrice: number; };
 
 function safeNum(v: any, fallback = 0): number {
   const n = Number(v);
@@ -43,14 +32,13 @@ function safeToFixed(v: any, decimals = 2, fallback = '0.00'): string {
 
 export default function Dashboard() {
   const [core, setCore] = useState<any>({});
-  const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<string[]>([]);
   const [logHeight, setLogHeight] = useState(280);
   const [draggingLogs, setDraggingLogs] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [panicClosing, setPanicClosing] = useState(false);
-  const [isLocked, setIsLocked] = useState(false);           // 403 lock
-  const [isFlat, setIsFlat] = useState(false);               // HARD_FLAT_ACTIVE
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockCountdown, setLockCountdown] = useState(0);   // seconds remaining
 
   const dragStartYRef = useRef(0);
   const dragStartHeightRef = useRef(280);
@@ -63,31 +51,29 @@ export default function Dashboard() {
   }, []);
 
   const coreRequest = useCallback(async (method: 'GET' | 'POST', path: string, body?: any) => {
+    if (isLocked) return;
     const url = `${CORE_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
     try {
       const res = await axios({ method, url, data: body, timeout: 45000 });
       return res;
     } catch (e: any) {
       addLogLine(`[CORE ERROR] ${method} ${path} → ${e.message}`);
+      if (e.message.includes("403")) setIsLocked(true);
       throw e;
     }
-  }, [addLogLine]);
+  }, [addLogLine, isLocked]);
 
   const fetchCoreData = useCallback(async () => {
     try {
       const res = await axios.get(`${CORE_BASE}/?universe=1`, { timeout: 10000 });
       setCore(res.data || {});
-      setLoading(false);
-
-      // Detect flat / lock status
-      setIsFlat(!!res.data?.HARD_FLAT_ACTIVE);
     } catch (e: any) {
       addLogLine(`[CORE FETCH FAILED] ${e.message}`);
     }
   }, [addLogLine]);
 
   const forceTestTrade = useCallback(async () => {
-    if (isLocked || isFlat) return;
+    if (isLocked) return;
     try {
       addLogLine('[DASHBOARD] Triggering test PAPER trade on NVDA...');
       const res = await coreRequest('POST', '/admin/force-test-trade', {});
@@ -96,10 +82,10 @@ export default function Dashboard() {
     } catch (e: any) {
       addLogLine(`[TEST-TRADE FAILED] ${e.message}`);
     }
-  }, [coreRequest, fetchCoreData, addLogLine, isLocked, isFlat]);
+  }, [coreRequest, fetchCoreData, addLogLine, isLocked]);
 
   const panicCloseAll = useCallback(async () => {
-    if (isLocked || isFlat || !confirm('PANIC CLOSE: Close ALL positions?')) return;
+    if (isLocked || !confirm('PANIC CLOSE: Close ALL positions?')) return;
     setPanicClosing(true);
     try {
       await coreRequest('POST', '/admin/force-close', {});
@@ -110,10 +96,10 @@ export default function Dashboard() {
     } finally {
       setPanicClosing(false);
     }
-  }, [coreRequest, fetchCoreData, addLogLine, isLocked, isFlat]);
+  }, [coreRequest, fetchCoreData, addLogLine, isLocked]);
 
   const forceScan = useCallback(async () => {
-    if (isLocked || isFlat) return;
+    if (isLocked) return;
     setScanning(true);
     try {
       await coreRequest('POST', '/admin/scan', {});
@@ -124,38 +110,31 @@ export default function Dashboard() {
     } finally {
       setScanning(false);
     }
-  }, [coreRequest, fetchCoreData, addLogLine, isLocked, isFlat]);
+  }, [coreRequest, fetchCoreData, addLogLine, isLocked]);
 
-  // Detect 403 lock from logs
+  // Auto-detect lock and start countdown
   useEffect(() => {
-    const has403 = logs.slice(0, 15).some(line => line.includes("403"));
-    if (has403) {
+    const has403 = logs.slice(0, 10).some(line => line.includes("403"));
+    if (has403 && !isLocked) {
       setIsLocked(true);
+      setLockCountdown(3600); // 60 minutes countdown
     }
-  }, [logs]);
+  }, [logs, isLocked]);
 
-  // Log drag
-  const startLogDrag = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setDraggingLogs(true);
-    dragStartYRef.current = e.clientY;
-    dragStartHeightRef.current = logHeight;
-  }, [logHeight]);
-
+  // Countdown timer
   useEffect(() => {
-    if (!draggingLogs) return;
-    const onMove = (e: MouseEvent) => {
-      const dy = e.clientY - dragStartYRef.current;
-      setLogHeight(Math.max(180, Math.min(520, dragStartHeightRef.current + dy)));
-    };
-    const onUp = () => setDraggingLogs(false);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [draggingLogs]);
+    if (!isLocked || lockCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setLockCountdown(prev => {
+        if (prev <= 1) {
+          setIsLocked(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isLocked, lockCountdown]);
 
   // Fetch data
   useEffect(() => {
@@ -183,6 +162,9 @@ export default function Dashboard() {
   const positions: PositionT[] = Array.isArray(core.positions) ? core.positions : [];
   const rockets: RocketT[] = Array.isArray(core.rockets) ? core.rockets : [];
 
+  const minutesLeft = Math.floor(lockCountdown / 60);
+  const secondsLeft = lockCountdown % 60;
+
   return (
     <div className="h-screen bg-black text-gray-100 flex flex-col overflow-hidden">
       {/* Header */}
@@ -191,7 +173,7 @@ export default function Dashboard() {
           <Bot className="w-10 h-10 text-cyan-400" />
           <div>
             <h1 className="text-3xl font-black tracking-tighter text-cyan-300">ALPHASTREAM</h1>
-            <p className="text-xs text-emerald-400 font-mono">MAG7 PAPER TRADER • Live Data Collection</p>
+            <p className="text-xs text-emerald-400 font-mono">MAG7 PAPER TRADER</p>
           </div>
         </div>
 
@@ -203,7 +185,7 @@ export default function Dashboard() {
 
           <button
             onClick={forceTestTrade}
-            disabled={scanning || panicClosing || isLocked || isFlat}
+            disabled={isLocked}
             className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Zap className="w-4 h-4" /> TEST TRADE (NVDA)
@@ -211,7 +193,7 @@ export default function Dashboard() {
 
           <button
             onClick={forceScan}
-            disabled={scanning || panicClosing || isLocked || isFlat}
+            disabled={scanning || isLocked}
             className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
@@ -220,7 +202,7 @@ export default function Dashboard() {
 
           <button
             onClick={panicCloseAll}
-            disabled={panicClosing || isLocked || isFlat}
+            disabled={panicClosing || isLocked}
             className="px-6 py-2.5 bg-gradient-to-r from-red-600 to-rose-700 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {panicClosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
@@ -229,19 +211,16 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Lock / Flat Warning Banner */}
-      {(isLocked || isFlat) && (
-        <div className="mx-4 mt-3 bg-red-900/90 border border-red-500 text-red-100 px-6 py-4 rounded-2xl flex items-start gap-4">
-          <AlertTriangle className="w-6 h-6 mt-0.5 flex-shrink-0" />
+      {/* LOCK BANNER WITH COUNTDOWN */}
+      {isLocked && (
+        <div className="mx-4 mt-3 bg-red-900/90 border border-red-500 text-red-100 px-6 py-4 rounded-2xl flex items-center gap-4">
+          <AlertTriangle className="w-6 h-6 flex-shrink-0" />
           <div className="flex-1">
-            <div className="font-semibold text-lg">
-              {isLocked ? "Alpaca Paper Account is Temporarily Locked (403)" : "HARD FLAT ACTIVE"}
+            <div className="font-semibold text-lg">Alpaca Paper Account is Temporarily Locked (403)</div>
+            <div className="text-sm mt-1">
+              Wait <span className="font-mono font-bold">{minutesLeft}:{secondsLeft < 10 ? '0' : ''}{secondsLeft}</span> minutes before trying any actions.
             </div>
-            <div className="mt-1 text-sm">
-              {isLocked 
-                ? "Wait 30–60+ minutes before trying any actions. The bot is in safe cooldown." 
-                : "No new entries. Bot is only monitoring existing positions."}
-            </div>
+            <div className="text-xs mt-2 opacity-75">The bot is in safe cooldown mode and will not place orders.</div>
           </div>
         </div>
       )}
@@ -270,7 +249,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Open Positions */}
           <div className="bg-zinc-900 border border-cyan-500/30 rounded-2xl p-6">
             <p className="font-semibold mb-4">Open Positions</p>
             {positions.length === 0 ? (
@@ -279,9 +257,7 @@ export default function Dashboard() {
               <div className="space-y-3">
                 {positions.map((p: PositionT) => (
                   <div key={p.symbol} className="flex justify-between bg-black/60 px-5 py-4 rounded-xl">
-                    <div>
-                      <span className="font-mono text-lg text-cyan-300">{p.symbol}</span>
-                    </div>
+                    <div><span className="font-mono text-lg text-cyan-300">{p.symbol}</span></div>
                     <div className="text-right">
                       <div>{safeNum(p.qty)} shares</div>
                       <div className="text-xs text-gray-400">@ ${safeToFixed(p.avgEntryPrice)}</div>
@@ -295,7 +271,6 @@ export default function Dashboard() {
 
         {/* Right Column */}
         <div className="col-span-5 flex flex-col gap-4">
-          {/* Rockets */}
           <div className="flex-1 bg-zinc-900 border border-cyan-500/30 rounded-2xl p-6 overflow-y-auto">
             <div className="flex justify-between mb-5">
               <p className="font-semibold text-lg flex items-center gap-2">
@@ -303,7 +278,6 @@ export default function Dashboard() {
               </p>
               <span className="text-xs px-3 py-1 bg-amber-900/60 rounded-full">{rockets.length}</span>
             </div>
-
             {rockets.length === 0 ? (
               <div className="text-center py-20 text-gray-500">Waiting for signals...</div>
             ) : (
