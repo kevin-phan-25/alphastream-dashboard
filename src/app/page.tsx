@@ -1,41 +1,23 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, memo } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
-import dynamic from 'next/dynamic';
 import {
   Zap,
   Activity,
   Loader2,
-  AlertCircle,
-  DollarSign,
+  AlertTriangle,
   Wallet,
   Bot,
-  AlertTriangle,
-  Clock,
-  Shield,
   Target,
   Cpu,
-  Rocket
+  Rocket,
+  Shield
 } from 'lucide-react';
 
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Tooltip,
-  Filler,
-  ArcElement
-} from 'chart.js';
+const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
+const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Filler, ArcElement);
-
-const Line = dynamic(() => import('react-chartjs-2').then((mod) => mod.Line), { ssr: false });
-
-// Types
 type RocketT = {
   symbol: string;
   price?: number | string;
@@ -49,7 +31,6 @@ type PositionT = {
   avgEntryPrice: number;
 };
 
-// Utils
 function safeNum(v: any, fallback = 0): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
@@ -60,10 +41,7 @@ function safeToFixed(v: any, decimals = 2, fallback = '0.00'): string {
   return Number.isFinite(n) ? n.toFixed(decimals) : fallback;
 }
 
-const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
-const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
-
-const Dashboard = () => {
+export default function Dashboard() {
   const [core, setCore] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<string[]>([]);
@@ -71,11 +49,12 @@ const Dashboard = () => {
   const [draggingLogs, setDraggingLogs] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [panicClosing, setPanicClosing] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);           // 403 lock
+  const [isFlat, setIsFlat] = useState(false);               // HARD_FLAT_ACTIVE
 
   const dragStartYRef = useRef(0);
   const dragStartHeightRef = useRef(280);
 
-  // ML Health
   const [mlHealth, setMlHealth] = useState({ ok: false, ready: false });
 
   const addLogLine = useCallback((line: string) => {
@@ -86,12 +65,7 @@ const Dashboard = () => {
   const coreRequest = useCallback(async (method: 'GET' | 'POST', path: string, body?: any) => {
     const url = `${CORE_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
     try {
-      const res = await axios({
-        method,
-        url,
-        data: body,
-        timeout: 45000,
-      });
+      const res = await axios({ method, url, data: body, timeout: 45000 });
       return res;
     } catch (e: any) {
       addLogLine(`[CORE ERROR] ${method} ${path} → ${e.message}`);
@@ -104,13 +78,16 @@ const Dashboard = () => {
       const res = await axios.get(`${CORE_BASE}/?universe=1`, { timeout: 10000 });
       setCore(res.data || {});
       setLoading(false);
+
+      // Detect flat / lock status
+      setIsFlat(!!res.data?.HARD_FLAT_ACTIVE);
     } catch (e: any) {
-      console.error(e);
       addLogLine(`[CORE FETCH FAILED] ${e.message}`);
     }
   }, [addLogLine]);
 
   const forceTestTrade = useCallback(async () => {
+    if (isLocked || isFlat) return;
     try {
       addLogLine('[DASHBOARD] Triggering test PAPER trade on NVDA...');
       const res = await coreRequest('POST', '/admin/force-test-trade', {});
@@ -119,23 +96,24 @@ const Dashboard = () => {
     } catch (e: any) {
       addLogLine(`[TEST-TRADE FAILED] ${e.message}`);
     }
-  }, [coreRequest, fetchCoreData, addLogLine]);
+  }, [coreRequest, fetchCoreData, addLogLine, isLocked, isFlat]);
 
   const panicCloseAll = useCallback(async () => {
-    if (!confirm('PANIC CLOSE: Close ALL positions? This cannot be undone.')) return;
+    if (isLocked || isFlat || !confirm('PANIC CLOSE: Close ALL positions?')) return;
     setPanicClosing(true);
     try {
       await coreRequest('POST', '/admin/force-close', {});
-      addLogLine('[DASHBOARD] Panic close executed — all positions closed');
+      addLogLine('[DASHBOARD] Panic close executed');
       fetchCoreData();
     } catch (e: any) {
       addLogLine(`[PANIC FAILED] ${e.message}`);
     } finally {
       setPanicClosing(false);
     }
-  }, [coreRequest, fetchCoreData, addLogLine]);
+  }, [coreRequest, fetchCoreData, addLogLine, isLocked, isFlat]);
 
   const forceScan = useCallback(async () => {
+    if (isLocked || isFlat) return;
     setScanning(true);
     try {
       await coreRequest('POST', '/admin/scan', {});
@@ -146,9 +124,17 @@ const Dashboard = () => {
     } finally {
       setScanning(false);
     }
-  }, [coreRequest, fetchCoreData, addLogLine]);
+  }, [coreRequest, fetchCoreData, addLogLine, isLocked, isFlat]);
 
-  // Log drag handler
+  // Detect 403 lock from logs
+  useEffect(() => {
+    const has403 = logs.slice(0, 15).some(line => line.includes("403"));
+    if (has403) {
+      setIsLocked(true);
+    }
+  }, [logs]);
+
+  // Log drag
   const startLogDrag = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setDraggingLogs(true);
@@ -171,7 +157,7 @@ const Dashboard = () => {
     };
   }, [draggingLogs]);
 
-  // Fetch core data
+  // Fetch data
   useEffect(() => {
     fetchCoreData();
     const interval = setInterval(fetchCoreData, 8000);
@@ -205,7 +191,7 @@ const Dashboard = () => {
           <Bot className="w-10 h-10 text-cyan-400" />
           <div>
             <h1 className="text-3xl font-black tracking-tighter text-cyan-300">ALPHASTREAM</h1>
-            <p className="text-xs text-emerald-400 font-mono">MAG7 PAPER • $8K AGGRESSIVE MODE</p>
+            <p className="text-xs text-emerald-400 font-mono">MAG7 PAPER TRADER • Live Data Collection</p>
           </div>
         </div>
 
@@ -217,15 +203,16 @@ const Dashboard = () => {
 
           <button
             onClick={forceTestTrade}
-            className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-60"
+            disabled={scanning || panicClosing || isLocked || isFlat}
+            className="px-6 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Zap className="w-4 h-4" /> TEST TRADE (NVDA)
           </button>
 
           <button
             onClick={forceScan}
-            disabled={scanning}
-            className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-60"
+            disabled={scanning || panicClosing || isLocked || isFlat}
+            className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
             SCAN MAG7
@@ -233,8 +220,8 @@ const Dashboard = () => {
 
           <button
             onClick={panicCloseAll}
-            disabled={panicClosing}
-            className="px-6 py-2.5 bg-gradient-to-r from-red-600 to-rose-700 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-60"
+            disabled={panicClosing || isLocked || isFlat}
+            className="px-6 py-2.5 bg-gradient-to-r from-red-600 to-rose-700 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {panicClosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
             PANIC CLOSE ALL
@@ -242,8 +229,25 @@ const Dashboard = () => {
         </div>
       </header>
 
+      {/* Lock / Flat Warning Banner */}
+      {(isLocked || isFlat) && (
+        <div className="mx-4 mt-3 bg-red-900/90 border border-red-500 text-red-100 px-6 py-4 rounded-2xl flex items-start gap-4">
+          <AlertTriangle className="w-6 h-6 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <div className="font-semibold text-lg">
+              {isLocked ? "Alpaca Paper Account is Temporarily Locked (403)" : "HARD FLAT ACTIVE"}
+            </div>
+            <div className="mt-1 text-sm">
+              {isLocked 
+                ? "Wait 30–60+ minutes before trying any actions. The bot is in safe cooldown." 
+                : "No new entries. Bot is only monitoring existing positions."}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* Left Column - Stats + Positions */}
+        {/* Left Column */}
         <div className="col-span-7 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-zinc-900 border border-cyan-500/30 rounded-2xl p-6 text-center">
@@ -289,7 +293,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Right Column - Rockets + Logs */}
+        {/* Right Column */}
         <div className="col-span-5 flex flex-col gap-4">
           {/* Rockets */}
           <div className="flex-1 bg-zinc-900 border border-cyan-500/30 rounded-2xl p-6 overflow-y-auto">
@@ -355,6 +359,4 @@ const Dashboard = () => {
       </div>
     </div>
   );
-};
-
-export default Dashboard;
+}
