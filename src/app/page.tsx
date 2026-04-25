@@ -4,8 +4,11 @@
  * FILE: src/app/page.tsx (Dashboard)
  * DATE UPDATED: 2026-04-25
  * PURPOSE: Main control dashboard for MAG7 PAPER TRADER
- * CHANGES: Fixed TypeScript error + improved safety + clearer UI
- * STATUS: Production ready
+ * CHANGES: 
+ *   - Better 403 lock handling with accurate countdown
+ *   - Improved error messages for test trade
+ *   - Safer API calls with better feedback
+ *   - Updated UI to match current bot architecture
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -39,7 +42,6 @@ type PositionT = {
   avgEntryPrice: number; 
   side?: string;
   entry?: number;
-  time?: number;
 };
 
 function safeNum(v: any, fallback = 0): number {
@@ -78,16 +80,28 @@ export default function Dashboard() {
 
   const coreRequest = useCallback(async (method: 'GET' | 'POST', path: string, body?: any) => {
     if (isLocked) {
-      addLogLine(`[BLOCKED] Action skipped — account is locked`);
+      addLogLine(`[BLOCKED] Action skipped — account is locked (403)`);
       return null;
     }
+
     const url = `${CORE_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
+
     try {
-      const res = await axios({ method, url, data: body, timeout: 45000 });
+      const res = await axios({ 
+        method, 
+        url, 
+        data: body, 
+        timeout: 45000 
+      });
       return res;
     } catch (e: any) {
-      addLogLine(`[CORE ERROR] ${method} ${path} → ${e.message}`);
-      if (e.message.includes("403")) setIsLocked(true);
+      const msg = e.response?.data?.error || e.message;
+      addLogLine(`[CORE ERROR] ${method} ${path} → ${msg}`);
+      
+      if (e.response?.status === 403 || msg.includes("403")) {
+        setIsLocked(true);
+        setLockCountdown(3600); // 60 minutes
+      }
       throw e;
     }
   }, [addLogLine, isLocked]);
@@ -107,11 +121,10 @@ export default function Dashboard() {
       addLogLine('[DASHBOARD] Triggering test PAPER trade on NVDA...');
       const res = await coreRequest('POST', '/admin/force-test-trade', {});
       
-      // Safe access to res
       if (res && res.data) {
-        addLogLine(`[TEST-TRADE] ${res.data.message || 'Success'}`);
+        addLogLine(`[TEST-TRADE] ${res.data.message || res.data?.ok ? 'Success' : 'Completed'}`);
       } else {
-        addLogLine(`[TEST-TRADE] Success (no response body)`);
+        addLogLine(`[TEST-TRADE] Request sent (no response body)`);
       }
       
       setTimeout(fetchCoreData, 3000);
@@ -148,12 +161,14 @@ export default function Dashboard() {
     }
   }, [coreRequest, fetchCoreData, addLogLine, isLocked]);
 
-  // Auto-detect lock
+  // Auto-detect lock from logs
   useEffect(() => {
-    const has403 = logs.slice(0, 10).some(line => line.includes("403"));
+    const has403 = logs.slice(0, 10).some(line => 
+      line.includes("403") || line.includes("locked")
+    );
     if (has403 && !isLocked) {
       setIsLocked(true);
-      setLockCountdown(3600); // 60 minutes cooldown
+      setLockCountdown(3600);
     }
   }, [logs, isLocked]);
 
@@ -254,14 +269,17 @@ export default function Dashboard() {
           <div className="flex-1">
             <div className="font-semibold text-lg">Alpaca Paper Account is Temporarily Locked (403)</div>
             <div className="text-sm mt-1">
-              Wait <span className="font-mono font-bold">{minutesLeft}:{secondsLeft < 10 ? '0' : ''}{secondsLeft}</span> minutes before trying any actions.
+              Wait <span className="font-mono font-bold">
+                {minutesLeft}:{secondsLeft < 10 ? '0' : ''}{secondsLeft}
+              </span> minutes before trying any actions.
             </div>
+            <div className="text-xs mt-2 opacity-75">The bot is in safe cooldown mode.</div>
           </div>
         </div>
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* Left Column - Status & Positions */}
+        {/* Left Column */}
         <div className="col-span-7 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-zinc-900 border border-cyan-500/30 rounded-2xl p-6 text-center">
@@ -315,7 +333,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Right Column - Rockets & Logs */}
+        {/* Right Column */}
         <div className="col-span-5 flex flex-col gap-4">
           {/* Rockets */}
           <div className="flex-1 bg-zinc-900 border border-cyan-500/30 rounded-2xl p-6 overflow-y-auto">
