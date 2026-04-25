@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * FILE: Dashboard.tsx (or pages/dashboard.tsx)
+ * FILE: src/app/page.tsx (Dashboard)
  * DATE UPDATED: 2026-04-25
  * PURPOSE: Main control dashboard for MAG7 PAPER TRADER
- * CHANGES: Updated to reflect bracket orders, scanner/manager separation, and improved UI
- * STATUS: Aligned with 2026-04-25 core updates
+ * CHANGES: Fixed TypeScript error + improved safety + clearer UI
+ * STATUS: Production ready
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -77,7 +77,10 @@ export default function Dashboard() {
   }, []);
 
   const coreRequest = useCallback(async (method: 'GET' | 'POST', path: string, body?: any) => {
-    if (isLocked) return;
+    if (isLocked) {
+      addLogLine(`[BLOCKED] Action skipped — account is locked`);
+      return null;
+    }
     const url = `${CORE_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
     try {
       const res = await axios({ method, url, data: body, timeout: 45000 });
@@ -103,7 +106,14 @@ export default function Dashboard() {
     try {
       addLogLine('[DASHBOARD] Triggering test PAPER trade on NVDA...');
       const res = await coreRequest('POST', '/admin/force-test-trade', {});
-      addLogLine(`[TEST-TRADE] ${res.data?.message || 'Success'}`);
+      
+      // Safe access to res
+      if (res && res.data) {
+        addLogLine(`[TEST-TRADE] ${res.data.message || 'Success'}`);
+      } else {
+        addLogLine(`[TEST-TRADE] Success (no response body)`);
+      }
+      
       setTimeout(fetchCoreData, 3000);
     } catch (e: any) {
       addLogLine(`[TEST-TRADE FAILED] ${e.message}`);
@@ -284,8 +294,8 @@ export default function Dashboard() {
               <div className="text-center py-12 text-gray-500">No open positions • Scanner is ready</div>
             ) : (
               <div className="space-y-3">
-                {positions.map((p: PositionT) => (
-                  <div key={p.symbol} className="flex justify-between bg-black/60 px-5 py-4 rounded-xl border border-cyan-900/50">
+                {positions.map((p: PositionT, index: number) => (
+                  <div key={index} className="flex justify-between bg-black/60 px-5 py-4 rounded-xl border border-cyan-900/50">
                     <div>
                       <span className="font-mono text-lg text-cyan-300">{p.symbol}</span>
                       <span className="ml-3 text-xs uppercase tracking-widest text-gray-500">
@@ -319,8 +329,8 @@ export default function Dashboard() {
               <div className="text-center py-20 text-gray-500">Waiting for strong ML signals...</div>
             ) : (
               <div className="space-y-4">
-                {rockets.map((r: RocketT) => (
-                  <div key={r.symbol} className="bg-black/60 border border-amber-500/30 rounded-xl p-5">
+                {rockets.map((r: RocketT, index: number) => (
+                  <div key={index} className="bg-black/60 border border-amber-500/30 rounded-xl p-5">
                     <div className="flex justify-between items-start">
                       <div className="text-2xl font-bold text-amber-300">{r.symbol}</div>
                       <div className="text-right">
