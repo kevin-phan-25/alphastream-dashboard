@@ -1,5 +1,13 @@
 'use client';
 
+/**
+ * FILE: Dashboard.tsx (or pages/dashboard.tsx)
+ * DATE UPDATED: 2026-04-25
+ * PURPOSE: Main control dashboard for MAG7 PAPER TRADER
+ * CHANGES: Updated to reflect bracket orders, scanner/manager separation, and improved UI
+ * STATUS: Aligned with 2026-04-25 core updates
+ */
+
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import {
@@ -11,14 +19,28 @@ import {
   Bot,
   Target,
   Cpu,
-  Rocket
+  Rocket,
+  Shield
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
 const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
 
-type RocketT = { symbol: string; price?: number | string; mlConfidence?: number; gap?: string; };
-type PositionT = { symbol: string; qty: number; avgEntryPrice: number; };
+type RocketT = { 
+  symbol: string; 
+  price?: number | string; 
+  mlConfidence?: number; 
+  gap?: string; 
+};
+
+type PositionT = { 
+  symbol: string; 
+  qty: number; 
+  avgEntryPrice: number; 
+  side?: string;
+  entry?: number;
+  time?: number;
+};
 
 function safeNum(v: any, fallback = 0): number {
   const n = Number(v);
@@ -38,7 +60,7 @@ export default function Dashboard() {
   const [scanning, setScanning] = useState(false);
   const [panicClosing, setPanicClosing] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
-  const [lockCountdown, setLockCountdown] = useState(0);   // seconds remaining
+  const [lockCountdown, setLockCountdown] = useState(0);
 
   const dragStartYRef = useRef(0);
   const dragStartHeightRef = useRef(280);
@@ -46,7 +68,11 @@ export default function Dashboard() {
   const [mlHealth, setMlHealth] = useState({ ok: false, ready: false });
 
   const addLogLine = useCallback((line: string) => {
-    const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const ts = new Date().toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit' 
+    });
     setLogs(prev => [`[${ts}] ${line}`, ...prev].slice(0, 600));
   }, []);
 
@@ -112,12 +138,12 @@ export default function Dashboard() {
     }
   }, [coreRequest, fetchCoreData, addLogLine, isLocked]);
 
-  // Auto-detect lock and start countdown
+  // Auto-detect lock
   useEffect(() => {
     const has403 = logs.slice(0, 10).some(line => line.includes("403"));
     if (has403 && !isLocked) {
       setIsLocked(true);
-      setLockCountdown(3600); // 60 minutes countdown
+      setLockCountdown(3600); // 60 minutes cooldown
     }
   }, [logs, isLocked]);
 
@@ -136,7 +162,7 @@ export default function Dashboard() {
     return () => clearInterval(timer);
   }, [isLocked, lockCountdown]);
 
-  // Fetch data
+  // Fetch core data
   useEffect(() => {
     fetchCoreData();
     const interval = setInterval(fetchCoreData, 8000);
@@ -173,7 +199,7 @@ export default function Dashboard() {
           <Bot className="w-10 h-10 text-cyan-400" />
           <div>
             <h1 className="text-3xl font-black tracking-tighter text-cyan-300">ALPHASTREAM</h1>
-            <p className="text-xs text-emerald-400 font-mono">MAG7 PAPER TRADER</p>
+            <p className="text-xs text-emerald-400 font-mono">MAG7 PAPER TRADER • ML + BRACKET (2026-04-25)</p>
           </div>
         </div>
 
@@ -197,7 +223,7 @@ export default function Dashboard() {
             className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl text-sm font-bold hover:brightness-110 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
-            SCAN MAG7
+            FORCE SCAN
           </button>
 
           <button
@@ -211,7 +237,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* LOCK BANNER WITH COUNTDOWN */}
+      {/* Lock Banner */}
       {isLocked && (
         <div className="mx-4 mt-3 bg-red-900/90 border border-red-500 text-red-100 px-6 py-4 rounded-2xl flex items-center gap-4">
           <AlertTriangle className="w-6 h-6 flex-shrink-0" />
@@ -220,13 +246,12 @@ export default function Dashboard() {
             <div className="text-sm mt-1">
               Wait <span className="font-mono font-bold">{minutesLeft}:{secondsLeft < 10 ? '0' : ''}{secondsLeft}</span> minutes before trying any actions.
             </div>
-            <div className="text-xs mt-2 opacity-75">The bot is in safe cooldown mode and will not place orders.</div>
           </div>
         </div>
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* Left Column */}
+        {/* Left Column - Status & Positions */}
         <div className="col-span-7 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-zinc-900 border border-cyan-500/30 rounded-2xl p-6 text-center">
@@ -246,21 +271,32 @@ export default function Dashboard() {
               <div className={`text-xl font-bold ${mlHealth.ok ? 'text-emerald-400' : 'text-red-400'}`}>
                 {mlHealth.ok ? 'ML ONLINE' : 'ML OFFLINE'}
               </div>
+              <div className="text-xs text-gray-400 mt-1">ML ENGINE</div>
             </div>
           </div>
 
+          {/* Open Positions */}
           <div className="bg-zinc-900 border border-cyan-500/30 rounded-2xl p-6">
-            <p className="font-semibold mb-4">Open Positions</p>
+            <p className="font-semibold mb-4 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-cyan-400" /> Open Positions
+            </p>
             {positions.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">No open positions</div>
+              <div className="text-center py-12 text-gray-500">No open positions • Scanner is ready</div>
             ) : (
               <div className="space-y-3">
                 {positions.map((p: PositionT) => (
-                  <div key={p.symbol} className="flex justify-between bg-black/60 px-5 py-4 rounded-xl">
-                    <div><span className="font-mono text-lg text-cyan-300">{p.symbol}</span></div>
+                  <div key={p.symbol} className="flex justify-between bg-black/60 px-5 py-4 rounded-xl border border-cyan-900/50">
+                    <div>
+                      <span className="font-mono text-lg text-cyan-300">{p.symbol}</span>
+                      <span className="ml-3 text-xs uppercase tracking-widest text-gray-500">
+                        {p.side || 'LONG'}
+                      </span>
+                    </div>
                     <div className="text-right">
-                      <div>{safeNum(p.qty)} shares</div>
-                      <div className="text-xs text-gray-400">@ ${safeToFixed(p.avgEntryPrice)}</div>
+                      <div className="font-medium">{safeNum(p.qty)} shares</div>
+                      <div className="text-xs text-gray-400">
+                        @ ${safeToFixed(p.avgEntryPrice || p.entry)}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -269,29 +305,30 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Right Column */}
+        {/* Right Column - Rockets & Logs */}
         <div className="col-span-5 flex flex-col gap-4">
+          {/* Rockets */}
           <div className="flex-1 bg-zinc-900 border border-cyan-500/30 rounded-2xl p-6 overflow-y-auto">
             <div className="flex justify-between mb-5">
               <p className="font-semibold text-lg flex items-center gap-2">
-                <Rocket className="w-5 h-5 text-amber-400" /> Mag7 Rockets
+                <Rocket className="w-5 h-5 text-amber-400" /> Mag7 Rockets Detected
               </p>
               <span className="text-xs px-3 py-1 bg-amber-900/60 rounded-full">{rockets.length}</span>
             </div>
             {rockets.length === 0 ? (
-              <div className="text-center py-20 text-gray-500">Waiting for signals...</div>
+              <div className="text-center py-20 text-gray-500">Waiting for strong ML signals...</div>
             ) : (
               <div className="space-y-4">
                 {rockets.map((r: RocketT) => (
                   <div key={r.symbol} className="bg-black/60 border border-amber-500/30 rounded-xl p-5">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-start">
                       <div className="text-2xl font-bold text-amber-300">{r.symbol}</div>
                       <div className="text-right">
-                        <div className="text-emerald-400 font-mono">{safeNum(r.mlConfidence)}%</div>
+                        <div className="text-emerald-400 font-mono text-lg">{safeNum(r.mlConfidence)}%</div>
                         <div className="text-xs text-gray-500">CONFIDENCE</div>
                       </div>
                     </div>
-                    <div className="text-sm text-gray-400 mt-1">
+                    <div className="text-sm text-gray-400 mt-2">
                       ${safeNum(r.price).toFixed(2)} • Gap {r.gap || '—'}%
                     </div>
                   </div>
@@ -300,17 +337,19 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Logs */}
+          {/* Live Logs */}
           <div className="bg-zinc-950 border border-cyan-500/30 rounded-2xl p-5 font-mono text-xs flex flex-col" style={{ height: logHeight }}>
             <div className="flex justify-between mb-3 text-cyan-400">
               <div>LIVE LOGS ({logs.length})</div>
-              <div className="text-[10px] text-gray-500">Mag7 Strategy</div>
+              <div className="text-[10px] text-gray-500">Bracket + ML Strategy</div>
             </div>
             <div className="flex-1 overflow-y-auto space-y-0.5 pr-2 text-gray-300" style={{ maxHeight: logHeight - 60 }}>
               {logs.length === 0 ? (
-                <div className="text-center py-12 text-gray-600">Waiting for activity...</div>
+                <div className="text-center py-12 text-gray-600">Bot is running • Waiting for activity...</div>
               ) : (
-                logs.map((line: string, i: number) => <div key={i} className="break-all">{line}</div>)
+                logs.map((line: string, i: number) => (
+                  <div key={i} className="break-all leading-relaxed">{line}</div>
+                ))
               )}
             </div>
             <div 
