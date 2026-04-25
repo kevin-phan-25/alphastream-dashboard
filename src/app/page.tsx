@@ -8,7 +8,7 @@
  *   - Better 403 lock handling with accurate countdown
  *   - Improved error messages for test trade
  *   - Safer API calls with better feedback
- *   - Updated UI to match current bot architecture
+ *   - Updated UI to match current bot architecture (Bracket + ML Strategy)
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -42,6 +42,8 @@ type PositionT = {
   avgEntryPrice: number; 
   side?: string;
   entry?: number;
+  time?: number;
+  mlConfidence?: number;
 };
 
 function safeNum(v: any, fallback = 0): number {
@@ -95,12 +97,12 @@ export default function Dashboard() {
       });
       return res;
     } catch (e: any) {
-      const msg = e.response?.data?.error || e.message;
+      const msg = e.response?.data?.error || e.response?.data?.message || e.message;
       addLogLine(`[CORE ERROR] ${method} ${path} → ${msg}`);
       
-      if (e.response?.status === 403 || msg.includes("403")) {
+      if (e.response?.status === 403 || msg.toLowerCase().includes("403") || msg.toLowerCase().includes("locked")) {
         setIsLocked(true);
-        setLockCountdown(3600); // 60 minutes
+        setLockCountdown(3600); // 60 minutes default
       }
       throw e;
     }
@@ -122,7 +124,8 @@ export default function Dashboard() {
       const res = await coreRequest('POST', '/admin/force-test-trade', {});
       
       if (res && res.data) {
-        addLogLine(`[TEST-TRADE] ${res.data.message || res.data?.ok ? 'Success' : 'Completed'}`);
+        const message = res.data.message || (res.data.ok ? 'Success' : 'Completed');
+        addLogLine(`[TEST-TRADE] ${message}`);
       } else {
         addLogLine(`[TEST-TRADE] Request sent (no response body)`);
       }
@@ -134,11 +137,11 @@ export default function Dashboard() {
   }, [coreRequest, fetchCoreData, addLogLine, isLocked]);
 
   const panicCloseAll = useCallback(async () => {
-    if (isLocked || !confirm('PANIC CLOSE: Close ALL positions?')) return;
+    if (isLocked || !confirm('PANIC CLOSE: Close ALL positions? This cannot be undone.')) return;
     setPanicClosing(true);
     try {
       await coreRequest('POST', '/admin/force-close', {});
-      addLogLine('[DASHBOARD] Panic close executed');
+      addLogLine('[DASHBOARD] Panic close executed — all positions flattened');
       fetchCoreData();
     } catch (e: any) {
       addLogLine(`[PANIC FAILED] ${e.message}`);
@@ -161,10 +164,12 @@ export default function Dashboard() {
     }
   }, [coreRequest, fetchCoreData, addLogLine, isLocked]);
 
-  // Auto-detect lock from logs
+  // Auto-detect lock from recent logs or API errors
   useEffect(() => {
-    const has403 = logs.slice(0, 10).some(line => 
-      line.includes("403") || line.includes("locked")
+    const has403 = logs.slice(0, 15).some(line => 
+      line.toLowerCase().includes("403") || 
+      line.toLowerCase().includes("locked") ||
+      line.toLowerCase().includes("cooldown")
     );
     if (has403 && !isLocked) {
       setIsLocked(true);
@@ -172,7 +177,7 @@ export default function Dashboard() {
     }
   }, [logs, isLocked]);
 
-  // Countdown timer
+  // Countdown timer for lock
   useEffect(() => {
     if (!isLocked || lockCountdown <= 0) return;
     const timer = setInterval(() => {
@@ -187,14 +192,14 @@ export default function Dashboard() {
     return () => clearInterval(timer);
   }, [isLocked, lockCountdown]);
 
-  // Fetch core data
+  // Fetch core data periodically
   useEffect(() => {
     fetchCoreData();
     const interval = setInterval(fetchCoreData, 8000);
     return () => clearInterval(interval);
   }, [fetchCoreData]);
 
-  // ML Health
+  // ML Health check
   useEffect(() => {
     const fetchMLHealth = async () => {
       try {
@@ -273,7 +278,7 @@ export default function Dashboard() {
                 {minutesLeft}:{secondsLeft < 10 ? '0' : ''}{secondsLeft}
               </span> minutes before trying any actions.
             </div>
-            <div className="text-xs mt-2 opacity-75">The bot is in safe cooldown mode.</div>
+            <div className="text-xs mt-2 opacity-75">The bot is in safe cooldown mode. Actions are blocked.</div>
           </div>
         </div>
       )}
@@ -296,8 +301,8 @@ export default function Dashboard() {
 
             <div className="bg-zinc-900 border border-purple-500/30 rounded-2xl p-6 text-center">
               <Cpu className="w-8 h-8 mx-auto mb-3 text-purple-400" />
-              <div className={`text-xl font-bold ${mlHealth.ok ? 'text-emerald-400' : 'text-red-400'}`}>
-                {mlHealth.ok ? 'ML ONLINE' : 'ML OFFLINE'}
+              <div className={`text-xl font-bold ${mlHealth.ok && mlHealth.ready ? 'text-emerald-400' : 'text-red-400'}`}>
+                {mlHealth.ok && mlHealth.ready ? 'ML ONLINE' : 'ML WARMING'}
               </div>
               <div className="text-xs text-gray-400 mt-1">ML ENGINE</div>
             </div>
@@ -317,7 +322,7 @@ export default function Dashboard() {
                     <div>
                       <span className="font-mono text-lg text-cyan-300">{p.symbol}</span>
                       <span className="ml-3 text-xs uppercase tracking-widest text-gray-500">
-                        {p.side || 'LONG'}
+                        {p.side?.toUpperCase() || 'LONG'}
                       </span>
                     </div>
                     <div className="text-right">
