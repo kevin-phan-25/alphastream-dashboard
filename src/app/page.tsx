@@ -2,13 +2,8 @@
 
 /**
  * FILE: src/app/page.tsx (Dashboard)
- * DATE UPDATED: 2026-04-25
- * PURPOSE: Main control dashboard for MAG7 PAPER TRADER
- * CHANGES: 
- *   - Better 403 lock handling with accurate countdown
- *   - Improved error messages for test trade
- *   - Safer API calls with better feedback
- *   - Updated UI to match current bot architecture (Bracket + ML Strategy)
+ * DATE UPDATED: 2026-04-26
+ * PURPOSE: Main control dashboard for MAG7 PAPER TRADER — fully synced with adaptive system
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -23,7 +18,9 @@ import {
   Target,
   Cpu,
   Rocket,
-  Shield
+  Shield,
+  TrendingUp,
+  TrendingDown
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -34,6 +31,7 @@ type RocketT = {
   price?: number | string; 
   mlConfidence?: number; 
   gap?: string; 
+  volatility?: number;
 };
 
 type PositionT = { 
@@ -42,8 +40,6 @@ type PositionT = {
   avgEntryPrice: number; 
   side?: string;
   entry?: number;
-  time?: number;
-  mlConfidence?: number;
 };
 
 function safeNum(v: any, fallback = 0): number {
@@ -77,7 +73,7 @@ export default function Dashboard() {
       minute: '2-digit', 
       second: '2-digit' 
     });
-    setLogs(prev => [`[${ts}] ${line}`, ...prev].slice(0, 600));
+    setLogs(prev => [`[${ts}] ${line}`, ...prev].slice(0, 800));
   }, []);
 
   const coreRequest = useCallback(async (method: 'GET' | 'POST', path: string, body?: any) => {
@@ -97,12 +93,12 @@ export default function Dashboard() {
       });
       return res;
     } catch (e: any) {
-      const msg = e.response?.data?.error || e.response?.data?.message || e.message;
+      const msg = e.response?.data?.error || e.message || 'Unknown error';
       addLogLine(`[CORE ERROR] ${method} ${path} → ${msg}`);
       
-      if (e.response?.status === 403 || msg.toLowerCase().includes("403") || msg.toLowerCase().includes("locked")) {
+      if (e.response?.status === 403 || msg.includes("403") || msg.includes("locked")) {
         setIsLocked(true);
-        setLockCountdown(3600); // 60 minutes default
+        setLockCountdown(3600); // 60 minutes
       }
       throw e;
     }
@@ -124,10 +120,9 @@ export default function Dashboard() {
       const res = await coreRequest('POST', '/admin/force-test-trade', {});
       
       if (res && res.data) {
-        const message = res.data.message || (res.data.ok ? 'Success' : 'Completed');
-        addLogLine(`[TEST-TRADE] ${message}`);
+        addLogLine(`[TEST-TRADE] ${res.data.message || 'Success'}`);
       } else {
-        addLogLine(`[TEST-TRADE] Request sent (no response body)`);
+        addLogLine(`[TEST-TRADE] Request sent`);
       }
       
       setTimeout(fetchCoreData, 3000);
@@ -141,7 +136,7 @@ export default function Dashboard() {
     setPanicClosing(true);
     try {
       await coreRequest('POST', '/admin/force-close', {});
-      addLogLine('[DASHBOARD] Panic close executed — all positions flattened');
+      addLogLine('[DASHBOARD] Panic close executed');
       fetchCoreData();
     } catch (e: any) {
       addLogLine(`[PANIC FAILED] ${e.message}`);
@@ -154,7 +149,7 @@ export default function Dashboard() {
     if (isLocked) return;
     setScanning(true);
     try {
-      await coreRequest('POST', '/admin/scan', {});
+      await coreRequest('POST', '/scan', {});
       addLogLine('[DASHBOARD] Manual Mag7 scan triggered');
       setTimeout(fetchCoreData, 4000);
     } catch (e: any) {
@@ -164,12 +159,10 @@ export default function Dashboard() {
     }
   }, [coreRequest, fetchCoreData, addLogLine, isLocked]);
 
-  // Auto-detect lock from recent logs or API errors
+  // Auto-detect lock from logs
   useEffect(() => {
     const has403 = logs.slice(0, 15).some(line => 
-      line.toLowerCase().includes("403") || 
-      line.toLowerCase().includes("locked") ||
-      line.toLowerCase().includes("cooldown")
+      line.includes("403") || line.includes("locked") || line.includes("forbidden")
     );
     if (has403 && !isLocked) {
       setIsLocked(true);
@@ -177,7 +170,7 @@ export default function Dashboard() {
     }
   }, [logs, isLocked]);
 
-  // Countdown timer for lock
+  // Lock countdown timer
   useEffect(() => {
     if (!isLocked || lockCountdown <= 0) return;
     const timer = setInterval(() => {
@@ -195,15 +188,15 @@ export default function Dashboard() {
   // Fetch core data periodically
   useEffect(() => {
     fetchCoreData();
-    const interval = setInterval(fetchCoreData, 8000);
+    const interval = setInterval(fetchCoreData, 7000);
     return () => clearInterval(interval);
   }, [fetchCoreData]);
 
-  // ML Health check
+  // ML Health
   useEffect(() => {
     const fetchMLHealth = async () => {
       try {
-        const res = await axios.get(`${ML_BASE}/health`, { timeout: 5000 });
+        const res = await axios.get(`${ML_BASE}/health`, { timeout: 6000 });
         setMlHealth(res.data || { ok: false, ready: false });
       } catch {
         setMlHealth({ ok: false, ready: false });
@@ -218,6 +211,9 @@ export default function Dashboard() {
   const positions: PositionT[] = Array.isArray(core.positions) ? core.positions : [];
   const rockets: RocketT[] = Array.isArray(core.rockets) ? core.rockets : [];
 
+  const riskMultiplier = safeNum(core.riskMultiplier, 1.0);
+  const recentWinRate = safeNum(core.recentWinRate, 0);
+
   const minutesLeft = Math.floor(lockCountdown / 60);
   const secondsLeft = lockCountdown % 60;
 
@@ -229,7 +225,7 @@ export default function Dashboard() {
           <Bot className="w-10 h-10 text-cyan-400" />
           <div>
             <h1 className="text-3xl font-black tracking-tighter text-cyan-300">ALPHASTREAM</h1>
-            <p className="text-xs text-emerald-400 font-mono">MAG7 PAPER TRADER • ML + BRACKET (2026-04-25)</p>
+            <p className="text-xs text-emerald-400 font-mono">MAG7 PAPER TRADER • ADAPTIVE ML + BRACKET (2026-04-26)</p>
           </div>
         </div>
 
@@ -278,7 +274,7 @@ export default function Dashboard() {
                 {minutesLeft}:{secondsLeft < 10 ? '0' : ''}{secondsLeft}
               </span> minutes before trying any actions.
             </div>
-            <div className="text-xs mt-2 opacity-75">The bot is in safe cooldown mode. Actions are blocked.</div>
+            <div className="text-xs mt-2 opacity-75">The bot is in safe cooldown mode.</div>
           </div>
         </div>
       )}
@@ -286,7 +282,7 @@ export default function Dashboard() {
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
         {/* Left Column */}
         <div className="col-span-7 space-y-4 overflow-y-auto">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div className="bg-zinc-900 border border-cyan-500/30 rounded-2xl p-6 text-center">
               <Wallet className="w-8 h-8 mx-auto mb-3 text-cyan-400" />
               <div className="text-4xl font-bold text-cyan-300">${equity.toFixed(0)}</div>
@@ -301,10 +297,16 @@ export default function Dashboard() {
 
             <div className="bg-zinc-900 border border-purple-500/30 rounded-2xl p-6 text-center">
               <Cpu className="w-8 h-8 mx-auto mb-3 text-purple-400" />
-              <div className={`text-xl font-bold ${mlHealth.ok && mlHealth.ready ? 'text-emerald-400' : 'text-red-400'}`}>
-                {mlHealth.ok && mlHealth.ready ? 'ML ONLINE' : 'ML WARMING'}
+              <div className={`text-xl font-bold ${mlHealth.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                {mlHealth.ok ? 'ML ONLINE' : 'ML OFFLINE'}
               </div>
               <div className="text-xs text-gray-400 mt-1">ML ENGINE</div>
+            </div>
+
+            <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 text-center">
+              <TrendingUp className="w-8 h-8 mx-auto mb-3 text-amber-400" />
+              <div className="text-2xl font-bold text-amber-300">{riskMultiplier.toFixed(2)}x</div>
+              <div className="text-xs text-gray-400 mt-1">RISK MULTIPLIER</div>
             </div>
           </div>
 
@@ -322,7 +324,7 @@ export default function Dashboard() {
                     <div>
                       <span className="font-mono text-lg text-cyan-300">{p.symbol}</span>
                       <span className="ml-3 text-xs uppercase tracking-widest text-gray-500">
-                        {p.side?.toUpperCase() || 'LONG'}
+                        {p.side || 'LONG'}
                       </span>
                     </div>
                     <div className="text-right">
@@ -374,7 +376,7 @@ export default function Dashboard() {
           <div className="bg-zinc-950 border border-cyan-500/30 rounded-2xl p-5 font-mono text-xs flex flex-col" style={{ height: logHeight }}>
             <div className="flex justify-between mb-3 text-cyan-400">
               <div>LIVE LOGS ({logs.length})</div>
-              <div className="text-[10px] text-gray-500">Bracket + ML Strategy</div>
+              <div className="text-[10px] text-gray-500">Adaptive ML Strategy</div>
             </div>
             <div className="flex-1 overflow-y-auto space-y-0.5 pr-2 text-gray-300" style={{ maxHeight: logHeight - 60 }}>
               {logs.length === 0 ? (
