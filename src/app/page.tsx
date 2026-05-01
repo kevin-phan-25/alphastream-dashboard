@@ -2,342 +2,236 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
-import {
-  Zap,
-  Activity,
-  Loader2,
-  AlertTriangle,
-  Wallet,
-  Bot,
-  Target,
-  Cpu,
-  Rocket,
-  Shield,
-  TrendingUp,
-  TrendingDown,
-  Clock
+import { 
+  Zap, Activity, Loader2, AlertTriangle, Wallet, Bot, Target, Cpu, 
+  Rocket, Shield, TrendingUp, TrendingDown, Play, Pause, Settings 
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
 const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
 
-type PositionT = {
+type Position = {
   symbol: string;
   qty: number;
   entry?: number;
-  avgEntryPrice?: number;
-  side?: string;
+  side?: 'long' | 'short';
   bestProfitPct?: number;
 };
 
-type RocketT = {
+type RocketSignal = {
   symbol: string;
+  action?: string;
   confidence?: number;
   volatilityEstimate?: number;
   timestamp?: number;
 };
 
-function safeNum(v: any, fallback = 0): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function safeToFixed(v: any, decimals = 2): string {
-  const n = safeNum(v);
-  return Number.isFinite(n) ? n.toFixed(decimals) : '0.00';
-}
-
-export default function Dashboard() {
+export default function TradingBotDashboard() {
   const [core, setCore] = useState<any>({});
   const [logs, setLogs] = useState<string[]>([]);
-  const [logHeight, setLogHeight] = useState(320);
-  const [dragging, setDragging] = useState(false);
-  const [scanning, setScanning] = useState(false);
-  const [panicClosing, setPanicClosing] = useState(false);
+  const [logFilter, setLogFilter] = useState<'all' | 'error' | 'trade'>('all');
+  const [logHeight, setLogHeight] = useState(340);
+  const [isScanning, setIsScanning] = useState(false);
+  const [isFlattening, setIsFlattening] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
-  const [lockCountdown, setLockCountdown] = useState(0);
+  const [lockTimeLeft, setLockTimeLeft] = useState(0);
 
+  const dragRef = useRef(false);
   const dragStartY = useRef(0);
-  const dragStartHeight = useRef(320);
+  const dragStartHeight = useRef(340);
 
-  const [mlHealth, setMlHealth] = useState({ ok: false, ready: false });
+  const [mlHealth, setMlHealth] = useState({ ok: false });
 
-  const addLog = useCallback((message: string, type: 'info' | 'warn' | 'error' = 'info') => {
-    const ts = new Date().toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      second: '2-digit' 
-    });
-    const prefix = type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '✓';
-    setLogs(prev => [`[${ts}] ${prefix} ${message}`, ...prev].slice(0, 1000));
+  // Safe number helpers
+  const safeNum = (v: any, fallback = 0) => Number.isFinite(Number(v)) ? Number(v) : fallback;
+  const safeFixed = (v: any, dec = 2) => safeNum(v).toFixed(dec);
+
+  const addLog = useCallback((msg: string, type: 'info' | 'warn' | 'error' = 'info') => {
+    const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+    const icon = type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '✓';
+    setLogs(prev => [`[${time}] ${icon} ${msg}`, ...prev].slice(0, 1200));
   }, []);
 
-  const coreRequest = useCallback(async (method: 'GET' | 'POST', path: string, body?: any) => {
-    if (isLocked) {
-      addLog("Action blocked — Account is in cooldown (403)", 'warn');
-      return null;
-    }
-
+  const fetchCore = useCallback(async () => {
     try {
-      const res = await axios({
-        method,
-        url: `${CORE_BASE}${path.startsWith('/') ? '' : '/'}${path}`,
-        data: body,
-        timeout: 45000,
-      });
-      return res;
+      const res = await axios.get(`${CORE_BASE}/health`);
+      setCore(res.data);
     } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-      const status = (e as any)?.response?.status;
-
-      addLog(`${method} ${path} → ${errorMessage}`, 'error');
-
-      if (status === 403 || errorMessage.toLowerCase().includes('403') || errorMessage.toLowerCase().includes('locked')) {
-        setIsLocked(true);
-        setLockCountdown(3600); // 60 minutes cooldown
-      }
-      throw e;
-    }
-  }, [addLog, isLocked]);
-
-  const fetchCoreData = useCallback(async () => {
-    try {
-      const res = await axios.get(`${CORE_BASE}/health`, { timeout: 10000 });
-      setCore(res.data || {});
-    } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : 'Failed to fetch core status';
-      addLog(`Core status fetch failed: ${errorMessage}`, 'error');
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      addLog(`Failed to fetch dashboard data: ${msg}`, 'error');
     }
   }, [addLog]);
 
-  const panicCloseAll = useCallback(async () => {
-    if (isLocked || !confirm('PANIC CLOSE: Close ALL positions immediately?')) return;
-
-    setPanicClosing(true);
-    try {
-      await coreRequest('POST', '/force-flat', {});
-      addLog('Emergency flat executed — All positions closed', 'error');
-      fetchCoreData();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Unknown error';
-      addLog(`Panic close failed: ${msg}`, 'error');
-    } finally {
-      setPanicClosing(false);
+  const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
+    if (isLocked) {
+      addLog("Command blocked - Account is locked", 'warn');
+      return;
     }
-  }, [coreRequest, fetchCoreData, addLog, isLocked]);
-
-  const forceScan = useCallback(async () => {
-    if (isLocked) return;
-    setScanning(true);
     try {
-      await coreRequest('POST', '/scan', {});
-      addLog('Manual scan triggered');
-      setTimeout(fetchCoreData, 3000);
+      await axios.post(`${CORE_BASE}${endpoint}`, body);
+      addLog(successMsg);
+      setTimeout(fetchCore, 1500);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Scan failed';
-      addLog(`Scan failed: ${msg}`, 'error');
-    } finally {
-      setScanning(false);
+      const msg = e instanceof Error ? e.message : 'Failed';
+      addLog(`Command failed: ${msg}`, 'error');
     }
-  }, [coreRequest, fetchCoreData, addLog, isLocked]);
+  };
 
-  const forceTestTrade = useCallback(async () => {
-    if (isLocked) return;
-    try {
-      addLog('Triggering test PAPER trade on NVDA...');
-      await coreRequest('POST', '/admin/force-test-trade', { symbol: 'NVDA', qty: 5 });
-      fetchCoreData();
-    } catch (e: unknown) {
-      addLog('Test trade request sent (check logs)', 'warn');
-    }
-  }, [coreRequest, fetchCoreData, addLog, isLocked]);
+  // Commands
+  const forceScan = () => {
+    setIsScanning(true);
+    postCommand('/scan', {}, 'Manual scan triggered').finally(() => setIsScanning(false));
+  };
 
-  // Auto-refresh core data
-  useEffect(() => {
-    fetchCoreData();
-    const interval = setInterval(fetchCoreData, 8000);
-    return () => clearInterval(interval);
-  }, [fetchCoreData]);
+  const panicFlat = async () => {
+    if (!confirm('EMERGENCY: Close ALL positions right now?')) return;
+    setIsFlattening(true);
+    await postCommand('/force-flat', {}, 'PANIC FLAT EXECUTED - All positions closed');
+    setIsFlattening(false);
+  };
 
-  // ML Health check
+  const toggleHardFlat = () => {
+    const newState = !core.hardFlat;
+    postCommand('/admin/flat', {}, newState ? 'Hard Flat ACTIVATED' : 'Hard Flat DEACTIVATED');
+  };
+
+  const adjustRisk = async (newMult: number) => {
+    // You may need to add this endpoint in admin.js
+    await postCommand('/admin/set-risk', { riskMultiplier: newMult }, `Risk multiplier set to ${newMult}`);
+  };
+
+  // ML Health
   useEffect(() => {
     const checkML = async () => {
       try {
-        const res = await axios.get(`${ML_BASE}/health`, { timeout: 8000 });
-        setMlHealth(res.data || { ok: false });
+        const res = await axios.get(`${ML_BASE}/health`);
+        setMlHealth(res.data);
       } catch {
-        setMlHealth({ ok: false, ready: false });
+        setMlHealth({ ok: false });
       }
     };
     checkML();
-    const i = setInterval(checkML, 30000);
-    return () => clearInterval(i);
+    const int = setInterval(checkML, 25000);
+    return () => clearInterval(int);
   }, []);
 
-  // Lock countdown timer
+  // Core data polling
   useEffect(() => {
-    if (!isLocked || lockCountdown <= 0) return;
-    const timer = setInterval(() => {
-      setLockCountdown(prev => {
-        if (prev <= 1) {
-          setIsLocked(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isLocked, lockCountdown]);
+    fetchCore();
+    const interval = setInterval(fetchCore, 7000);
+    return () => clearInterval(interval);
+  }, [fetchCore]);
 
-  // Auto-detect lock from recent logs
+  // Lock timer
   useEffect(() => {
-    const hasLockSignal = logs.slice(0, 10).some(l =>
-      l.includes('403') || l.includes('locked') || l.includes('forbidden')
-    );
-    if (hasLockSignal && !isLocked) {
-      setIsLocked(true);
-      setLockCountdown(3600);
+    if (lockTimeLeft <= 0) {
+      setIsLocked(false);
+      return;
     }
-  }, [logs, isLocked]);
+    const t = setInterval(() => setLockTimeLeft(p => p - 1), 1000);
+    return () => clearInterval(t);
+  }, [lockTimeLeft]);
+
+  // Auto detect lock
+  useEffect(() => {
+    if (logs.slice(0, 8).some(l => l.includes('403') || l.includes('locked'))) {
+      setIsLocked(true);
+      setLockTimeLeft(3600);
+    }
+  }, [logs]);
 
   const equity = safeNum(core.equity);
   const peakEquity = safeNum(core.peakEquity);
   const drawdown = peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0;
-  const positions: PositionT[] = Array.isArray(core.positions) ? core.positions : [];
-  const rockets: RocketT[] = Array.isArray(core.rockets) ? core.rockets : [];
+  const positions: Position[] = Array.isArray(core.positions) ? core.positions : [];
+  const rockets: RocketSignal[] = Array.isArray(core.rockets) ? core.rockets : [];
+
+  const winRate = safeNum(core.recentWinRate) * 100;
+  const isInDanger = drawdown > 12;
 
   return (
-    <div className="h-screen bg-black text-gray-100 flex flex-col overflow-hidden font-mono">
-      {/* Header */}
-      <header className="shrink-0 bg-zinc-950 border-b border-cyan-500/30 px-6 py-4 flex justify-between items-center">
+    <div className="h-screen bg-zinc-950 text-gray-100 flex flex-col overflow-hidden">
+      {/* Top Bar */}
+      <header className="border-b border-zinc-800 bg-black px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Bot className="w-9 h-9 text-cyan-400" />
+          <Bot className="w-10 h-10 text-cyan-400" />
           <div>
-            <h1 className="text-3xl font-black tracking-tighter text-cyan-300">ALPHASTREAM</h1>
-            <p className="text-xs text-emerald-400">MAG7 PAPER TRADER • v4.0 PROFIT-FIRST</p>
+            <h1 className="text-3xl font-black tracking-tighter text-white">ALPHASTREAM</h1>
+            <p className="text-xs text-emerald-400 font-mono">MAG7 • LIVE PAPER TRADING BOT v4.1</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="text-right pr-4">
-            <div className="text-3xl font-bold text-cyan-300">${equity.toFixed(0)}</div>
-            <div className="text-xs text-gray-500">EQUITY</div>
+        <div className="flex items-center gap-6 text-sm">
+          <div className={`flex items-center gap-2 ${isInDanger ? 'text-red-400' : 'text-emerald-400'}`}>
+            <div className={`w-3 h-3 rounded-full ${isInDanger ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
+            {isInDanger ? 'HIGH RISK' : 'SYSTEM HEALTHY'}
           </div>
-
-          <button
-            onClick={forceTestTrade}
-            disabled={isLocked}
-            className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 rounded-xl text-sm font-bold hover:brightness-110 disabled:opacity-50 flex items-center gap-2"
-          >
-            <Zap className="w-4 h-4" /> TEST TRADE
+          <button onClick={forceScan} disabled={isScanning} className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 px-5 py-2 rounded-xl font-medium disabled:opacity-50">
+            {isScanning ? <Loader2 className="animate-spin" /> : <Activity />} SCAN
           </button>
-
-          <button
-            onClick={forceScan}
-            disabled={scanning || isLocked}
-            className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl text-sm font-bold hover:brightness-110 disabled:opacity-50 flex items-center gap-2"
-          >
-            {scanning ? <Loader2 className="animate-spin w-4 h-4" /> : <Activity className="w-4 h-4" />}
-            FORCE SCAN
-          </button>
-
-          <button
-            onClick={panicCloseAll}
-            disabled={panicClosing || isLocked}
-            className="px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-700 rounded-xl text-sm font-bold hover:brightness-110 disabled:opacity-50 flex items-center gap-2"
-          >
-            {panicClosing ? <Loader2 className="animate-spin w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-            PANIC FLAT
+          <button onClick={panicFlat} disabled={isFlattening} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 px-5 py-2 rounded-xl font-medium disabled:opacity-50">
+            {isFlattening ? <Loader2 className="animate-spin" /> : <AlertTriangle />} PANIC FLAT
           </button>
         </div>
       </header>
 
       {/* Lock Banner */}
       {isLocked && (
-        <div className="mx-4 mt-4 bg-red-950 border border-red-600 text-red-100 p-4 rounded-2xl flex items-center gap-4">
-          <AlertTriangle className="w-6 h-6 flex-shrink-0" />
-          <div>
-            <div className="font-bold">Account temporarily locked (403)</div>
-            <div className="text-sm mt-1">
-              Cooldown remaining: <span className="font-mono font-bold">
-                {Math.floor(lockCountdown / 60)}:{(lockCountdown % 60).toString().padStart(2, '0')}
-              </span>
-            </div>
-          </div>
+        <div className="bg-red-900/90 border-b border-red-600 px-6 py-3 text-red-100 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5" />
+          <span>Account is temporarily locked due to 403 error. Cooldown: {Math.floor(lockTimeLeft/60)}m {lockTimeLeft%60}s</span>
         </div>
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* Left Column */}
-        <div className="col-span-7 space-y-4 overflow-y-auto">
-          <div className="grid grid-cols-4 gap-4">
-            <div className="bg-zinc-900 border border-cyan-500/30 rounded-2xl p-6">
-              <Wallet className="w-8 h-8 text-cyan-400 mb-3" />
-              <div className="text-4xl font-bold text-cyan-300">${equity.toFixed(0)}</div>
-              <div className="text-sm text-gray-400 mt-1">CURRENT EQUITY</div>
+        {/* LEFT COLUMN - METRICS & POSITIONS */}
+        <div className="col-span-8 space-y-4 overflow-y-auto">
+          {/* Key Metrics */}
+          <div className="grid grid-cols-5 gap-4">
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-5">
+              <div className="text-cyan-400 text-sm">EQUITY</div>
+              <div className="text-4xl font-bold mt-2">${equity.toFixed(0)}</div>
             </div>
-
-            <div className="bg-zinc-900 border border-emerald-500/30 rounded-2xl p-6">
-              <Target className="w-8 h-8 text-emerald-400 mb-3" />
-              <div className="text-4xl font-bold text-emerald-300">{positions.length}/3</div>
-              <div className="text-sm text-gray-400 mt-1">POSITIONS</div>
-            </div>
-
-            <div className="bg-zinc-900 border border-purple-500/30 rounded-2xl p-6">
-              <Cpu className="w-8 h-8 text-purple-400 mb-3" />
-              <div className={`text-2xl font-bold ${mlHealth.ok ? 'text-emerald-400' : 'text-red-400'}`}>
-                {mlHealth.ok ? '● ONLINE' : '○ OFFLINE'}
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-5">
+              <div className="text-amber-400 text-sm">DRAWDOWN</div>
+              <div className={`text-4xl font-bold mt-2 ${drawdown > 15 ? 'text-red-500' : 'text-amber-400'}`}>
+                {drawdown.toFixed(1)}%
               </div>
-              <div className="text-sm text-gray-400 mt-1">ML ENGINE</div>
             </div>
-
-            <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6">
-              <TrendingUp className="w-8 h-8 text-amber-400 mb-3" />
-              <div className="text-3xl font-bold text-amber-300">{safeToFixed(core.riskMultiplier || 0.45)}</div>
-              <div className="text-sm text-gray-400 mt-1">RISK MULTIPLIER</div>
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-5">
+              <div className="text-emerald-400 text-sm">WIN RATE</div>
+              <div className="text-4xl font-bold mt-2">{winRate.toFixed(0)}%</div>
             </div>
-          </div>
-
-          {/* Drawdown */}
-          <div className={`p-6 rounded-2xl border ${drawdown > 12 ? 'border-red-500 bg-red-950/50' : 'border-amber-500/30 bg-zinc-900'}`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {drawdown > 12 ? <TrendingDown className="w-6 h-6 text-red-400" /> : <TrendingUp className="w-6 h-6 text-amber-400" />}
-                <span className="font-semibold">Drawdown</span>
-              </div>
-              <span className={`text-3xl font-bold ${drawdown > 15 ? 'text-red-400' : 'text-amber-400'}`}>
-                {drawdown.toFixed(2)}%
-              </span>
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-5">
+              <div className="text-purple-400 text-sm">POSITIONS</div>
+              <div className="text-4xl font-bold mt-2">{positions.length}/3</div>
             </div>
-            <div className="text-xs text-gray-500 mt-2">Peak: ${peakEquity.toFixed(0)}</div>
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-5">
+              <div className="text-sky-400 text-sm">RISK MULT</div>
+              <div className="text-4xl font-bold mt-2">{safeFixed(core.riskMultiplier, 2)}x</div>
+            </div>
           </div>
 
           {/* Open Positions */}
-          <div className="bg-zinc-900 border border-cyan-500/30 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <p className="font-semibold flex items-center gap-2">
-                <Shield className="w-5 h-5 text-cyan-400" /> Open Positions
-              </p>
-              <span className="text-xs bg-zinc-800 px-3 py-1 rounded-full">{positions.length} / 3</span>
-            </div>
-
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <Shield className="w-5 h-5" /> OPEN POSITIONS
+            </h3>
             {positions.length === 0 ? (
-              <div className="text-center py-16 text-gray-500">No open positions • Scanner is active</div>
+              <p className="text-center py-12 text-gray-500">No open positions</p>
             ) : (
               <div className="space-y-3">
-                {positions.map((p, i) => (
-                  <div key={i} className="flex justify-between items-center bg-black/70 px-6 py-4 rounded-xl border border-zinc-700">
-                    <div>
-                      <span className="text-xl font-bold text-cyan-300">{p.symbol}</span>
-                      <span className="ml-4 text-xs uppercase tracking-widest text-gray-500">
-                        {p.side || 'LONG'}
+                {positions.map((pos, i) => (
+                  <div key={i} className="flex justify-between items-center bg-black/50 px-6 py-4 rounded-xl border border-zinc-800">
+                    <div className="flex items-center gap-6">
+                      <span className="text-2xl font-bold text-white">{pos.symbol}</span>
+                      <span className={`px-3 py-1 text-xs rounded-full ${pos.side === 'short' ? 'bg-red-900 text-red-400' : 'bg-emerald-900 text-emerald-400'}`}>
+                        {pos.side?.toUpperCase() || 'LONG'}
                       </span>
                     </div>
                     <div className="text-right">
-                      <div>{safeNum(p.qty)} shares</div>
-                      <div className="text-xs text-gray-400">
-                        @ ${safeToFixed(p.entry || p.avgEntryPrice)}
-                      </div>
+                      <div className="font-mono">{pos.qty} shares</div>
+                      <div className="text-xs text-gray-400">@ ${safeFixed(pos.entry)}</div>
                     </div>
                   </div>
                 ))}
@@ -346,64 +240,82 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Right Column - Rockets + Logs */}
-        <div className="col-span-5 flex flex-col gap-4">
-          <div className="flex-1 bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 overflow-y-auto">
-            <div className="flex justify-between mb-4">
-              <p className="font-semibold flex items-center gap-2">
-                <Rocket className="w-5 h-5 text-amber-400" /> ML Rockets
-              </p>
-              <span className="text-xs px-3 py-1 bg-amber-900/50 rounded-full">{rockets.length}</span>
-            </div>
-
-            {rockets.length === 0 ? (
-              <div className="text-center py-20 text-gray-500">Waiting for high-confidence signals...</div>
-            ) : (
-              <div className="space-y-4">
-                {rockets.map((r, i) => (
-                  <div key={i} className="bg-zinc-950 border border-amber-500/20 rounded-xl p-5">
+        {/* RIGHT COLUMN - SIGNALS + CONTROLS + LOGS */}
+        <div className="col-span-4 flex flex-col gap-4">
+          {/* ML Signals */}
+          <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 overflow-hidden flex flex-col">
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <Rocket className="w-5 h-5 text-amber-400" /> ML SIGNALS
+            </h3>
+            <div className="flex-1 overflow-y-auto space-y-3">
+              {rockets.length === 0 ? (
+                <div className="text-center py-16 text-gray-500">No strong signals yet...</div>
+              ) : (
+                rockets.map((r, i) => (
+                  <div key={i} className="bg-zinc-950 border border-amber-500/20 p-4 rounded-xl">
                     <div className="flex justify-between">
-                      <div className="text-2xl font-bold text-amber-300">{r.symbol}</div>
-                      <div className="text-emerald-400 font-mono">
-                        {safeNum(r.confidence)}%
-                      </div>
+                      <span className="text-xl font-bold">{r.symbol}</span>
+                      <span className="text-emerald-400 font-mono">{r.confidence}%</span>
                     </div>
-                    <div className="text-xs text-gray-500 mt-2">
-                      Vol: {(safeNum(r.volatilityEstimate) * 100).toFixed(1)}%
+                    <div className="text-xs text-gray-400 mt-1">
+                      Vol: {(safeNum(r.volatilityEstimate)*100).toFixed(1)}%
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Quick Controls */}
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-5">
+            <h3 className="font-medium mb-3">QUICK CONTROLS</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={toggleHardFlat} className="bg-zinc-800 hover:bg-zinc-700 py-3 rounded-xl text-sm font-medium">
+                {core.hardFlat ? 'RELEASE HARD FLAT' : 'ACTIVATE HARD FLAT'}
+              </button>
+              <button onClick={() => adjustRisk(0.3)} className="bg-zinc-800 hover:bg-zinc-700 py-3 rounded-xl text-sm font-medium">
+                LOW RISK
+              </button>
+            </div>
           </div>
 
           {/* Live Logs */}
-          <div 
-            className="bg-zinc-950 border border-cyan-500/30 rounded-2xl flex flex-col overflow-hidden"
-            style={{ height: logHeight }}
-          >
-            <div className="p-4 border-b border-cyan-900 flex justify-between text-cyan-400 text-sm">
-              <div>LIVE SYSTEM LOGS</div>
-              <div className="text-xs text-gray-500">Real-time • v4.0</div>
+          <div className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden" style={{ height: logHeight }}>
+            <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between text-sm">
+              <span>LIVE LOGS</span>
+              <div className="flex gap-2">
+                {(['all', 'error', 'trade'] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setLogFilter(f)}
+                    className={`px-3 py-1 text-xs rounded-full ${logFilter === f ? 'bg-cyan-600' : 'bg-zinc-800'}`}
+                  >
+                    {f.toUpperCase()}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="flex-1 p-4 overflow-y-auto text-xs text-gray-300 space-y-1 font-light">
+            <div className="flex-1 p-4 overflow-y-auto text-xs text-gray-300 space-y-1">
               {logs.length === 0 ? (
-                <div className="text-center py-12 text-gray-600">Bot running • Logs will appear here...</div>
+                <div className="text-center py-12 text-gray-600">Waiting for bot activity...</div>
               ) : (
-                logs.map((line, i) => <div key={i} className="break-all">{line}</div>)
+                logs.map((line, i) => (
+                  <div key={i} className="break-all leading-relaxed">{line}</div>
+                ))
               )}
             </div>
 
+            {/* Drag Handle */}
             <div
               onMouseDown={(e) => {
-                setDragging(true);
+                dragRef.current = true;
                 dragStartY.current = e.clientY;
                 dragStartHeight.current = logHeight;
               }}
-              className="h-6 border-t border-cyan-900 flex items-center justify-center cursor-row-resize hover:bg-cyan-950/50"
+              className="h-6 border-t border-zinc-800 flex items-center justify-center cursor-row-resize hover:bg-zinc-900"
             >
-              <div className="w-12 h-0.5 bg-cyan-700 rounded-full" />
+              <div className="w-16 h-0.5 bg-zinc-700 rounded" />
             </div>
           </div>
         </div>
