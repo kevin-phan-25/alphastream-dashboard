@@ -63,7 +63,11 @@ export default function Dashboard() {
   const [mlHealth, setMlHealth] = useState({ ok: false, ready: false });
 
   const addLog = useCallback((message: string, type: 'info' | 'warn' | 'error' = 'info') => {
-    const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const ts = new Date().toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit' 
+    });
     const prefix = type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '✓';
     setLogs(prev => [`[${ts}] ${prefix} ${message}`, ...prev].slice(0, 1000));
   }, []);
@@ -82,13 +86,15 @@ export default function Dashboard() {
         timeout: 45000,
       });
       return res;
-    } catch (e: any) {
-      const msg = e.response?.data?.error || e.message || 'Request failed';
-      addLog(`${method} ${path} → ${msg}`, 'error');
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      const status = (e as any)?.response?.status;
 
-      if (e.response?.status === 403 || msg.toLowerCase().includes('403') || msg.toLowerCase().includes('locked')) {
+      addLog(`${method} ${path} → ${errorMessage}`, 'error');
+
+      if (status === 403 || errorMessage.toLowerCase().includes('403') || errorMessage.toLowerCase().includes('locked')) {
         setIsLocked(true);
-        setLockCountdown(3600); // 60 minutes
+        setLockCountdown(3600); // 60 minutes cooldown
       }
       throw e;
     }
@@ -98,12 +104,12 @@ export default function Dashboard() {
     try {
       const res = await axios.get(`${CORE_BASE}/health`, { timeout: 10000 });
       setCore(res.data || {});
-    } catch (e) {
-      addLog(`Failed to fetch core status: ${e.message}`, 'error');
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Failed to fetch core status';
+      addLog(`Core status fetch failed: ${errorMessage}`, 'error');
     }
   }, [addLog]);
 
-  // Force Flat (Panic Close)
   const panicCloseAll = useCallback(async () => {
     if (isLocked || !confirm('PANIC CLOSE: Close ALL positions immediately?')) return;
 
@@ -112,14 +118,14 @@ export default function Dashboard() {
       await coreRequest('POST', '/force-flat', {});
       addLog('Emergency flat executed — All positions closed', 'error');
       fetchCoreData();
-    } catch (e: any) {
-      addLog(`Panic close failed: ${e.message}`, 'error');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      addLog(`Panic close failed: ${msg}`, 'error');
     } finally {
       setPanicClosing(false);
     }
   }, [coreRequest, fetchCoreData, addLog, isLocked]);
 
-  // Manual Scan
   const forceScan = useCallback(async () => {
     if (isLocked) return;
     setScanning(true);
@@ -127,34 +133,33 @@ export default function Dashboard() {
       await coreRequest('POST', '/scan', {});
       addLog('Manual scan triggered');
       setTimeout(fetchCoreData, 3000);
-    } catch (e: any) {
-      addLog(`Scan failed: ${e.message}`, 'error');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Scan failed';
+      addLog(`Scan failed: ${msg}`, 'error');
     } finally {
       setScanning(false);
     }
   }, [coreRequest, fetchCoreData, addLog, isLocked]);
 
-  // Test Trade (for debugging)
   const forceTestTrade = useCallback(async () => {
     if (isLocked) return;
     try {
       addLog('Triggering test PAPER trade on NVDA...');
-      // Note: You may need to add this endpoint in admin.js if not present
       await coreRequest('POST', '/admin/force-test-trade', { symbol: 'NVDA', qty: 5 });
       fetchCoreData();
-    } catch (e) {
+    } catch (e: unknown) {
       addLog('Test trade request sent (check logs)', 'warn');
     }
   }, [coreRequest, fetchCoreData, addLog, isLocked]);
 
-  // Auto-refresh
+  // Auto-refresh core data
   useEffect(() => {
     fetchCoreData();
     const interval = setInterval(fetchCoreData, 8000);
     return () => clearInterval(interval);
   }, [fetchCoreData]);
 
-  // ML Health
+  // ML Health check
   useEffect(() => {
     const checkML = async () => {
       try {
@@ -169,7 +174,7 @@ export default function Dashboard() {
     return () => clearInterval(i);
   }, []);
 
-  // Lock countdown
+  // Lock countdown timer
   useEffect(() => {
     if (!isLocked || lockCountdown <= 0) return;
     const timer = setInterval(() => {
@@ -184,9 +189,9 @@ export default function Dashboard() {
     return () => clearInterval(timer);
   }, [isLocked, lockCountdown]);
 
-  // Auto-detect lock from logs
+  // Auto-detect lock from recent logs
   useEffect(() => {
-    const hasLockSignal = logs.slice(0, 10).some(l => 
+    const hasLockSignal = logs.slice(0, 10).some(l =>
       l.includes('403') || l.includes('locked') || l.includes('forbidden')
     );
     if (hasLockSignal && !isLocked) {
@@ -201,8 +206,6 @@ export default function Dashboard() {
   const positions: PositionT[] = Array.isArray(core.positions) ? core.positions : [];
   const rockets: RocketT[] = Array.isArray(core.rockets) ? core.rockets : [];
 
-  const isHealthy = core.status === 'ready' || core.ok === true;
-
   return (
     <div className="h-screen bg-black text-gray-100 flex flex-col overflow-hidden font-mono">
       {/* Header */}
@@ -216,7 +219,7 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="text-right">
+          <div className="text-right pr-4">
             <div className="text-3xl font-bold text-cyan-300">${equity.toFixed(0)}</div>
             <div className="text-xs text-gray-500">EQUITY</div>
           </div>
@@ -252,7 +255,7 @@ export default function Dashboard() {
       {/* Lock Banner */}
       {isLocked && (
         <div className="mx-4 mt-4 bg-red-950 border border-red-600 text-red-100 p-4 rounded-2xl flex items-center gap-4">
-          <AlertTriangle className="w-6 h-6" />
+          <AlertTriangle className="w-6 h-6 flex-shrink-0" />
           <div>
             <div className="font-bold">Account temporarily locked (403)</div>
             <div className="text-sm mt-1">
@@ -265,7 +268,7 @@ export default function Dashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* Left Column - Main Info */}
+        {/* Left Column */}
         <div className="col-span-7 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-4 gap-4">
             <div className="bg-zinc-900 border border-cyan-500/30 rounded-2xl p-6">
@@ -295,7 +298,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Drawdown Indicator */}
+          {/* Drawdown */}
           <div className={`p-6 rounded-2xl border ${drawdown > 12 ? 'border-red-500 bg-red-950/50' : 'border-amber-500/30 bg-zinc-900'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -319,7 +322,7 @@ export default function Dashboard() {
             </div>
 
             {positions.length === 0 ? (
-              <div className="text-center py-16 text-gray-500">No open positions • Scanner active</div>
+              <div className="text-center py-16 text-gray-500">No open positions • Scanner is active</div>
             ) : (
               <div className="space-y-3">
                 {positions.map((p, i) => (
@@ -343,9 +346,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Right Column */}
+        {/* Right Column - Rockets + Logs */}
         <div className="col-span-5 flex flex-col gap-4">
-          {/* Rockets / Signals */}
           <div className="flex-1 bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 overflow-y-auto">
             <div className="flex justify-between mb-4">
               <p className="font-semibold flex items-center gap-2">
@@ -393,7 +395,6 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Resize Handle */}
             <div
               onMouseDown={(e) => {
                 setDragging(true);
