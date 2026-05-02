@@ -9,6 +9,9 @@ import {
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
 const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
 
+// === ADMIN KEY CONFIGURATION ===
+const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'YOUR_ADMIN_KEY_HERE'; // Set in .env.local
+
 type Position = {
   symbol: string;
   qty: number;
@@ -70,18 +73,25 @@ export default function TradingBotDashboard() {
     }
   }, []);
 
+  // Updated postCommand with Admin Authentication
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
     if (isLocked) {
       addLog("Command blocked - Account is locked", 'warn');
       return;
     }
+
     try {
-      await axios.post(`${CORE_BASE}${endpoint}`, body);
+      await axios.post(`${CORE_BASE}${endpoint}`, body, {
+        headers: {
+          'x-admin-key': ADMIN_KEY,
+          'Content-Type': 'application/json'
+        }
+      });
       addLog(successMsg, 'success');
       setTimeout(fetchCore, 1200);
     } catch (e: any) {
       if (e.response?.status === 403) {
-        addLog("403 Forbidden - Account locked or entries disabled by backend", 'error');
+        addLog("403 Forbidden - Account locked or admin authentication failed", 'error');
         setIsLocked(true);
         setLockTimeLeft(1800); // 30 minutes
       } else {
@@ -288,7 +298,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Quick Controls - Updated with Enable Entries */}
+          {/* Quick Controls */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
             <h3 className="font-medium">QUICK CONTROLS</h3>
             
