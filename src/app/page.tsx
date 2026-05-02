@@ -3,9 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { 
-  Zap, Activity, Loader2, AlertTriangle, Wallet, Bot, Target, Cpu, 
-  Rocket, Shield, TrendingUp, TrendingDown, Play, Pause, Settings, 
-  RefreshCw, Lock, Unlock, Eye, EyeOff 
+  Bot, Activity, Loader2, AlertTriangle, Shield, Rocket, Lock, Unlock 
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -17,7 +15,6 @@ type Position = {
   entry?: number;
   side?: 'long' | 'short';
   bestProfitPct?: number;
-  unrealizedPct?: number;
 };
 
 type RocketSignal = {
@@ -39,11 +36,15 @@ export default function TradingBotDashboard() {
   const [isFlattening, setIsFlattening] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [lockTimeLeft, setLockTimeLeft] = useState(0);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const dragRef = useRef(false);
   const dragStartY = useRef(0);
   const dragStartHeight = useRef(380);
+
+  const safeNum = (v: any, fallback = 0) => {
+    const num = Number(v);
+    return Number.isFinite(num) ? num : fallback;
+  };
 
   const addLog = useCallback((msg: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') => {
     const time = new Date().toLocaleTimeString('en-US', { hour12: false });
@@ -55,7 +56,6 @@ export default function TradingBotDashboard() {
     try {
       const res = await axios.get(`${CORE_BASE}/health`);
       setCore(res.data || {});
-      if (res.data?.lastError) addLog(res.data.lastError, 'error');
     } catch (e: any) {
       addLog(`Core unreachable: ${e.message}`, 'error');
     }
@@ -71,17 +71,13 @@ export default function TradingBotDashboard() {
   }, []);
 
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
-    if (isLocked) {
-      addLog("Command blocked - Account is locked", 'warn');
-      return;
-    }
+    if (isLocked) return addLog("Command blocked - Account locked", 'warn');
     try {
       await axios.post(`${CORE_BASE}${endpoint}`, body);
       addLog(successMsg, 'success');
       setTimeout(fetchCore, 1200);
     } catch (e: any) {
-      const msg = e?.response?.data?.error || e.message;
-      addLog(`Command failed: ${msg}`, 'error');
+      addLog(`Failed: ${e.response?.data?.error || e.message}`, 'error');
     }
   };
 
@@ -122,7 +118,7 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Drag Handlers
+  // Drag handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = true;
     dragStartY.current = e.clientY;
@@ -135,11 +131,8 @@ export default function TradingBotDashboard() {
     setLogHeight(Math.max(200, Math.min(650, dragStartHeight.current + delta)));
   };
 
-  const handleMouseUp = () => {
-    dragRef.current = false;
-  };
+  const handleMouseUp = () => { dragRef.current = false; };
 
-  // Global drag
   useEffect(() => {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
@@ -149,47 +142,28 @@ export default function TradingBotDashboard() {
     };
   }, []);
 
-  // Polling
-  useEffect(() => {
-    fetchCore();
-    fetchMLHealth();
-    const coreInt = setInterval(fetchCore, 7000);
-    const mlInt = setInterval(fetchMLHealth, 25000);
-    return () => {
-      clearInterval(coreInt);
-      clearInterval(mlInt);
-    };
-  }, [fetchCore, fetchMLHealth]);
+  useEffect(() => { fetchCore(); fetchMLHealth(); }, []);
+  useEffect(() => { const i = setInterval(fetchCore, 7000); return () => clearInterval(i); }, [fetchCore]);
+  useEffect(() => { const i = setInterval(fetchMLHealth, 25000); return () => clearInterval(i); }, [fetchMLHealth]);
 
-  // Lock timer
   useEffect(() => {
-    if (lockTimeLeft <= 0) {
-      setIsLocked(false);
-      return;
-    }
+    if (lockTimeLeft <= 0) { setIsLocked(false); return; }
     const t = setInterval(() => setLockTimeLeft(p => p - 1), 1000);
     return () => clearInterval(t);
   }, [lockTimeLeft]);
 
-  // Auto lock detection
-  useEffect(() => {
-    if (logs.slice(0, 10).some(l => l.includes('403') || l.includes('locked'))) {
-      setIsLocked(true);
-      if (lockTimeLeft === 0) setLockTimeLeft(3600);
-    }
-  }, [logs]);
-
-  const equity = Number(core.equity) || 0;
-  const peakEquity = Number(core.peakEquity) || equity;
+  const equity = safeNum(core.equity);
+  const peakEquity = safeNum(core.peakEquity);
   const drawdown = peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0;
   const positions: Position[] = Array.isArray(core.positions) ? core.positions : [];
   const rockets: RocketSignal[] = Array.isArray(core.rockets) ? core.rockets : [];
-  const winRate = (core.recentWinRate || 0) * 100;
+  const winRate = safeNum(core.recentWinRate) * 100;
+  const riskMult = safeNum(core.riskMultiplier, 1);
+
   const isInDanger = drawdown > 12;
 
   return (
     <div className="h-screen bg-zinc-950 text-gray-100 flex flex-col overflow-hidden">
-      {/* Top Bar */}
       <header className="border-b border-zinc-800 bg-black px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Bot className="w-11 h-11 text-cyan-400" />
@@ -224,7 +198,6 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* Left Column - Metrics & Positions */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -245,11 +218,10 @@ export default function TradingBotDashboard() {
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-sky-400 text-sm">RISK ×</div>
-              <div className="text-4xl font-bold mt-3">{(core.riskMultiplier || 1).toFixed(2)}x</div>
+              <div className="text-4xl font-bold mt-3">{riskMult.toFixed(2)}x</div>
             </div>
           </div>
 
-          {/* Open Positions */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Shield className="w-5 h-5" /> OPEN POSITIONS
@@ -277,9 +249,7 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
-        {/* Right Column */}
         <div className="col-span-4 flex flex-col gap-4">
-          {/* ML Signals */}
           <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 flex flex-col">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Rocket className="w-5 h-5 text-amber-400" /> ML ROCKET SIGNALS
@@ -303,7 +273,6 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Quick Controls */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
             <h3 className="font-medium">QUICK CONTROLS</h3>
             <div className="grid grid-cols-2 gap-3">
@@ -328,12 +297,11 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Logs */}
           <div className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden" style={{ height: logHeight }}>
             <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between text-sm">
               <span>LIVE LOGS</span>
               <div className="flex gap-1">
-                {(['all', 'error', 'trade', 'ml'] as const).map(f => (
+                {(['all','error','trade','ml'] as const).map(f => (
                   <button key={f} onClick={() => setLogFilter(f)} className={`px-3 py-1 text-xs rounded-full ${logFilter === f ? 'bg-cyan-600' : 'bg-zinc-800'}`}>
                     {f.toUpperCase()}
                   </button>
@@ -342,17 +310,10 @@ export default function TradingBotDashboard() {
             </div>
 
             <div className="flex-1 p-4 overflow-y-auto text-xs font-mono text-gray-300 space-y-1">
-              {logs.length === 0 ? (
-                <div className="text-center py-20 text-gray-600">Waiting for bot activity...</div>
-              ) : (
-                logs.map((line, i) => <div key={i} className="break-all leading-relaxed">{line}</div>)
-              )}
+              {logs.length === 0 ? "Waiting for bot activity..." : logs.map((l, i) => <div key={i}>{l}</div>)}
             </div>
 
-            <div 
-              onMouseDown={handleMouseDown}
-              className="h-6 border-t border-zinc-800 flex items-center justify-center cursor-row-resize hover:bg-zinc-900"
-            >
+            <div onMouseDown={handleMouseDown} className="h-6 border-t border-zinc-800 flex items-center justify-center cursor-row-resize hover:bg-zinc-900">
               <div className="w-20 h-0.5 bg-zinc-600 rounded" />
             </div>
           </div>
