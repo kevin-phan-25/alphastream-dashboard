@@ -80,14 +80,12 @@ export default function TradingBotDashboard() {
       addLog(successMsg, 'success');
       setTimeout(fetchCore, 1200);
     } catch (e: any) {
-      const status = e.response?.status;
-      if (status === 403) {
-        addLog("403 Forbidden - Account may be locked or requires authentication", 'error');
+      if (e.response?.status === 403) {
+        addLog("403 Forbidden - Account locked or entries disabled by backend", 'error');
         setIsLocked(true);
-        setLockTimeLeft(3600);
+        setLockTimeLeft(1800); // 30 minutes
       } else {
-        const msg = e.response?.data?.error || e.message;
-        addLog(`Command failed: ${msg}`, 'error');
+        addLog(`Command failed: ${e.response?.data?.error || e.message}`, 'error');
       }
     }
   };
@@ -112,6 +110,10 @@ export default function TradingBotDashboard() {
       newState ? 'HARD FLAT ACTIVATED' : 'HARD FLAT DEACTIVATED');
   };
 
+  const enableEntries = () => {
+    postCommand('/admin/enable-entries', {}, 'Entries have been re-enabled');
+  };
+
   const adjustRisk = (newMult: number) => {
     postCommand('/admin/set-risk', { riskMultiplier: newMult }, 
       `Risk multiplier set to ${newMult}x`);
@@ -124,7 +126,7 @@ export default function TradingBotDashboard() {
       addLog("Manual unlock performed", 'success');
     } else {
       setIsLocked(true);
-      setLockTimeLeft(3600);
+      setLockTimeLeft(1800);
       addLog("Account manually locked", 'warn');
     }
   };
@@ -158,7 +160,6 @@ export default function TradingBotDashboard() {
   useEffect(() => { const i = setInterval(fetchCore, 7000); return () => clearInterval(i); }, [fetchCore]);
   useEffect(() => { const i = setInterval(fetchMLHealth, 25000); return () => clearInterval(i); }, [fetchMLHealth]);
 
-  // Lock timer
   useEffect(() => {
     if (lockTimeLeft <= 0) { setIsLocked(false); return; }
     const t = setInterval(() => setLockTimeLeft(p => p - 1), 1000);
@@ -287,12 +288,22 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
+          {/* Quick Controls - Updated with Enable Entries */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
             <h3 className="font-medium">QUICK CONTROLS</h3>
-            <div className="grid grid-cols-2 gap-3">
+            
+            <div className="grid grid-cols-3 gap-3">
               <button onClick={toggleHardFlat} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">
                 {core.hardFlat ? 'DISABLE HARD FLAT' : 'ENABLE HARD FLAT'}
               </button>
+              
+              <button 
+                onClick={enableEntries}
+                className="py-4 bg-amber-600 hover:bg-amber-500 rounded-2xl text-sm font-medium"
+              >
+                ENABLE ENTRIES
+              </button>
+
               <button onClick={toggleLock} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium flex items-center justify-center gap-2">
                 {isLocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                 {isLocked ? 'UNLOCK' : 'LOCK'}
@@ -311,6 +322,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
+          {/* Logs */}
           <div className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden" style={{ height: logHeight }}>
             <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between text-sm">
               <span>LIVE LOGS</span>
