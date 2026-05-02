@@ -47,22 +47,20 @@ export default function TradingBotDashboard() {
 
   const addLog = useCallback((msg: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') => {
     const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-    const icons = { error: '❌', warn: '⚠️', success: '✅', info: 'ℹ️' };
+    const icons: Record<string, string> = { error: '❌', warn: '⚠️', success: '✅', info: 'ℹ️' };
     setLogs(prev => [`[${time}] ${icons[type]} ${msg}`, ...prev].slice(0, 1500));
   }, []);
 
-  // Fetch Core Status
   const fetchCore = useCallback(async () => {
     try {
       const res = await axios.get(`${CORE_BASE}/health`);
       setCore(res.data || {});
       if (res.data?.lastError) addLog(res.data.lastError, 'error');
     } catch (e: any) {
-      addLog(`Core connection failed: ${e.message}`, 'error');
+      addLog(`Core unreachable: ${e.message}`, 'error');
     }
   }, [addLog]);
 
-  // Fetch ML Health
   const fetchMLHealth = useCallback(async () => {
     try {
       const res = await axios.get(`${ML_BASE}/health`);
@@ -72,21 +70,18 @@ export default function TradingBotDashboard() {
     }
   }, []);
 
-  // Post Command with better feedback
-  const postCommand = async (endpoint: string, body = {}, successMsg: string, errorMsg?: string) => {
+  const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
     if (isLocked) {
       addLog("Command blocked - Account is locked", 'warn');
-      return false;
+      return;
     }
     try {
       await axios.post(`${CORE_BASE}${endpoint}`, body);
       addLog(successMsg, 'success');
       setTimeout(fetchCore, 1200);
-      return true;
     } catch (e: any) {
       const msg = e?.response?.data?.error || e.message;
-      addLog(errorMsg || `Command failed: ${msg}`, 'error');
-      return false;
+      addLog(`Command failed: ${msg}`, 'error');
     }
   };
 
@@ -98,9 +93,9 @@ export default function TradingBotDashboard() {
   };
 
   const panicFlat = async () => {
-    if (!confirm('🚨 EMERGENCY: Close ALL positions immediately?')) return;
+    if (!confirm('🚨 EMERGENCY: Close ALL positions right now?')) return;
     setIsFlattening(true);
-    await postCommand('/force-flat', {}, 'PANIC FLAT EXECUTED — All positions closed', 'Panic flat failed');
+    await postCommand('/force-flat', {}, 'PANIC FLAT EXECUTED — All positions closed');
     setIsFlattening(false);
   };
 
@@ -112,7 +107,7 @@ export default function TradingBotDashboard() {
 
   const adjustRisk = (newMult: number) => {
     postCommand('/admin/set-risk', { riskMultiplier: newMult }, 
-      `Risk multiplier updated to ${newMult}x`);
+      `Risk multiplier set to ${newMult}x`);
   };
 
   const toggleLock = () => {
@@ -127,11 +122,38 @@ export default function TradingBotDashboard() {
     }
   };
 
+  // Drag Handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    dragRef.current = true;
+    dragStartY.current = e.clientY;
+    dragStartHeight.current = logHeight;
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!dragRef.current) return;
+    const delta = dragStartY.current - e.clientY;
+    setLogHeight(Math.max(200, Math.min(650, dragStartHeight.current + delta)));
+  };
+
+  const handleMouseUp = () => {
+    dragRef.current = false;
+  };
+
+  // Global drag
+  useEffect(() => {
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
   // Polling
   useEffect(() => {
     fetchCore();
     fetchMLHealth();
-    const coreInt = setInterval(fetchCore, 6000);
+    const coreInt = setInterval(fetchCore, 7000);
     const mlInt = setInterval(fetchMLHealth, 25000);
     return () => {
       clearInterval(coreInt);
@@ -145,31 +167,23 @@ export default function TradingBotDashboard() {
       setIsLocked(false);
       return;
     }
-    const timer = setInterval(() => setLockTimeLeft(p => Math.max(0, p - 1)), 1000);
-    return () => clearInterval(timer);
+    const t = setInterval(() => setLockTimeLeft(p => p - 1), 1000);
+    return () => clearInterval(t);
   }, [lockTimeLeft]);
 
-  // Auto-detect lock from logs
+  // Auto lock detection
   useEffect(() => {
-    if (logs.slice(0, 10).some(l => l.includes('403') || l.includes('locked') || l.includes('LOCK'))) {
+    if (logs.slice(0, 10).some(l => l.includes('403') || l.includes('locked'))) {
       setIsLocked(true);
       if (lockTimeLeft === 0) setLockTimeLeft(3600);
     }
   }, [logs]);
-
-  // Drag handler for logs
-  const handleDrag = (e: React.MouseEvent) => {
-    if (!dragRef.current) return;
-    const delta = dragStartY.current - e.clientY;
-    setLogHeight(Math.max(200, Math.min(600, dragStartHeight.current + delta)));
-  };
 
   const equity = Number(core.equity) || 0;
   const peakEquity = Number(core.peakEquity) || equity;
   const drawdown = peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0;
   const positions: Position[] = Array.isArray(core.positions) ? core.positions : [];
   const rockets: RocketSignal[] = Array.isArray(core.rockets) ? core.rockets : [];
-
   const winRate = (core.recentWinRate || 0) * 100;
   const isInDanger = drawdown > 12;
 
@@ -181,49 +195,37 @@ export default function TradingBotDashboard() {
           <Bot className="w-11 h-11 text-cyan-400" />
           <div>
             <h1 className="text-3xl font-black tracking-tighter">ALPHASTREAM</h1>
-            <p className="text-xs text-emerald-400 font-mono">MAG7 • LIVE PAPER TRADING • v4.2</p>
+            <p className="text-xs text-emerald-400 font-mono">MAG7 • LIVE PAPER TRADING BOT v4.2</p>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
-          <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm ${isInDanger ? 'bg-red-900/50 text-red-400' : 'bg-emerald-900/50 text-emerald-400'}`}>
+          <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full ${isInDanger ? 'bg-red-900/50 text-red-400' : 'bg-emerald-900/50 text-emerald-400'}`}>
             <div className={`w-3 h-3 rounded-full animate-pulse ${isInDanger ? 'bg-red-500' : 'bg-emerald-500'}`} />
             {isInDanger ? 'HIGH RISK' : 'SYSTEM HEALTHY'}
           </div>
 
-          <button 
-            onClick={forceScan} 
-            disabled={isScanning}
-            className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 rounded-2xl font-medium transition disabled:opacity-60"
-          >
-            {isScanning ? <Loader2 className="animate-spin" /> : <Activity className="w-4 h-4" />} 
-            SCAN MARKET
+          <button onClick={forceScan} disabled={isScanning} className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 rounded-2xl font-medium disabled:opacity-60">
+            {isScanning ? <Loader2 className="animate-spin" /> : <Activity />} SCAN MARKET
           </button>
 
-          <button 
-            onClick={panicFlat} 
-            disabled={isFlattening}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 px-6 py-2.5 rounded-2xl font-medium transition disabled:opacity-60"
-          >
-            {isFlattening ? <Loader2 className="animate-spin" /> : <AlertTriangle />} 
-            PANIC FLAT
+          <button onClick={panicFlat} disabled={isFlattening} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 px-6 py-2.5 rounded-2xl font-medium disabled:opacity-60">
+            {isFlattening ? <Loader2 className="animate-spin" /> : <AlertTriangle />} PANIC FLAT
           </button>
         </div>
       </header>
 
-      {/* Lock Banner */}
       {isLocked && (
         <div className="bg-red-900/95 border-b border-red-600 px-6 py-3 flex items-center gap-3 text-red-100">
           <Lock className="w-5 h-5" />
-          ACCOUNT LOCKED — Cooldown: {Math.floor(lockTimeLeft/60)}m {lockTimeLeft % 60}s
-          <button onClick={toggleLock} className="ml-auto text-xs underline">Unlock Manually</button>
+          ACCOUNT LOCKED — Cooldown: {Math.floor(lockTimeLeft/60)}m {lockTimeLeft%60}s
+          <button onClick={toggleLock} className="ml-auto underline text-sm">Unlock Manually</button>
         </div>
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* Left Column */}
+        {/* Left Column - Metrics & Positions */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
-          {/* Metrics */}
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-cyan-400 text-sm">EQUITY</div>
@@ -231,9 +233,7 @@ export default function TradingBotDashboard() {
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-amber-400 text-sm">DRAWDOWN</div>
-              <div className={`text-4xl font-bold mt-3 ${drawdown > 15 ? 'text-red-500' : ''}`}>
-                {drawdown.toFixed(1)}%
-              </div>
+              <div className={`text-4xl font-bold mt-3 ${drawdown > 15 ? 'text-red-500' : ''}`}>{drawdown.toFixed(1)}%</div>
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-emerald-400 text-sm">WIN RATE</div>
@@ -245,11 +245,11 @@ export default function TradingBotDashboard() {
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-sky-400 text-sm">RISK ×</div>
-              <div className="text-4xl font-bold mt-3">{core.riskMultiplier?.toFixed(2) || '1.00'}x</div>
+              <div className="text-4xl font-bold mt-3">{(core.riskMultiplier || 1).toFixed(2)}x</div>
             </div>
           </div>
 
-          {/* Positions */}
+          {/* Open Positions */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Shield className="w-5 h-5" /> OPEN POSITIONS
@@ -260,10 +260,10 @@ export default function TradingBotDashboard() {
               <div className="space-y-3">
                 {positions.map((pos, i) => (
                   <div key={i} className="flex justify-between items-center bg-black/60 px-6 py-5 rounded-xl border border-zinc-800">
-                    <div>
+                    <div className="flex items-center gap-6">
                       <span className="text-2xl font-bold">{pos.symbol}</span>
-                      <span className={`ml-3 px-3 py-1 text-xs rounded-full ${pos.side === 'short' ? 'bg-red-900 text-red-400' : 'bg-emerald-900 text-emerald-400'}`}>
-                        {pos.side?.toUpperCase()}
+                      <span className={`px-3 py-1 text-xs rounded-full ${pos.side === 'short' ? 'bg-red-900 text-red-400' : 'bg-emerald-900 text-emerald-400'}`}>
+                        {pos.side?.toUpperCase() || 'LONG'}
                       </span>
                     </div>
                     <div className="text-right">
@@ -286,18 +286,16 @@ export default function TradingBotDashboard() {
             </h3>
             <div className="flex-1 overflow-y-auto space-y-3">
               {rockets.length === 0 ? (
-                <div className="text-center py-20 text-gray-500">Waiting for strong signals...</div>
+                <div className="text-center py-20 text-gray-500">No strong signals yet...</div>
               ) : (
                 rockets.map((r, i) => (
                   <div key={i} className="bg-zinc-950 border border-amber-500/20 p-5 rounded-xl">
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between">
                       <div>
                         <div className="text-xl font-bold">{r.symbol}</div>
-                        <div className="text-xs text-gray-400 mt-1">{r.reason || r.action}</div>
+                        <div className="text-xs text-gray-400">{r.reason || r.action}</div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-emerald-400 font-mono text-xl">{r.confidence}%</div>
-                      </div>
+                      <div className="text-emerald-400 font-mono text-2xl">{r.confidence}%</div>
                     </div>
                   </div>
                 ))
@@ -305,10 +303,9 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Controls */}
+          {/* Quick Controls */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
             <h3 className="font-medium">QUICK CONTROLS</h3>
-            
             <div className="grid grid-cols-2 gap-3">
               <button onClick={toggleHardFlat} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">
                 {core.hardFlat ? 'DISABLE HARD FLAT' : 'ENABLE HARD FLAT'}
@@ -319,11 +316,11 @@ export default function TradingBotDashboard() {
               </button>
             </div>
 
-            <div className="pt-2">
+            <div>
               <p className="text-xs text-gray-400 mb-2">RISK MULTIPLIER</p>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-5 gap-2">
                 {[0.3, 0.6, 1.0, 1.5, 2.0].map(m => (
-                  <button key={m} onClick={() => adjustRisk(m)} className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-sm">
+                  <button key={m} onClick={() => adjustRisk(m)} className="py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-sm">
                     {m}x
                   </button>
                 ))}
@@ -333,37 +330,30 @@ export default function TradingBotDashboard() {
 
           {/* Logs */}
           <div className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden" style={{ height: logHeight }}>
-            <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between">
-              <span className="font-medium">LIVE LOGS</span>
+            <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between text-sm">
+              <span>LIVE LOGS</span>
               <div className="flex gap-1">
-                {(['all','error','trade','ml'] as const).map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setLogFilter(f)}
-                    className={`px-3 py-1 text-xs rounded-full transition ${logFilter === f ? 'bg-cyan-600 text-white' : 'bg-zinc-800 hover:bg-zinc-700'}`}
-                  >
+                {(['all', 'error', 'trade', 'ml'] as const).map(f => (
+                  <button key={f} onClick={() => setLogFilter(f)} className={`px-3 py-1 text-xs rounded-full ${logFilter === f ? 'bg-cyan-600' : 'bg-zinc-800'}`}>
                     {f.toUpperCase()}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="flex-1 p-4 overflow-y-auto text-xs text-gray-300 font-mono space-y-1">
+            <div className="flex-1 p-4 overflow-y-auto text-xs font-mono text-gray-300 space-y-1">
               {logs.length === 0 ? (
-                <div className="text-center py-20 text-gray-600">System starting...</div>
+                <div className="text-center py-20 text-gray-600">Waiting for bot activity...</div>
               ) : (
                 logs.map((line, i) => <div key={i} className="break-all leading-relaxed">{line}</div>)
               )}
             </div>
 
             <div 
-              onMouseDown={(e) => { dragRef.current = true; dragStartY.current = e.clientY; dragStartHeight.current = logHeight; }}
-              onMouseMove={handleDrag}
-              onMouseUp={() => dragRef.current = false}
-              onMouseLeave={() => dragRef.current = false}
-              className="h-6 border-t border-zinc-800 flex items-center justify-center cursor-row-resize hover:bg-zinc-900 active:bg-zinc-800"
+              onMouseDown={handleMouseDown}
+              className="h-6 border-t border-zinc-800 flex items-center justify-center cursor-row-resize hover:bg-zinc-900"
             >
-              <div className="w-20 h-0.5 bg-zinc-700 rounded-full" />
+              <div className="w-20 h-0.5 bg-zinc-600 rounded" />
             </div>
           </div>
         </div>
