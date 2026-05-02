@@ -71,13 +71,24 @@ export default function TradingBotDashboard() {
   }, []);
 
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
-    if (isLocked) return addLog("Command blocked - Account locked", 'warn');
+    if (isLocked) {
+      addLog("Command blocked - Account is locked", 'warn');
+      return;
+    }
     try {
       await axios.post(`${CORE_BASE}${endpoint}`, body);
       addLog(successMsg, 'success');
       setTimeout(fetchCore, 1200);
     } catch (e: any) {
-      addLog(`Failed: ${e.response?.data?.error || e.message}`, 'error');
+      const status = e.response?.status;
+      if (status === 403) {
+        addLog("403 Forbidden - Account may be locked or requires authentication", 'error');
+        setIsLocked(true);
+        setLockTimeLeft(3600);
+      } else {
+        const msg = e.response?.data?.error || e.message;
+        addLog(`Command failed: ${msg}`, 'error');
+      }
     }
   };
 
@@ -89,7 +100,7 @@ export default function TradingBotDashboard() {
   };
 
   const panicFlat = async () => {
-    if (!confirm('🚨 EMERGENCY: Close ALL positions right now?')) return;
+    if (!confirm('🚨 EMERGENCY: Close ALL positions right now? This cannot be undone.')) return;
     setIsFlattening(true);
     await postCommand('/force-flat', {}, 'PANIC FLAT EXECUTED — All positions closed');
     setIsFlattening(false);
@@ -118,7 +129,7 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Drag handlers
+  // Drag Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = true;
     dragStartY.current = e.clientY;
@@ -142,10 +153,12 @@ export default function TradingBotDashboard() {
     };
   }, []);
 
+  // Polling
   useEffect(() => { fetchCore(); fetchMLHealth(); }, []);
   useEffect(() => { const i = setInterval(fetchCore, 7000); return () => clearInterval(i); }, [fetchCore]);
   useEffect(() => { const i = setInterval(fetchMLHealth, 25000); return () => clearInterval(i); }, [fetchMLHealth]);
 
+  // Lock timer
   useEffect(() => {
     if (lockTimeLeft <= 0) { setIsLocked(false); return; }
     const t = setInterval(() => setLockTimeLeft(p => p - 1), 1000);
@@ -159,7 +172,6 @@ export default function TradingBotDashboard() {
   const rockets: RocketSignal[] = Array.isArray(core.rockets) ? core.rockets : [];
   const winRate = safeNum(core.recentWinRate) * 100;
   const riskMult = safeNum(core.riskMultiplier, 1);
-
   const isInDanger = drawdown > 12;
 
   return (
@@ -198,6 +210,7 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
+        {/* Left Column */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -249,6 +262,7 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
+        {/* Right Column */}
         <div className="col-span-4 flex flex-col gap-4">
           <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 flex flex-col">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
