@@ -16,6 +16,15 @@ type Position = {
   bestProfitPct?: number;
 };
 
+type RocketSignal = {
+  symbol: string;
+  action?: string;
+  confidence?: number;
+  volatilityEstimate?: number;
+  timestamp?: number;
+  reason?: string;
+};
+
 export default function TradingBotDashboard() {
   const [core, setCore] = useState<any>({});
   const [logs, setLogs] = useState<string[]>([]);
@@ -52,7 +61,7 @@ export default function TradingBotDashboard() {
     }
   }, [addLog]);
 
-  // FIXED: All calls use /admin/ prefix
+  // FIXED postCommand with correct /admin/ paths
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
     if (isLocked) {
       addLog("Command blocked - Account is locked", 'warn');
@@ -72,6 +81,7 @@ export default function TradingBotDashboard() {
     }
   };
 
+  // Commands (Fixed paths)
   const forceScan = async () => {
     setIsScanning(true);
     await postCommand('/admin/scan', {}, 'Manual market scan triggered');
@@ -79,20 +89,20 @@ export default function TradingBotDashboard() {
   };
 
   const panicFlat = async () => {
-    if (!confirm('🚨 EMERGENCY: Close ALL positions right now?')) return;
+    if (!confirm('🚨 EMERGENCY: Close ALL positions right now? This cannot be undone.')) return;
     setIsFlattening(true);
-    await postCommand('/admin/hard-flat', {}, '✅ PANIC FLAT EXECUTED — All positions closed');
+    await postCommand('/admin/hard-flat', {}, 'PANIC FLAT EXECUTED — All positions closed');
     setIsFlattening(false);
-  };
-
-  const resetDrawdown = async () => {
-    await postCommand('/admin/reset-drawdown', {}, '✅ Drawdown Reset Successfully');
   };
 
   const toggleHardFlat = () => {
     const newState = !core.hardFlat;
     postCommand('/admin/hard-flat', {}, 
       newState ? 'HARD FLAT ACTIVATED' : 'HARD FLAT DEACTIVATED');
+  };
+
+  const resetDrawdown = async () => {
+    await postCommand('/admin/reset-drawdown', {}, '✅ Drawdown Reset Successfully');
   };
 
   const adjustRisk = (newMult: number) => {
@@ -138,17 +148,12 @@ export default function TradingBotDashboard() {
   }, []);
 
   // Polling
-  useEffect(() => {
-    fetchCore();
-    const i = setInterval(fetchCore, 7000);
-    return () => clearInterval(i);
-  }, [fetchCore]);
+  useEffect(() => { fetchCore(); }, []);
+  useEffect(() => { const i = setInterval(fetchCore, 7000); return () => clearInterval(i); }, [fetchCore]);
+  useEffect(() => { const i = setInterval(() => {}, 25000); return () => clearInterval(i); }, []); // placeholder if needed
 
   useEffect(() => {
-    if (lockTimeLeft <= 0) {
-      setIsLocked(false);
-      return;
-    }
+    if (lockTimeLeft <= 0) { setIsLocked(false); return; }
     const t = setInterval(() => setLockTimeLeft(p => p - 1), 1000);
     return () => clearInterval(t);
   }, [lockTimeLeft]);
@@ -156,7 +161,9 @@ export default function TradingBotDashboard() {
   const equity = safeNum(core.equity);
   const peakEquity = safeNum(core.peakEquity);
   const drawdown = peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0;
-  const positions = Array.isArray(core.positions) ? core.positions : [];
+  const positions: Position[] = Array.isArray(core.positions) ? core.positions : [];
+  const rockets: RocketSignal[] = Array.isArray(core.rockets) ? core.rockets : [];
+  const winRate = safeNum(core.recentWinRate) * 100;
   const isInDanger = drawdown > 12;
 
   return (
@@ -211,12 +218,12 @@ export default function TradingBotDashboard() {
               <div className={`text-4xl font-bold mt-3 ${drawdown > 15 ? 'text-red-500' : ''}`}>{drawdown.toFixed(1)}%</div>
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
-              <div className="text-emerald-400 text-sm">POSITIONS</div>
-              <div className="text-4xl font-bold mt-3">{positions.length}/5</div>
+              <div className="text-emerald-400 text-sm">WIN RATE</div>
+              <div className="text-4xl font-bold mt-3">{winRate.toFixed(0)}%</div>
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
-              <div className="text-purple-400 text-sm">PEAK</div>
-              <div className="text-4xl font-bold mt-3">${peakEquity.toFixed(0)}</div>
+              <div className="text-purple-400 text-sm">POSITIONS</div>
+              <div className="text-4xl font-bold mt-3">{positions.length}/5</div>
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-sky-400 text-sm">RISK ×</div>
@@ -232,7 +239,7 @@ export default function TradingBotDashboard() {
               <p className="text-center py-16 text-gray-500">No open positions</p>
             ) : (
               <div className="space-y-3">
-                {positions.map((pos: any, i) => (
+                {positions.map((pos, i) => (
                   <div key={i} className="flex justify-between items-center bg-black/60 px-6 py-5 rounded-xl border border-zinc-800">
                     <div className="flex items-center gap-6">
                       <span className="text-2xl font-bold">{pos.symbol}</span>
@@ -253,14 +260,42 @@ export default function TradingBotDashboard() {
 
         {/* Right Column */}
         <div className="col-span-4 flex flex-col gap-4">
+          <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 flex flex-col">
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <Rocket className="w-5 h-5 text-amber-400" /> ML ROCKET SIGNALS
+            </h3>
+            <div className="flex-1 overflow-y-auto space-y-3">
+              {rockets.length === 0 ? (
+                <div className="text-center py-20 text-gray-500">No strong signals yet...</div>
+              ) : (
+                rockets.map((r, i) => (
+                  <div key={i} className="bg-zinc-950 border border-amber-500/20 p-5 rounded-xl">
+                    <div className="flex justify-between">
+                      <div>
+                        <div className="text-xl font-bold">{r.symbol}</div>
+                        <div className="text-xs text-gray-400">{r.reason || r.action}</div>
+                      </div>
+                      <div className="text-emerald-400 font-mono text-2xl">{r.confidence}%</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Quick Controls */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
             <h3 className="font-medium">QUICK CONTROLS</h3>
             
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <button onClick={toggleHardFlat} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">
                 {core.hardFlat ? 'DISABLE HARD FLAT' : 'ENABLE HARD FLAT'}
               </button>
               
+              <button onClick={resetDrawdown} className="py-4 bg-amber-600 hover:bg-amber-500 rounded-2xl text-sm font-medium">
+                RESET DD
+              </button>
+
               <button onClick={toggleLock} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium flex items-center justify-center gap-2">
                 {isLocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                 {isLocked ? 'UNLOCK' : 'LOCK'}
@@ -271,11 +306,7 @@ export default function TradingBotDashboard() {
               <p className="text-xs text-gray-400 mb-2">RISK MULTIPLIER</p>
               <div className="grid grid-cols-5 gap-2">
                 {[0.3, 0.6, 1.0, 1.5, 2.0].map(m => (
-                  <button 
-                    key={m} 
-                    onClick={() => adjustRisk(m)} 
-                    className={`py-3 rounded-xl text-sm ${riskMult === m ? 'bg-cyan-600' : 'bg-zinc-800 hover:bg-zinc-700'}`}
-                  >
+                  <button key={m} onClick={() => adjustRisk(m)} className={`py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-sm ${riskMult === m ? 'bg-cyan-600' : ''}`}>
                     {m}x
                   </button>
                 ))}
@@ -289,11 +320,7 @@ export default function TradingBotDashboard() {
               <span>LIVE LOGS</span>
               <div className="flex gap-1">
                 {(['all','error','trade','ml'] as const).map(f => (
-                  <button 
-                    key={f} 
-                    onClick={() => setLogFilter(f)} 
-                    className={`px-3 py-1 text-xs rounded-full ${logFilter === f ? 'bg-cyan-600' : 'bg-zinc-800'}`}
-                  >
+                  <button key={f} onClick={() => setLogFilter(f)} className={`px-3 py-1 text-xs rounded-full ${logFilter === f ? 'bg-cyan-600' : 'bg-zinc-800'}`}>
                     {f.toUpperCase()}
                   </button>
                 ))}
