@@ -52,7 +52,7 @@ export default function TradingBotDashboard() {
     }
   }, [addLog]);
 
-  // FIXED postCommand with consistent /admin/ prefix
+  // FIXED: All calls use /admin/ prefix
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
     if (isLocked) {
       addLog("Command blocked - Account is locked", 'warn');
@@ -72,7 +72,6 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Commands - All using /admin/ prefix to match router mounting
   const forceScan = async () => {
     setIsScanning(true);
     await postCommand('/admin/scan', {}, 'Manual market scan triggered');
@@ -157,7 +156,7 @@ export default function TradingBotDashboard() {
   const equity = safeNum(core.equity);
   const peakEquity = safeNum(core.peakEquity);
   const drawdown = peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0;
-  const positions: Position[] = Array.isArray(core.positions) ? core.positions : [];
+  const positions = Array.isArray(core.positions) ? core.positions : [];
   const isInDanger = drawdown > 12;
 
   return (
@@ -199,12 +198,30 @@ export default function TradingBotDashboard() {
         </div>
       )}
 
-      {/* Rest of your UI remains the same */}
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
+        {/* Left Column */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
-          {/* Your metrics and positions UI - unchanged */}
           <div className="grid grid-cols-5 gap-4">
-            {/* ... your existing metric cards ... */}
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
+              <div className="text-cyan-400 text-sm">EQUITY</div>
+              <div className="text-4xl font-bold mt-3">${equity.toFixed(0)}</div>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
+              <div className="text-amber-400 text-sm">DRAWDOWN</div>
+              <div className={`text-4xl font-bold mt-3 ${drawdown > 15 ? 'text-red-500' : ''}`}>{drawdown.toFixed(1)}%</div>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
+              <div className="text-emerald-400 text-sm">POSITIONS</div>
+              <div className="text-4xl font-bold mt-3">{positions.length}/5</div>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
+              <div className="text-purple-400 text-sm">PEAK</div>
+              <div className="text-4xl font-bold mt-3">${peakEquity.toFixed(0)}</div>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
+              <div className="text-sky-400 text-sm">RISK ×</div>
+              <div className="text-4xl font-bold mt-3">{riskMult.toFixed(2)}x</div>
+            </div>
           </div>
 
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -215,7 +232,7 @@ export default function TradingBotDashboard() {
               <p className="text-center py-16 text-gray-500">No open positions</p>
             ) : (
               <div className="space-y-3">
-                {positions.map((pos, i) => (
+                {positions.map((pos: any, i) => (
                   <div key={i} className="flex justify-between items-center bg-black/60 px-6 py-5 rounded-xl border border-zinc-800">
                     <div className="flex items-center gap-6">
                       <span className="text-2xl font-bold">{pos.symbol}</span>
@@ -234,9 +251,8 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
-        {/* Right Column - Quick Controls + Logs */}
+        {/* Right Column */}
         <div className="col-span-4 flex flex-col gap-4">
-          {/* Quick Controls */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
             <h3 className="font-medium">QUICK CONTROLS</h3>
             
@@ -273,7 +289,11 @@ export default function TradingBotDashboard() {
               <span>LIVE LOGS</span>
               <div className="flex gap-1">
                 {(['all','error','trade','ml'] as const).map(f => (
-                  <button key={f} onClick={() => setLogFilter(f)} className={`px-3 py-1 text-xs rounded-full ${logFilter === f ? 'bg-cyan-600' : 'bg-zinc-800'}`}>
+                  <button 
+                    key={f} 
+                    onClick={() => setLogFilter(f)} 
+                    className={`px-3 py-1 text-xs rounded-full ${logFilter === f ? 'bg-cyan-600' : 'bg-zinc-800'}`}
+                  >
                     {f.toUpperCase()}
                   </button>
                 ))}
