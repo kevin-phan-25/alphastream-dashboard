@@ -7,10 +7,6 @@ import {
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
-const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
-
-// === ADMIN KEY CONFIGURATION ===
-const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'YOUR_ADMIN_KEY_HERE'; // Set in .env.local
 
 type Position = {
   symbol: string;
@@ -31,7 +27,6 @@ type RocketSignal = {
 
 export default function TradingBotDashboard() {
   const [core, setCore] = useState<any>({});
-  const [mlHealth, setMlHealth] = useState({ ok: false, status: 'unknown' });
   const [logs, setLogs] = useState<string[]>([]);
   const [logFilter, setLogFilter] = useState<'all' | 'error' | 'trade' | 'ml'>('all');
   const [logHeight, setLogHeight] = useState(380);
@@ -39,6 +34,7 @@ export default function TradingBotDashboard() {
   const [isFlattening, setIsFlattening] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [lockTimeLeft, setLockTimeLeft] = useState(0);
+  const [riskMult, setRiskMult] = useState(1);
 
   const dragRef = useRef(false);
   const dragStartY = useRef(0);
@@ -57,23 +53,14 @@ export default function TradingBotDashboard() {
 
   const fetchCore = useCallback(async () => {
     try {
-      const res = await axios.get(`${CORE_BASE}/health`);
+      const res = await axios.get(`${CORE_BASE}/health`, { timeout: 8000 });
       setCore(res.data || {});
     } catch (e: any) {
+      console.error(e);
       addLog(`Core unreachable: ${e.message}`, 'error');
     }
   }, [addLog]);
 
-  const fetchMLHealth = useCallback(async () => {
-    try {
-      const res = await axios.get(`${ML_BASE}/health`);
-      setMlHealth({ ok: true, status: res.data?.status || 'healthy' });
-    } catch {
-      setMlHealth({ ok: false, status: 'unreachable' });
-    }
-  }, []);
-
-  // Updated postCommand with Admin Authentication
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
     if (isLocked) {
       addLog("Command blocked - Account is locked", 'warn');
@@ -82,21 +69,13 @@ export default function TradingBotDashboard() {
 
     try {
       await axios.post(`${CORE_BASE}${endpoint}`, body, {
-        headers: {
-          'x-admin-key': ADMIN_KEY,
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 10000
       });
       addLog(successMsg, 'success');
       setTimeout(fetchCore, 1200);
     } catch (e: any) {
-      if (e.response?.status === 403) {
-        addLog("403 Forbidden - Account locked or admin authentication failed", 'error');
-        setIsLocked(true);
-        setLockTimeLeft(1800); // 30 minutes
-      } else {
-        addLog(`Command failed: ${e.response?.data?.error || e.message}`, 'error');
-      }
+      addLog(`Command failed: ${e.response?.data?.message || e.message || e.message}`, 'error');
     }
   };
 
@@ -108,23 +87,24 @@ export default function TradingBotDashboard() {
   };
 
   const panicFlat = async () => {
-    if (!confirm('🚨 EMERGENCY: Close ALL positions right now? This cannot be undone.')) return;
+    if (!confirm('🚨 EMERGENCY: Close ALL positions right now?')) return;
     setIsFlattening(true);
-    await postCommand('/force-flat', {}, 'PANIC FLAT EXECUTED — All positions closed');
+    await postCommand('/admin/hard-flat', {}, 'PANIC FLAT EXECUTED — All positions closed');
     setIsFlattening(false);
   };
 
   const toggleHardFlat = () => {
     const newState = !core.hardFlat;
-    postCommand('/admin/flat', { enabled: newState }, 
+    postCommand('/admin/hard-flat', {}, 
       newState ? 'HARD FLAT ACTIVATED' : 'HARD FLAT DEACTIVATED');
   };
 
-  const enableEntries = () => {
-    postCommand('/admin/enable-entries', {}, 'Entries have been re-enabled');
+  const resetDrawdown = async () => {
+    await postCommand('/admin/reset-drawdown', {}, '✅ Drawdown Reset Successfully');
   };
 
   const adjustRisk = (newMult: number) => {
+    setRiskMult(newMult);
     postCommand('/admin/set-risk', { riskMultiplier: newMult }, 
       `Risk multiplier set to ${newMult}x`);
   };
@@ -141,7 +121,7 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Drag Handlers
+  // Drag handlers for logs
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = true;
     dragStartY.current = e.clientY;
@@ -166,12 +146,17 @@ export default function TradingBotDashboard() {
   }, []);
 
   // Polling
-  useEffect(() => { fetchCore(); fetchMLHealth(); }, []);
-  useEffect(() => { const i = setInterval(fetchCore, 7000); return () => clearInterval(i); }, [fetchCore]);
-  useEffect(() => { const i = setInterval(fetchMLHealth, 25000); return () => clearInterval(i); }, [fetchMLHealth]);
+  useEffect(() => {
+    fetchCore();
+    const i = setInterval(fetchCore, 7000);
+    return () => clearInterval(i);
+  }, [fetchCore]);
 
   useEffect(() => {
-    if (lockTimeLeft <= 0) { setIsLocked(false); return; }
+    if (lockTimeLeft <= 0) {
+      setIsLocked(false);
+      return;
+    }
     const t = setInterval(() => setLockTimeLeft(p => p - 1), 1000);
     return () => clearInterval(t);
   }, [lockTimeLeft]);
@@ -180,9 +165,6 @@ export default function TradingBotDashboard() {
   const peakEquity = safeNum(core.peakEquity);
   const drawdown = peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0;
   const positions: Position[] = Array.isArray(core.positions) ? core.positions : [];
-  const rockets: RocketSignal[] = Array.isArray(core.rockets) ? core.rockets : [];
-  const winRate = safeNum(core.recentWinRate) * 100;
-  const riskMult = safeNum(core.riskMultiplier, 1);
   const isInDanger = drawdown > 12;
 
   return (
@@ -192,7 +174,7 @@ export default function TradingBotDashboard() {
           <Bot className="w-11 h-11 text-cyan-400" />
           <div>
             <h1 className="text-3xl font-black tracking-tighter">ALPHASTREAM</h1>
-            <p className="text-xs text-emerald-400 font-mono">MAG7 • LIVE PAPER TRADING BOT v4.2</p>
+            <p className="text-xs text-emerald-400 font-mono">MAG7 • LIVE PAPER TRADING BOT v4.3</p>
           </div>
         </div>
 
@@ -208,6 +190,10 @@ export default function TradingBotDashboard() {
 
           <button onClick={panicFlat} disabled={isFlattening} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 px-6 py-2.5 rounded-2xl font-medium disabled:opacity-60">
             {isFlattening ? <Loader2 className="animate-spin" /> : <AlertTriangle />} PANIC FLAT
+          </button>
+
+          <button onClick={resetDrawdown} className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 px-6 py-2.5 rounded-2xl font-medium">
+            <Unlock className="w-4 h-4" /> RESET DD
           </button>
         </div>
       </header>
@@ -233,12 +219,12 @@ export default function TradingBotDashboard() {
               <div className={`text-4xl font-bold mt-3 ${drawdown > 15 ? 'text-red-500' : ''}`}>{drawdown.toFixed(1)}%</div>
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
-              <div className="text-emerald-400 text-sm">WIN RATE</div>
-              <div className="text-4xl font-bold mt-3">{winRate.toFixed(0)}%</div>
+              <div className="text-emerald-400 text-sm">POSITIONS</div>
+              <div className="text-4xl font-bold mt-3">{positions.length}/5</div>
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
-              <div className="text-purple-400 text-sm">POSITIONS</div>
-              <div className="text-4xl font-bold mt-3">{positions.length}/5</div>
+              <div className="text-purple-400 text-sm">PEAK</div>
+              <div className="text-4xl font-bold mt-3">${peakEquity.toFixed(0)}</div>
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-sky-400 text-sm">RISK ×</div>
@@ -246,6 +232,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
+          {/* Open Positions */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Shield className="w-5 h-5" /> OPEN POSITIONS
@@ -264,7 +251,7 @@ export default function TradingBotDashboard() {
                     </div>
                     <div className="text-right">
                       <div className="font-mono text-lg">{pos.qty} shares</div>
-                      <div className="text-sm text-gray-400">@{pos.entry}</div>
+                      {pos.entry && <div className="text-sm text-gray-400">@{pos.entry}</div>}
                     </div>
                   </div>
                 ))}
@@ -275,45 +262,15 @@ export default function TradingBotDashboard() {
 
         {/* Right Column */}
         <div className="col-span-4 flex flex-col gap-4">
-          <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 flex flex-col">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Rocket className="w-5 h-5 text-amber-400" /> ML ROCKET SIGNALS
-            </h3>
-            <div className="flex-1 overflow-y-auto space-y-3">
-              {rockets.length === 0 ? (
-                <div className="text-center py-20 text-gray-500">No strong signals yet...</div>
-              ) : (
-                rockets.map((r, i) => (
-                  <div key={i} className="bg-zinc-950 border border-amber-500/20 p-5 rounded-xl">
-                    <div className="flex justify-between">
-                      <div>
-                        <div className="text-xl font-bold">{r.symbol}</div>
-                        <div className="text-xs text-gray-400">{r.reason || r.action}</div>
-                      </div>
-                      <div className="text-emerald-400 font-mono text-2xl">{r.confidence}%</div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
           {/* Quick Controls */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
             <h3 className="font-medium">QUICK CONTROLS</h3>
             
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <button onClick={toggleHardFlat} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">
                 {core.hardFlat ? 'DISABLE HARD FLAT' : 'ENABLE HARD FLAT'}
               </button>
               
-              <button 
-                onClick={enableEntries}
-                className="py-4 bg-amber-600 hover:bg-amber-500 rounded-2xl text-sm font-medium"
-              >
-                ENABLE ENTRIES
-              </button>
-
               <button onClick={toggleLock} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium flex items-center justify-center gap-2">
                 {isLocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                 {isLocked ? 'UNLOCK' : 'LOCK'}
@@ -324,7 +281,11 @@ export default function TradingBotDashboard() {
               <p className="text-xs text-gray-400 mb-2">RISK MULTIPLIER</p>
               <div className="grid grid-cols-5 gap-2">
                 {[0.3, 0.6, 1.0, 1.5, 2.0].map(m => (
-                  <button key={m} onClick={() => adjustRisk(m)} className="py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-sm">
+                  <button 
+                    key={m} 
+                    onClick={() => adjustRisk(m)} 
+                    className={`py-3 rounded-xl text-sm ${riskMult === m ? 'bg-cyan-600' : 'bg-zinc-800 hover:bg-zinc-700'}`}
+                  >
                     {m}x
                   </button>
                 ))}
@@ -332,13 +293,17 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Logs */}
+          {/* Logs Panel */}
           <div className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden" style={{ height: logHeight }}>
             <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between text-sm">
               <span>LIVE LOGS</span>
               <div className="flex gap-1">
                 {(['all','error','trade','ml'] as const).map(f => (
-                  <button key={f} onClick={() => setLogFilter(f)} className={`px-3 py-1 text-xs rounded-full ${logFilter === f ? 'bg-cyan-600' : 'bg-zinc-800'}`}>
+                  <button 
+                    key={f} 
+                    onClick={() => setLogFilter(f)} 
+                    className={`px-3 py-1 text-xs rounded-full ${logFilter === f ? 'bg-cyan-600' : 'bg-zinc-800'}`}
+                  >
                     {f.toUpperCase()}
                   </button>
                 ))}
@@ -349,7 +314,10 @@ export default function TradingBotDashboard() {
               {logs.length === 0 ? "Waiting for bot activity..." : logs.map((l, i) => <div key={i}>{l}</div>)}
             </div>
 
-            <div onMouseDown={handleMouseDown} className="h-6 border-t border-zinc-800 flex items-center justify-center cursor-row-resize hover:bg-zinc-900">
+            <div 
+              onMouseDown={handleMouseDown} 
+              className="h-6 border-t border-zinc-800 flex items-center justify-center cursor-row-resize hover:bg-zinc-900"
+            >
               <div className="w-20 h-0.5 bg-zinc-600 rounded" />
             </div>
           </div>
