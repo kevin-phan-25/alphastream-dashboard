@@ -71,11 +71,12 @@ export default function TradingBotDashboard() {
       addLog(successMsg, 'success');
       setTimeout(fetchCore, 1200);
     } catch (e: any) {
+      console.error(e);
       addLog(`Command failed: ${e.response?.data?.message || e.message}`, 'error');
     }
   };
 
-  // Commands with correct /admin/ prefix
+  // All commands use /admin/ prefix
   const forceScan = async () => {
     setIsScanning(true);
     await postCommand('/admin/scan', {}, 'Manual market scan triggered');
@@ -198,6 +199,7 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
+        {/* Left Column */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -249,6 +251,7 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
+        {/* Right Column */}
         <div className="col-span-4 flex flex-col gap-4">
           {/* ML Signals */}
           <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 flex flex-col">
@@ -274,9 +277,10 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Quick Controls + Logs */}
+          {/* Quick Controls */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
             <h3 className="font-medium">QUICK CONTROLS</h3>
+            
             <div className="grid grid-cols-3 gap-3">
               <button onClick={toggleHardFlat} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">
                 {core.hardFlat ? 'DISABLE HARD FLAT' : 'ENABLE HARD FLAT'}
@@ -302,7 +306,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Logs Panel */}
+          {/* Logs */}
           <div className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden" style={{ height: logHeight }}>
             <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between text-sm">
               <span>LIVE LOGS</span>
