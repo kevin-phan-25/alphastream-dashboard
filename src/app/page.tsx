@@ -8,6 +8,9 @@ import {
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
 
+// === ADMIN KEY (Set this in your .env.local) ===
+const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || '';
+
 type Position = {
   symbol: string;
   qty: number;
@@ -57,6 +60,7 @@ export default function TradingBotDashboard() {
     }
   }, [addLog]);
 
+  // FIXED postCommand with x-admin-key header
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
     if (isLocked) {
       addLog("Command blocked - Account is locked", 'warn');
@@ -65,18 +69,25 @@ export default function TradingBotDashboard() {
 
     try {
       await axios.post(`${CORE_BASE}${endpoint}`, body, {
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': ADMIN_KEY   // ← This fixes 403
+        },
         timeout: 10000
       });
       addLog(successMsg, 'success');
       setTimeout(fetchCore, 1200);
     } catch (e: any) {
       console.error(e);
-      addLog(`Command failed: ${e.response?.data?.message || e.message}`, 'error');
+      if (e.response?.status === 403) {
+        addLog("403 Forbidden - Check NEXT_PUBLIC_ADMIN_KEY in .env.local", 'error');
+      } else {
+        addLog(`Command failed: ${e.response?.data?.message || e.message}`, 'error');
+      }
     }
   };
 
-  // All commands use /admin/ prefix
+  // Commands
   const forceScan = async () => {
     setIsScanning(true);
     await postCommand('/admin/scan', {}, 'Manual market scan triggered');
@@ -253,7 +264,6 @@ export default function TradingBotDashboard() {
 
         {/* Right Column */}
         <div className="col-span-4 flex flex-col gap-4">
-          {/* ML Signals */}
           <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 flex flex-col">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Rocket className="w-5 h-5 text-amber-400" /> ML ROCKET SIGNALS
