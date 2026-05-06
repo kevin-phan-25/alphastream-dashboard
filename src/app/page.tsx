@@ -148,16 +148,16 @@ export default function TradingBotDashboard() {
     };
   }, []);
 
-  useEffect(() => { 
-    fetchCore(); 
-    const i = setInterval(fetchCore, 7000); 
-    return () => clearInterval(i); 
+  useEffect(() => {
+    fetchCore();
+    const i = setInterval(fetchCore, 7000);
+    return () => clearInterval(i);
   }, [fetchCore]);
 
   useEffect(() => {
-    if (lockTimeLeft <= 0) { 
-      setIsLocked(false); 
-      return; 
+    if (lockTimeLeft <= 0) {
+      setIsLocked(false);
+      return;
     }
     const t = setInterval(() => setLockTimeLeft(p => p - 1), 1000);
     return () => clearInterval(t);
@@ -192,15 +192,15 @@ export default function TradingBotDashboard() {
             <div className={`w-3 h-3 rounded-full animate-pulse ${isInDanger ? 'bg-red-500' : 'bg-emerald-500'}`} />
             {isInDanger ? 'HIGH RISK' : 'SYSTEM HEALTHY'}
           </div>
-          
+
           <button onClick={forceScan} disabled={isScanning} className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 px-6 py-2.5 rounded-2xl font-medium disabled:opacity-60">
             {isScanning ? <Loader2 className="animate-spin" /> : <Activity />} SCAN MARKET
           </button>
-          
+
           <button onClick={panicFlat} disabled={isFlattening} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 px-6 py-2.5 rounded-2xl font-medium disabled:opacity-60">
             {isFlattening ? <Loader2 className="animate-spin" /> : <AlertTriangle />} PANIC FLAT
           </button>
-          
+
           <button onClick={resetDrawdown} className="flex items-center gap-2 bg-amber-600 hover:bg-amber-500 px-6 py-2.5 rounded-2xl font-medium">
             <Unlock className="w-4 h-4" /> RESET DD
           </button>
@@ -223,12 +223,10 @@ export default function TradingBotDashboard() {
               <div className="text-cyan-400 text-sm">EQUITY</div>
               <div className="text-4xl font-bold mt-3">${equity.toFixed(0)}</div>
             </div>
-
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-amber-400 text-sm">DRAWDOWN</div>
               <div className={`text-4xl font-bold mt-3 ${drawdown > 15 ? 'text-red-500' : ''}`}>{drawdown.toFixed(1)}%</div>
             </div>
-
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-emerald-400 text-sm flex items-center gap-2">
                 <TrendingUp className="w-4 h-4" /> WIN RATE
@@ -238,12 +236,10 @@ export default function TradingBotDashboard() {
                 <p className="text-xs text-gray-500 mt-1">Last 20 trades</p>
               )}
             </div>
-
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-purple-400 text-sm">POSITIONS</div>
               <div className="text-4xl font-bold mt-3">{positions.length}/5</div>
             </div>
-
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-sky-400 text-sm">RISK ×</div>
               <div className="text-4xl font-bold mt-3">{riskMult.toFixed(2)}x</div>
@@ -278,7 +274,7 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
-        {/* Right Column - unchanged except minor spacing */}
+        {/* Right Column - FULLY RESTORED */}
         <div className="col-span-4 flex flex-col gap-4">
           {/* ML Rocket Signals */}
           <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 flex flex-col">
@@ -304,8 +300,65 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Quick Controls & Logs - unchanged */}
-          {/* ... (rest of your right column stays the same) ... */}
+          {/* Quick Controls */}
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
+            <h3 className="font-medium">QUICK CONTROLS</h3>
+           
+            <div className="grid grid-cols-3 gap-3">
+              <button onClick={toggleHardFlat} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">
+                {core.hardFlat ? 'DISABLE HARD FLAT' : 'ENABLE HARD FLAT'}
+              </button>
+              <button onClick={resetDrawdown} className="py-4 bg-amber-600 hover:bg-amber-500 rounded-2xl text-sm font-medium">
+                RESET DD
+              </button>
+              <button onClick={toggleLock} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium flex items-center justify-center gap-2">
+                {isLocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                {isLocked ? 'UNLOCK' : 'LOCK'}
+              </button>
+            </div>
+
+            <div>
+              <p className="text-xs text-gray-400 mb-2">RISK MULTIPLIER</p>
+              <div className="grid grid-cols-5 gap-2">
+                {[0.3, 0.6, 1.0, 1.5, 2.0].map(m => (
+                  <button 
+                    key={m} 
+                    onClick={() => adjustRisk(m)} 
+                    className={`py-3 rounded-xl text-sm ${riskMult === m ? 'bg-cyan-600' : 'bg-zinc-800 hover:bg-zinc-700'}`}
+                  >
+                    {m}x
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Logs */}
+          <div className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden" style={{ height: logHeight }}>
+            <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between text-sm">
+              <span>LIVE LOGS</span>
+              <div className="flex gap-1">
+                {(['all','error','trade','ml'] as const).map(f => (
+                  <button 
+                    key={f} 
+                    onClick={() => setLogFilter(f)} 
+                    className={`px-3 py-1 text-xs rounded-full ${logFilter === f ? 'bg-cyan-600' : 'bg-zinc-800'}`}
+                  >
+                    {f.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex-1 p-4 overflow-y-auto text-xs font-mono text-gray-300 space-y-1">
+              {logs.length === 0 ? "Waiting for bot activity..." : logs.map((l, i) => <div key={i}>{l}</div>)}
+            </div>
+            <div 
+              onMouseDown={handleMouseDown} 
+              className="h-6 border-t border-zinc-800 flex items-center justify-center cursor-row-resize hover:bg-zinc-900"
+            >
+              <div className="w-20 h-0.5 bg-zinc-600 rounded" />
+            </div>
+          </div>
         </div>
       </div>
     </div>
