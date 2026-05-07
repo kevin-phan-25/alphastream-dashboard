@@ -238,7 +238,7 @@ export default function TradingBotDashboard() {
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-purple-400 text-sm">POSITIONS</div>
-              <div className="text-4xl font-bold mt-3">{positions.length}/5</div>
+              <div className="text-4xl font-bold mt-3">{positions.length}/7</div>
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-sky-400 text-sm">RISK ×</div>
