@@ -238,7 +238,7 @@ export default function TradingBotDashboard() {
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-purple-400 text-sm">POSITIONS</div>
-              <div className="text-4xl font-bold mt-3">{positions.length}/7</div>
+              <div className="text-4xl font-bold mt-3">{positions.length}/5</div>
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-sky-400 text-sm">RISK ×</div>
@@ -274,7 +274,7 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
-        {/* Right Column - FULLY RESTORED */}
+        {/* Right Column - Fully Restored */}
         <div className="col-span-4 flex flex-col gap-4">
           {/* ML Rocket Signals */}
           <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 flex flex-col">
@@ -321,9 +321,9 @@ export default function TradingBotDashboard() {
               <p className="text-xs text-gray-400 mb-2">RISK MULTIPLIER</p>
               <div className="grid grid-cols-5 gap-2">
                 {[0.3, 0.6, 1.0, 1.5, 2.0].map(m => (
-                  <button 
-                    key={m} 
-                    onClick={() => adjustRisk(m)} 
+                  <button
+                    key={m}
+                    onClick={() => adjustRisk(m)}
                     className={`py-3 rounded-xl text-sm ${riskMult === m ? 'bg-cyan-600' : 'bg-zinc-800 hover:bg-zinc-700'}`}
                   >
                     {m}x
@@ -339,9 +339,9 @@ export default function TradingBotDashboard() {
               <span>LIVE LOGS</span>
               <div className="flex gap-1">
                 {(['all','error','trade','ml'] as const).map(f => (
-                  <button 
-                    key={f} 
-                    onClick={() => setLogFilter(f)} 
+                  <button
+                    key={f}
+                    onClick={() => setLogFilter(f)}
                     className={`px-3 py-1 text-xs rounded-full ${logFilter === f ? 'bg-cyan-600' : 'bg-zinc-800'}`}
                   >
                     {f.toUpperCase()}
