@@ -1,8 +1,8 @@
 'use client';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
-import {
-  Bot, Activity, Loader2, AlertTriangle, Shield, Rocket, Lock, Unlock, TrendingUp
+import { 
+  Bot, Activity, Loader2, AlertTriangle, Shield, Rocket, Lock, Unlock, TrendingUp 
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -13,6 +13,7 @@ type Position = {
   qty: number;
   entry?: number;
   side?: 'long' | 'short';
+  unrealizedPl?: number;
 };
 
 type RocketSignal = {
@@ -44,12 +45,12 @@ export default function TradingBotDashboard() {
   const addLog = useCallback((msg: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') => {
     const time = new Date().toLocaleTimeString('en-US', { hour12: false });
     const icons: Record<string, string> = { error: '❌', warn: '⚠️', success: '✅', info: 'ℹ️' };
-    setLogs(prev => [`[${time}] ${icons[type]} ${msg}`, ...prev].slice(0, 1500));
+    setLogs(prev => [`[${time}] ${icons[type]} ${msg}`, ...prev].slice(0, 2000));
   }, []);
 
   const fetchCore = useCallback(async () => {
     try {
-      const res = await axios.get(`${CORE_BASE}/health`, { timeout: 8000 });
+      const res = await axios.get(`${CORE_BASE}/health`, { timeout: 10000 });
       setCore(res.data || {});
     } catch (e: any) {
       addLog(`Core unreachable: ${e.message}`, 'error');
@@ -67,14 +68,14 @@ export default function TradingBotDashboard() {
           'Content-Type': 'application/json',
           'x-admin-key': ADMIN_KEY
         },
-        timeout: 10000
+        timeout: 12000
       });
       addLog(successMsg, 'success');
-      setTimeout(fetchCore, 1200);
+      setTimeout(fetchCore, 1000);
     } catch (e: any) {
       console.error(e);
       if (e.response?.status === 403) {
-        addLog("403 Forbidden - Check NEXT_PUBLIC_ADMIN_KEY in .env.local", 'error');
+        addLog("403 Forbidden - Check NEXT_PUBLIC_ADMIN_KEY", 'error');
       } else {
         addLog(`Command failed: ${e.response?.data?.message || e.message}`, 'error');
       }
@@ -89,7 +90,7 @@ export default function TradingBotDashboard() {
   };
 
   const panicFlat = async () => {
-    if (!confirm('🚨 EMERGENCY: Close ALL positions right now? This cannot be undone.')) return;
+    if (!confirm('🚨 EMERGENCY: Close ALL positions right now?')) return;
     setIsFlattening(true);
     await postCommand('/admin/hard-flat', {}, 'PANIC FLAT EXECUTED — All positions closed');
     setIsFlattening(false);
@@ -101,7 +102,7 @@ export default function TradingBotDashboard() {
 
   const toggleHardFlat = () => {
     const newState = !core.hardFlat;
-    postCommand('/admin/hard-flat', {},
+    postCommand('/admin/hard-flat', {}, 
       newState ? 'HARD FLAT ACTIVATED' : 'HARD FLAT DEACTIVATED');
   };
 
@@ -123,7 +124,7 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Drag Handlers
+  // Drag Handlers for Logs
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = true;
     dragStartY.current = e.clientY;
@@ -133,7 +134,7 @@ export default function TradingBotDashboard() {
   const handleMouseMove = (e: MouseEvent) => {
     if (!dragRef.current) return;
     const delta = dragStartY.current - e.clientY;
-    setLogHeight(Math.max(200, Math.min(650, dragStartHeight.current + delta)));
+    setLogHeight(Math.max(200, Math.min(700, dragStartHeight.current + delta)));
   };
 
   const handleMouseUp = () => { dragRef.current = false; };
@@ -171,7 +172,7 @@ export default function TradingBotDashboard() {
   const rockets: RocketSignal[] = Array.isArray(core.rockets) ? core.rockets : [];
   
   const winRateRaw = safeNum(core.recentWinRate);
-  const winRate = (winRateRaw * 100).toFixed(0);
+  const winRate = (winRateRaw * 100).toFixed(1);
   const closedTradesCount = safeNum(core.closedTradesCount);
 
   const isInDanger = drawdown > 12;
@@ -183,7 +184,7 @@ export default function TradingBotDashboard() {
           <Bot className="w-11 h-11 text-cyan-400" />
           <div>
             <h1 className="text-3xl font-black tracking-tighter">ALPHASTREAM</h1>
-            <p className="text-xs text-emerald-400 font-mono">MAG7 • LIVE PAPER TRADING BOT v4.3</p>
+            <p className="text-xs text-emerald-400 font-mono">MAG7 • LIVE PAPER TRADING BOT v4.6</p>
           </div>
         </div>
         
@@ -216,7 +217,7 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* Left Column */}
+        {/* Left Column - Main Content */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -249,7 +250,7 @@ export default function TradingBotDashboard() {
           {/* Open Positions */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Shield className="w-5 h-5" /> OPEN POSITIONS
+              <Shield className="w-5 h-5" /> OPEN POSITIONS ({positions.length})
             </h3>
             {positions.length === 0 ? (
               <p className="text-center py-16 text-gray-500">No open positions</p>
@@ -274,7 +275,7 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
-        {/* Right Column - Fully Restored */}
+        {/* Right Column - Fully Restored with All Original Features */}
         <div className="col-span-4 flex flex-col gap-4">
           {/* ML Rocket Signals */}
           <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 flex flex-col">
@@ -333,14 +334,14 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Logs */}
+          {/* Logs Panel - Fully Restored with Drag */}
           <div className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden" style={{ height: logHeight }}>
             <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between text-sm">
               <span>LIVE LOGS</span>
               <div className="flex gap-1">
                 {(['all','error','trade','ml'] as const).map(f => (
-                  <button
-                    key={f}
+                  <button 
+                    key={f} 
                     onClick={() => setLogFilter(f)}
                     className={`px-3 py-1 text-xs rounded-full ${logFilter === f ? 'bg-cyan-600' : 'bg-zinc-800'}`}
                   >
@@ -349,9 +350,11 @@ export default function TradingBotDashboard() {
                 ))}
               </div>
             </div>
+
             <div className="flex-1 p-4 overflow-y-auto text-xs font-mono text-gray-300 space-y-1">
               {logs.length === 0 ? "Waiting for bot activity..." : logs.map((l, i) => <div key={i}>{l}</div>)}
             </div>
+
             <div 
               onMouseDown={handleMouseDown} 
               className="h-6 border-t border-zinc-800 flex items-center justify-center cursor-row-resize hover:bg-zinc-900"
