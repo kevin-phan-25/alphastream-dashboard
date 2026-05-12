@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
-const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';   // ← Important
+const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';   // ← Critical
 
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || '';
 
@@ -57,6 +57,7 @@ export default function TradingBotDashboard() {
   const [lockTimeLeft, setLockTimeLeft] = useState(0);
   const [riskMult, setRiskMult] = useState(1);
   const [isRefreshingML, setIsRefreshingML] = useState(false);
+  const [mlError, setMlError] = useState<string>('');
 
   const dragRef = useRef(false);
   const dragStartY = useRef(0);
@@ -79,11 +80,14 @@ export default function TradingBotDashboard() {
     }
   }, [addLog]);
 
-  // FIXED: Now correctly calls the ML service
   const fetchMLStatus = useCallback(async () => {
     setIsRefreshingML(true);
+    setMlError('');
     try {
-      const res = await axios.get(`${ML_BASE}/ml/status`, { timeout: 8000 });
+      const res = await axios.get(`${ML_BASE}/ml/status`, { 
+        timeout: 10000,
+        headers: { 'Cache-Control': 'no-cache' }
+      });
       
       if (res.data) {
         setMlStatus({
@@ -95,9 +99,12 @@ export default function TradingBotDashboard() {
           trainingActive: true,
         });
       }
-    } catch (e) {
-      console.warn("ML status fetch failed, using fallback");
-      // Fallback from core if available
+    } catch (e: any) {
+      const errorMsg = e.response?.status ? `HTTP ${e.response.status}` : e.message;
+      setMlError(errorMsg);
+      addLog(`ML Status failed: ${errorMsg}`, 'warn');
+      
+      // Fallback
       if (core.ml) {
         setMlStatus({
           entryModelReady: true,
@@ -297,7 +304,6 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Open Positions */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Shield className="w-5 h-5" /> OPEN POSITIONS ({positions.length})
@@ -327,7 +333,7 @@ export default function TradingBotDashboard() {
 
         {/* RIGHT COLUMN */}
         <div className="col-span-4 flex flex-col gap-4">
-          {/* ML TRAINING STATUS - Now Fixed */}
+          {/* ML TRAINING STATUS */}
           <div className="bg-zinc-900 border border-violet-500/30 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center gap-2">
@@ -337,6 +343,8 @@ export default function TradingBotDashboard() {
                 <RefreshCw className={`w-4 h-4 ${isRefreshingML ? 'animate-spin' : ''}`} />
               </button>
             </div>
+
+            {mlError && <div className="text-red-400 text-xs mb-3">⚠️ {mlError}</div>}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-black/60 p-4 rounded-xl">
@@ -397,8 +405,65 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Quick Controls + Logs remain the same as your version */}
-          {/* ... (your existing controls and logs panel) ... */}
+          {/* Quick Controls */}
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
+            <h3 className="font-medium">QUICK CONTROLS</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <button onClick={toggleHardFlat} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">
+                {core.hardFlat ? 'DISABLE HARD FLAT' : 'ENABLE HARD FLAT'}
+              </button>
+              <button onClick={resetDrawdown} className="py-4 bg-amber-600 hover:bg-amber-500 rounded-2xl text-sm font-medium">
+                RESET DD
+              </button>
+              <button onClick={toggleLock} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium flex items-center justify-center gap-2">
+                {isLocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                {isLocked ? 'UNLOCK' : 'LOCK'}
+              </button>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-2">RISK MULTIPLIER</p>
+              <div className="grid grid-cols-5 gap-2">
+                {[0.3, 0.6, 1.0, 1.5, 2.0].map(m => (
+                  <button
+                    key={m}
+                    onClick={() => adjustRisk(m)}
+                    className={`py-3 rounded-xl text-sm ${riskMult === m ? 'bg-cyan-600' : 'bg-zinc-800 hover:bg-zinc-700'}`}
+                  >
+                    {m}x
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* LIVE LOGS */}
+          <div className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden" style={{ height: logHeight }}>
+            <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between text-sm">
+              <span>LIVE LOGS</span>
+              <div className="flex gap-1">
+                {(['all','error','trade','ml'] as const).map(f => (
+                  <button 
+                    key={f} 
+                    onClick={() => setLogFilter(f)}
+                    className={`px-3 py-1 text-xs rounded-full ${logFilter === f ? 'bg-cyan-600' : 'bg-zinc-800'}`}
+                  >
+                    {f.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-1 p-4 overflow-y-auto text-xs font-mono text-gray-300 space-y-1">
+              {logs.length === 0 ? "Waiting for bot activity..." : logs.map((l, i) => <div key={i}>{l}</div>)}
+            </div>
+
+            <div 
+              onMouseDown={handleMouseDown} 
+              className="h-6 border-t border-zinc-800 flex items-center justify-center cursor-row-resize hover:bg-zinc-900"
+            >
+              <div className="w-20 h-0.5 bg-zinc-600 rounded" />
+            </div>
+          </div>
         </div>
       </div>
     </div>
