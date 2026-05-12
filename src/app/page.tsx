@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { 
   Bot, Activity, Loader2, AlertTriangle, Shield, Rocket, Lock, Unlock, TrendingUp,
-  Brain, Target, RefreshCw 
+  Brain, RefreshCw 
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -90,8 +90,8 @@ export default function TradingBotDashboard() {
           trainingActive: true,
         });
       }
-    } catch (e) {
-      // Fallback from /health
+    } catch {
+      // Fallback
       if (core.ml) {
         setMlStatus({
           entryModelReady: !!core.ml.entryModelReady,
@@ -219,7 +219,6 @@ export default function TradingBotDashboard() {
     return () => clearInterval(t);
   }, [lockTimeLeft]);
 
-  // Computed Values
   const equity = safeNum(core.equity);
   const peakEquity = safeNum(core.peakEquity);
   const drawdown = peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0;
@@ -268,7 +267,7 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* Left Column */}
+        {/* LEFT COLUMN */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -323,19 +322,15 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
-        {/* Right Column */}
+        {/* RIGHT COLUMN */}
         <div className="col-span-4 flex flex-col gap-4">
-          {/* ML Training Status */}
+          {/* ML TRAINING STATUS */}
           <div className="bg-zinc-900 border border-violet-500/30 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center gap-2">
                 <Brain className="w-5 h-5 text-violet-400" /> ML TRAINING
               </h3>
-              <button 
-                onClick={fetchMLStatus} 
-                disabled={isRefreshingML}
-                className="text-violet-400 hover:text-violet-300"
-              >
+              <button onClick={fetchMLStatus} disabled={isRefreshingML} className="text-violet-400 hover:text-violet-300">
                 <RefreshCw className={`w-4 h-4 ${isRefreshingML ? 'animate-spin' : ''}`} />
               </button>
             </div>
@@ -375,7 +370,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* ML Rocket Signals */}
+          {/* ML ROCKET SIGNALS */}
           <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 flex flex-col">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Rocket className="w-5 h-5 text-amber-400" /> ML ROCKET SIGNALS
@@ -399,10 +394,9 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Quick Controls */}
+          {/* QUICK CONTROLS */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
             <h3 className="font-medium">QUICK CONTROLS</h3>
-           
             <div className="grid grid-cols-3 gap-3">
               <button onClick={toggleHardFlat} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">
                 {core.hardFlat ? 'DISABLE HARD FLAT' : 'ENABLE HARD FLAT'}
@@ -432,7 +426,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Logs Panel */}
+          {/* LIVE LOGS */}
           <div className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden" style={{ height: logHeight }}>
             <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between text-sm">
               <span>LIVE LOGS</span>
