@@ -91,7 +91,7 @@ export default function TradingBotDashboard() {
         });
       }
     } catch {
-      // Fallback
+      // Fallback from /health
       if (core.ml) {
         setMlStatus({
           entryModelReady: !!core.ml.entryModelReady,
@@ -219,6 +219,7 @@ export default function TradingBotDashboard() {
     return () => clearInterval(t);
   }, [lockTimeLeft]);
 
+  // Computed Values
   const equity = safeNum(core.equity);
   const peakEquity = safeNum(core.peakEquity);
   const drawdown = peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0;
@@ -397,6 +398,7 @@ export default function TradingBotDashboard() {
           {/* QUICK CONTROLS */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
             <h3 className="font-medium">QUICK CONTROLS</h3>
+           
             <div className="grid grid-cols-3 gap-3">
               <button onClick={toggleHardFlat} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">
                 {core.hardFlat ? 'DISABLE HARD FLAT' : 'ENABLE HARD FLAT'}
