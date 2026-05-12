@@ -2,7 +2,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { 
-  Bot, Activity, Loader2, AlertTriangle, Shield, Rocket, Lock, Unlock, TrendingUp 
+  Bot, Activity, Loader2, AlertTriangle, Shield, Rocket, Lock, Unlock, TrendingUp,
+  Brain, Target, Database 
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -25,8 +26,18 @@ type RocketSignal = {
   reason?: string;
 };
 
+type MLStatus = {
+  entryModelReady?: boolean;
+  exitModelReady?: boolean;
+  lastSync?: string;
+  exitBufferSize?: number;
+  entryBufferSize?: number;
+  trainingActive?: boolean;
+};
+
 export default function TradingBotDashboard() {
   const [core, setCore] = useState<any>({});
+  const [mlStatus, setMlStatus] = useState<MLStatus>({});
   const [logs, setLogs] = useState<string[]>([]);
   const [logFilter, setLogFilter] = useState<'all' | 'error' | 'trade' | 'ml'>('all');
   const [logHeight, setLogHeight] = useState(380);
@@ -52,6 +63,11 @@ export default function TradingBotDashboard() {
     try {
       const res = await axios.get(`${CORE_BASE}/health`, { timeout: 10000 });
       setCore(res.data || {});
+      
+      // Extract ML status if available
+      if (res.data?.ml) {
+        setMlStatus(res.data.ml);
+      }
     } catch (e: any) {
       addLog(`Core unreachable: ${e.message}`, 'error');
     }
@@ -82,7 +98,7 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Commands
+  // Commands (unchanged)
   const forceScan = async () => {
     setIsScanning(true);
     await postCommand('/admin/scan', {}, 'Manual market scan triggered');
@@ -124,7 +140,7 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Drag Handlers for Logs
+  // Drag Handlers (unchanged)
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = true;
     dragStartY.current = e.clientY;
@@ -139,7 +155,7 @@ export default function TradingBotDashboard() {
 
   const handleMouseUp = () => { dragRef.current = false; };
 
-  // Effects
+  // Effects (unchanged)
   useEffect(() => {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
@@ -184,7 +200,7 @@ export default function TradingBotDashboard() {
           <Bot className="w-11 h-11 text-cyan-400" />
           <div>
             <h1 className="text-3xl font-black tracking-tighter">ALPHASTREAM</h1>
-            <p className="text-xs text-emerald-400 font-mono">MAG7 • LIVE PAPER TRADING BOT v4.6</p>
+            <p className="text-xs text-emerald-400 font-mono">MAG7 • LIVE PAPER TRADING BOT v4.7</p>
           </div>
         </div>
         
@@ -233,9 +249,6 @@ export default function TradingBotDashboard() {
                 <TrendingUp className="w-4 h-4" /> WIN RATE
               </div>
               <div className="text-4xl font-bold mt-3">{winRate}%</div>
-              {closedTradesCount > 0 && (
-                <p className="text-xs text-gray-500 mt-1">Last 20 trades</p>
-              )}
             </div>
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-purple-400 text-sm">POSITIONS</div>
@@ -247,7 +260,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Open Positions */}
+          {/* Open Positions - unchanged */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Shield className="w-5 h-5" /> OPEN POSITIONS ({positions.length})
@@ -275,8 +288,46 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
-        {/* Right Column - Fully Restored with All Original Features */}
+        {/* Right Column - Enhanced with ML Training Status */}
         <div className="col-span-4 flex flex-col gap-4">
+          {/* ML Training Status - NEW */}
+          <div className="bg-zinc-900 border border-violet-500/30 rounded-2xl p-6">
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <Brain className="w-5 h-5 text-violet-400" /> ML TRAINING STATUS
+            </h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="bg-black/60 p-4 rounded-xl">
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Target className="w-4 h-4" /> ENTRY MODEL
+                </div>
+                <div className="text-2xl font-bold mt-1">
+                  {mlStatus.entryModelReady ? '✅ READY' : '⏳ Loading'}
+                </div>
+              </div>
+              <div className="bg-black/60 p-4 rounded-xl">
+                <div className="flex items-center gap-2 text-violet-400">
+                  <Target className="w-4 h-4" /> EXIT MODEL
+                </div>
+                <div className="text-2xl font-bold mt-1">
+                  {mlStatus.exitModelReady ? '✅ READY' : '⏳ Loading'}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-zinc-800">
+              <div className="flex justify-between text-xs mb-2">
+                <span className="text-gray-400">EXIT BUFFER</span>
+                <span className="font-mono">{mlStatus.exitBufferSize ?? 0}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">LAST SYNC</span>
+                <span className="font-mono text-emerald-400">
+                  {mlStatus.lastSync ? new Date(mlStatus.lastSync).toLocaleTimeString() : '—'}
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* ML Rocket Signals */}
           <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 flex flex-col">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
@@ -301,7 +352,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Quick Controls */}
+          {/* Quick Controls - unchanged */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
             <h3 className="font-medium">QUICK CONTROLS</h3>
            
@@ -334,7 +385,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Logs Panel - Fully Restored with Drag */}
+          {/* Logs Panel - unchanged */}
           <div className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden" style={{ height: logHeight }}>
             <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between text-sm">
               <span>LIVE LOGS</span>
