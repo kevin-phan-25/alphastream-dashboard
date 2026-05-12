@@ -87,17 +87,17 @@ export default function TradingBotDashboard() {
           exitBufferSize: safeNum(res.data.exitBufferSize),
           entryBufferSize: safeNum(res.data.entryBufferSize),
           lastSync: res.data.lastSync,
-          trainingActive: !!res.data.trainingActive,
+          trainingActive: true,
         });
       }
     } catch (e) {
-      // Fallback using data from /health
+      // Fallback from /health
       if (core.ml) {
         setMlStatus({
           entryModelReady: !!core.ml.entryModelReady,
           exitModelReady: !!core.ml.exitModelReady,
-          exitBufferSize: safeNum(core.ml.exitBufferSize || core.ml.exitBuffer),
-          entryBufferSize: safeNum(core.ml.entryBufferSize || core.ml.entryBuffer),
+          exitBufferSize: safeNum(core.ml.exitBufferSize),
+          entryBufferSize: safeNum(core.ml.entryBufferSize),
           lastSync: core.ml.lastSync,
           trainingActive: true,
         });
@@ -174,7 +174,7 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Drag handlers
+  // Drag Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = true;
     dragStartY.current = e.clientY;
@@ -203,7 +203,7 @@ export default function TradingBotDashboard() {
     fetchCore();
     fetchMLStatus();
     const coreInterval = setInterval(fetchCore, 7000);
-    const mlInterval = setInterval(fetchMLStatus, 10000);
+    const mlInterval = setInterval(fetchMLStatus, 9000);
     return () => {
       clearInterval(coreInterval);
       clearInterval(mlInterval);
@@ -219,7 +219,7 @@ export default function TradingBotDashboard() {
     return () => clearInterval(t);
   }, [lockTimeLeft]);
 
-  // Computed values
+  // Computed Values
   const equity = safeNum(core.equity);
   const peakEquity = safeNum(core.peakEquity);
   const drawdown = peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0;
@@ -355,7 +355,7 @@ export default function TradingBotDashboard() {
               </div>
             </div>
 
-            <div className="mt-5 space-y-3 text-sm">
+            <div className="mt-6 space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-400">Exit Buffer</span>
                 <span className="font-mono font-medium">{mlStatus.exitBufferSize}</span>
@@ -375,7 +375,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Rocket Signals */}
+          {/* ML Rocket Signals */}
           <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 flex flex-col">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Rocket className="w-5 h-5 text-amber-400" /> ML ROCKET SIGNALS
@@ -402,6 +402,7 @@ export default function TradingBotDashboard() {
           {/* Quick Controls */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
             <h3 className="font-medium">QUICK CONTROLS</h3>
+           
             <div className="grid grid-cols-3 gap-3">
               <button onClick={toggleHardFlat} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">
                 {core.hardFlat ? 'DISABLE HARD FLAT' : 'ENABLE HARD FLAT'}
