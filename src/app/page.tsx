@@ -195,15 +195,15 @@ export default function TradingBotDashboard() {
       </div>
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* LEFT COLUMN */}
+        {/* LEFT COLUMN - TRADING OVERVIEW */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
-          {/* Equity / Risk Cards */}
+          {/* Equity / Risk Cards - Add your original 5 cards here */}
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
               <div className="text-gray-400 text-sm">EQUITY</div>
               <div className="text-3xl font-bold text-white mt-1">${safeNum(core.equity).toFixed(0)}</div>
             </div>
-            {/* Add your other 4 original cards here */}
+            {/* ... your other 4 original cards ... */}
           </div>
 
           {/* Open Positions */}
@@ -272,13 +272,12 @@ export default function TradingBotDashboard() {
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Rocket className="w-5 h-5" /> ROCKET SIGNALS
             </h3>
-            {/* Your original rocket signals rendering logic */}
+            {/* Your original rocket signals rendering here */}
           </div>
 
           {/* Controls */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
             <h3 className="font-semibold mb-4">CONTROLS</h3>
-            {/* Your original control buttons: Scan, Panic Flat, Risk Multiplier, Lock, etc. */}
             <div className="flex flex-wrap gap-2">
               <button onClick={forceScan} className="px-4 py-2 bg-blue-600 rounded-lg">SCAN MARKET</button>
               <button onClick={panicFlat} className="px-4 py-2 bg-red-600 rounded-lg">PANIC FLAT</button>
