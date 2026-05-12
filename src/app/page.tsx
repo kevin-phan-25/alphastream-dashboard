@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { 
   Bot, Activity, Loader2, AlertTriangle, Shield, Rocket, Lock, Unlock, TrendingUp,
-  Brain, Target, Database 
+  Brain, Target, RefreshCw 
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -27,17 +27,24 @@ type RocketSignal = {
 };
 
 type MLStatus = {
-  entryModelReady?: boolean;
-  exitModelReady?: boolean;
+  entryModelReady: boolean;
+  exitModelReady: boolean;
+  exitBufferSize: number;
+  entryBufferSize: number;
   lastSync?: string;
-  exitBufferSize?: number;
-  entryBufferSize?: number;
-  trainingActive?: boolean;
+  trainingActive: boolean;
 };
 
 export default function TradingBotDashboard() {
   const [core, setCore] = useState<any>({});
-  const [mlStatus, setMlStatus] = useState<MLStatus>({});
+  const [mlStatus, setMlStatus] = useState<MLStatus>({
+    entryModelReady: false,
+    exitModelReady: false,
+    exitBufferSize: 0,
+    entryBufferSize: 0,
+    trainingActive: false,
+  });
+
   const [logs, setLogs] = useState<string[]>([]);
   const [logFilter, setLogFilter] = useState<'all' | 'error' | 'trade' | 'ml'>('all');
   const [logHeight, setLogHeight] = useState(380);
@@ -46,6 +53,7 @@ export default function TradingBotDashboard() {
   const [isLocked, setIsLocked] = useState(false);
   const [lockTimeLeft, setLockTimeLeft] = useState(0);
   const [riskMult, setRiskMult] = useState(1);
+  const [isRefreshingML, setIsRefreshingML] = useState(false);
 
   const dragRef = useRef(false);
   const dragStartY = useRef(0);
@@ -63,15 +71,41 @@ export default function TradingBotDashboard() {
     try {
       const res = await axios.get(`${CORE_BASE}/health`, { timeout: 10000 });
       setCore(res.data || {});
-      
-      // Extract ML status if available
-      if (res.data?.ml) {
-        setMlStatus(res.data.ml);
-      }
     } catch (e: any) {
       addLog(`Core unreachable: ${e.message}`, 'error');
     }
   }, [addLog]);
+
+  const fetchMLStatus = useCallback(async () => {
+    setIsRefreshingML(true);
+    try {
+      const res = await axios.get(`${CORE_BASE}/ml/status`, { timeout: 8000 });
+      if (res.data) {
+        setMlStatus({
+          entryModelReady: !!res.data.entryModelReady,
+          exitModelReady: !!res.data.exitModelReady,
+          exitBufferSize: safeNum(res.data.exitBufferSize),
+          entryBufferSize: safeNum(res.data.entryBufferSize),
+          lastSync: res.data.lastSync,
+          trainingActive: !!res.data.trainingActive,
+        });
+      }
+    } catch (e) {
+      // Fallback using data from /health
+      if (core.ml) {
+        setMlStatus({
+          entryModelReady: !!core.ml.entryModelReady,
+          exitModelReady: !!core.ml.exitModelReady,
+          exitBufferSize: safeNum(core.ml.exitBufferSize || core.ml.exitBuffer),
+          entryBufferSize: safeNum(core.ml.entryBufferSize || core.ml.entryBuffer),
+          lastSync: core.ml.lastSync,
+          trainingActive: true,
+        });
+      }
+    } finally {
+      setIsRefreshingML(false);
+    }
+  }, [core.ml]);
 
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
     if (isLocked) {
@@ -88,6 +122,7 @@ export default function TradingBotDashboard() {
       });
       addLog(successMsg, 'success');
       setTimeout(fetchCore, 1000);
+      setTimeout(fetchMLStatus, 1500);
     } catch (e: any) {
       console.error(e);
       if (e.response?.status === 403) {
@@ -98,7 +133,6 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Commands (unchanged)
   const forceScan = async () => {
     setIsScanning(true);
     await postCommand('/admin/scan', {}, 'Manual market scan triggered');
@@ -140,7 +174,7 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Drag Handlers (unchanged)
+  // Drag handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = true;
     dragStartY.current = e.clientY;
@@ -155,7 +189,7 @@ export default function TradingBotDashboard() {
 
   const handleMouseUp = () => { dragRef.current = false; };
 
-  // Effects (unchanged)
+  // Effects
   useEffect(() => {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
@@ -167,9 +201,14 @@ export default function TradingBotDashboard() {
 
   useEffect(() => {
     fetchCore();
-    const i = setInterval(fetchCore, 7000);
-    return () => clearInterval(i);
-  }, [fetchCore]);
+    fetchMLStatus();
+    const coreInterval = setInterval(fetchCore, 7000);
+    const mlInterval = setInterval(fetchMLStatus, 10000);
+    return () => {
+      clearInterval(coreInterval);
+      clearInterval(mlInterval);
+    };
+  }, [fetchCore, fetchMLStatus]);
 
   useEffect(() => {
     if (lockTimeLeft <= 0) {
@@ -180,17 +219,13 @@ export default function TradingBotDashboard() {
     return () => clearInterval(t);
   }, [lockTimeLeft]);
 
-  // Computed Values
+  // Computed values
   const equity = safeNum(core.equity);
   const peakEquity = safeNum(core.peakEquity);
   const drawdown = peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0;
   const positions: Position[] = Array.isArray(core.positions) ? core.positions : [];
   const rockets: RocketSignal[] = Array.isArray(core.rockets) ? core.rockets : [];
-  
-  const winRateRaw = safeNum(core.recentWinRate);
-  const winRate = (winRateRaw * 100).toFixed(1);
-  const closedTradesCount = safeNum(core.closedTradesCount);
-
+  const winRate = (safeNum(core.recentWinRate) * 100).toFixed(1);
   const isInDanger = drawdown > 12;
 
   return (
@@ -233,7 +268,7 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* Left Column - Main Content */}
+        {/* Left Column */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -260,7 +295,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Open Positions - unchanged */}
+          {/* Open Positions */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Shield className="w-5 h-5" /> OPEN POSITIONS ({positions.length})
@@ -288,47 +323,59 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
-        {/* Right Column - Enhanced with ML Training Status */}
+        {/* Right Column */}
         <div className="col-span-4 flex flex-col gap-4">
-          {/* ML Training Status - NEW */}
+          {/* ML Training Status */}
           <div className="bg-zinc-900 border border-violet-500/30 rounded-2xl p-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Brain className="w-5 h-5 text-violet-400" /> ML TRAINING STATUS
-            </h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Brain className="w-5 h-5 text-violet-400" /> ML TRAINING
+              </h3>
+              <button 
+                onClick={fetchMLStatus} 
+                disabled={isRefreshingML}
+                className="text-violet-400 hover:text-violet-300"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshingML ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="bg-black/60 p-4 rounded-xl">
-                <div className="flex items-center gap-2 text-emerald-400">
-                  <Target className="w-4 h-4" /> ENTRY MODEL
-                </div>
+                <div className="text-emerald-400 text-sm">ENTRY MODEL</div>
                 <div className="text-2xl font-bold mt-1">
                   {mlStatus.entryModelReady ? '✅ READY' : '⏳ Loading'}
                 </div>
               </div>
               <div className="bg-black/60 p-4 rounded-xl">
-                <div className="flex items-center gap-2 text-violet-400">
-                  <Target className="w-4 h-4" /> EXIT MODEL
-                </div>
+                <div className="text-violet-400 text-sm">EXIT MODEL</div>
                 <div className="text-2xl font-bold mt-1">
                   {mlStatus.exitModelReady ? '✅ READY' : '⏳ Loading'}
                 </div>
               </div>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-zinc-800">
-              <div className="flex justify-between text-xs mb-2">
-                <span className="text-gray-400">EXIT BUFFER</span>
-                <span className="font-mono">{mlStatus.exitBufferSize ?? 0}</span>
+            <div className="mt-5 space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Exit Buffer</span>
+                <span className="font-mono font-medium">{mlStatus.exitBufferSize}</span>
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-400">LAST SYNC</span>
-                <span className="font-mono text-emerald-400">
-                  {mlStatus.lastSync ? new Date(mlStatus.lastSync).toLocaleTimeString() : '—'}
-                </span>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Entry Buffer</span>
+                <span className="font-mono font-medium">{mlStatus.entryBufferSize}</span>
               </div>
+              {mlStatus.lastSync && (
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Last Sync</span>
+                  <span className="font-mono text-emerald-400">
+                    {new Date(mlStatus.lastSync).toLocaleTimeString()}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* ML Rocket Signals */}
+          {/* Rocket Signals */}
           <div className="bg-zinc-900 border border-amber-500/30 rounded-2xl p-6 flex-1 flex flex-col">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Rocket className="w-5 h-5 text-amber-400" /> ML ROCKET SIGNALS
@@ -352,10 +399,9 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Quick Controls - unchanged */}
+          {/* Quick Controls */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-4">
             <h3 className="font-medium">QUICK CONTROLS</h3>
-           
             <div className="grid grid-cols-3 gap-3">
               <button onClick={toggleHardFlat} className="py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">
                 {core.hardFlat ? 'DISABLE HARD FLAT' : 'ENABLE HARD FLAT'}
@@ -385,7 +431,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Logs Panel - unchanged */}
+          {/* Logs Panel */}
           <div className="flex-1 bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden" style={{ height: logHeight }}>
             <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between text-sm">
               <span>LIVE LOGS</span>
