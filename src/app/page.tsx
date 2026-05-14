@@ -66,7 +66,7 @@ export default function TradingBotDashboard() {
 
   const safeNum = (v: any, fallback = 0) => Number.isFinite(Number(v)) ? Number(v) : fallback;
 
-  // ====================== IMPROVED ADDLOG (Keeps all original behavior) ======================
+  // ====================== ENHANCED ADDLOG ======================
   const addLog = useCallback((msg: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') => {
     const time = new Date().toLocaleTimeString('en-US', { hour12: false });
     const icons: Record<string, string> = { error: '❌', warn: '⚠️', success: '✅', info: 'ℹ️' };
@@ -74,11 +74,12 @@ export default function TradingBotDashboard() {
     const upperMsg = msg.toUpperCase();
     let prefix = '';
     if (upperMsg.includes('ENTRY') || upperMsg.includes('LONG') || upperMsg.includes('BUY')) prefix = '📈 ENTRY ';
-    if (upperMsg.includes('EXIT') || upperMsg.includes('SELL') || upperMsg.includes('CLOSE') || upperMsg.includes('TAKE PROFIT')) prefix = '📉 EXIT ';
+    if (upperMsg.includes('EXIT') || upperMsg.includes('SELL') || upperMsg.includes('CLOSE') || upperMsg.includes('STOP')) prefix = '📉 EXIT ';
 
-    setLogs(prev => [`[${time}] ${icons[type]} ${prefix}${msg}`, ...prev].slice(0, 2000));
+    const logEntry = `[${time}] ${icons[type]} ${prefix}${msg}`;
+    setLogs(prev => [logEntry, ...prev].slice(0, 2000));
   }, []);
-  // =========================================================================================
+  // ========================================================
 
   const fetchCore = useCallback(async () => {
     try {
@@ -225,7 +226,6 @@ export default function TradingBotDashboard() {
   const winRate = (safeNum(core.recentWinRate) * 100).toFixed(1);
   const isInDanger = drawdown > 12;
 
-  // Filter logs
   const filteredLogs = logs.filter(log => {
     if (logFilter === 'all') return true;
     if (logFilter === 'entry') return log.includes('ENTRY');
@@ -236,7 +236,7 @@ export default function TradingBotDashboard() {
 
   return (
     <div className="h-screen bg-zinc-950 text-gray-100 flex flex-col overflow-hidden">
-      {/* Header */}
+      {/* Header - unchanged */}
       <header className="border-b border-zinc-800 bg-black px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Bot className="w-11 h-11 text-cyan-400" />
@@ -272,8 +272,9 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* LEFT COLUMN */}
+        {/* LEFT COLUMN - unchanged */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
+          {/* Your full left column (5 cards + positions) */}
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-cyan-400 text-sm">EQUITY</div>
@@ -441,7 +442,6 @@ export default function TradingBotDashboard() {
               onMouseDown={handleMouseDown}
             />
           </div>
-
         </div>
       </div>
     </div>
