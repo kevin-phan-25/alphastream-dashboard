@@ -66,7 +66,7 @@ export default function TradingBotDashboard() {
 
   const safeNum = (v: any, fallback = 0) => Number.isFinite(Number(v)) ? Number(v) : fallback;
 
-  // ====================== ENHANCED ADDLOG ======================
+  // ====================== IMPROVED ADDLOG ======================
   const addLog = useCallback((msg: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') => {
     const time = new Date().toLocaleTimeString('en-US', { hour12: false });
     const icons: Record<string, string> = { error: '❌', warn: '⚠️', success: '✅', info: 'ℹ️' };
@@ -77,6 +77,7 @@ export default function TradingBotDashboard() {
     if (upperMsg.includes('EXIT') || upperMsg.includes('SELL') || upperMsg.includes('CLOSE') || upperMsg.includes('STOP')) prefix = '📉 EXIT ';
 
     const logEntry = `[${time}] ${icons[type]} ${prefix}${msg}`;
+    console.log(logEntry); // For debugging in browser console
     setLogs(prev => [logEntry, ...prev].slice(0, 2000));
   }, []);
   // ========================================================
@@ -116,23 +117,36 @@ export default function TradingBotDashboard() {
     }
   }, [addLog]);
 
+  // ====================== IMPROVED POST COMMAND ======================
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
     if (isLocked) {
       addLog("Command blocked - Account is locked", 'warn');
       return;
     }
+
+    console.log(`[DASHBOARD COMMAND] ${endpoint}`, body);
+
     try {
-      await axios.post(`${CORE_BASE}${endpoint}`, body, {
-        headers: { 'Content-Type': 'application/json', 'x-admin-key': ADMIN_KEY },
-        timeout: 12000
+      const res = await axios.post(`${CORE_BASE}${endpoint}`, body, {
+        headers: { 
+          'Content-Type': 'application/json', 
+          'x-admin-key': ADMIN_KEY 
+        },
+        timeout: 15000
       });
+
+      console.log(`[DASHBOARD COMMAND] Success: ${endpoint}`, res.data);
       addLog(successMsg, 'success');
-      setTimeout(fetchCore, 1000);
-      setTimeout(fetchMLStatus, 1500);
+      
+      setTimeout(fetchCore, 800);
+      setTimeout(fetchMLStatus, 1200);
     } catch (e: any) {
-      addLog(`Command failed: ${e.response?.data?.message || e.message}`, 'error');
+      const errorMsg = e.response?.data?.message || e.message || 'Unknown error';
+      console.error(`[DASHBOARD COMMAND] Failed ${endpoint}:`, errorMsg);
+      addLog(`Command failed (${endpoint}): ${errorMsg}`, 'error');
     }
   };
+  // =================================================================
 
   const forceScan = async () => {
     setIsScanning(true);
@@ -236,7 +250,7 @@ export default function TradingBotDashboard() {
 
   return (
     <div className="h-screen bg-zinc-950 text-gray-100 flex flex-col overflow-hidden">
-      {/* Header - unchanged */}
+      {/* Header */}
       <header className="border-b border-zinc-800 bg-black px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Bot className="w-11 h-11 text-cyan-400" />
@@ -272,9 +286,8 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* LEFT COLUMN - unchanged */}
+        {/* LEFT COLUMN */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
-          {/* Your full left column (5 cards + positions) */}
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-cyan-400 text-sm">EQUITY</div>
@@ -442,6 +455,7 @@ export default function TradingBotDashboard() {
               onMouseDown={handleMouseDown}
             />
           </div>
+
         </div>
       </div>
     </div>
