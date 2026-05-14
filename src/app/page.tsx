@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { 
   Bot, Activity, Loader2, AlertTriangle, Shield, Rocket, Lock, Unlock, TrendingUp,
-  Brain, RefreshCw 
+  Brain, RefreshCw, ArrowUp, ArrowDown 
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -50,7 +50,7 @@ export default function TradingBotDashboard() {
   });
 
   const [logs, setLogs] = useState<string[]>([]);
-  const [logFilter, setLogFilter] = useState<'all' | 'error' | 'trade' | 'ml'>('all');
+  const [logFilter, setLogFilter] = useState<'all' | 'error' | 'trade' | 'ml' | 'entry' | 'exit'>('all');
   const [logHeight, setLogHeight] = useState(380);
   const [isScanning, setIsScanning] = useState(false);
   const [isFlattening, setIsFlattening] = useState(false);
@@ -217,6 +217,15 @@ export default function TradingBotDashboard() {
   const winRate = (safeNum(core.recentWinRate) * 100).toFixed(1);
   const isInDanger = drawdown > 12;
 
+  // Filter logs for Entry / Exit
+  const filteredLogs = logs.filter(log => {
+    if (logFilter === 'all') return true;
+    if (logFilter === 'entry') return log.includes('ENTRY');
+    if (logFilter === 'exit') return log.includes('EXIT');
+    if (logFilter === 'error') return log.includes('❌');
+    return log.toLowerCase().includes(logFilter);
+  });
+
   return (
     <div className="h-screen bg-zinc-950 text-gray-100 flex flex-col overflow-hidden">
       {/* Header */}
@@ -310,7 +319,8 @@ export default function TradingBotDashboard() {
         </div>
 
         {/* RIGHT COLUMN */}
-        <div className="col-span-4 flex flex-col gap-4">
+        <div className="col-span-4 flex flex-col gap-4 overflow-hidden">
+
           {/* ML TRAINING STATUS */}
           <div className="bg-zinc-900 border border-violet-500/30 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
@@ -360,7 +370,64 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Add your Rocket Signals, Logs, etc. panels here as before */}
+          {/* ENTRY LOGS */}
+          <div className="bg-zinc-900 border border-emerald-500/30 rounded-2xl p-6 flex-1 flex flex-col min-h-0">
+            <h3 className="font-semibold mb-3 flex items-center gap-2 text-emerald-400">
+              <ArrowUp className="w-5 h-5" /> ENTRY SIGNALS
+            </h3>
+            <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-sm font-mono">
+              {filteredLogs.filter(l => l.includes('ENTRY')).length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No entry signals yet...</p>
+              ) : (
+                filteredLogs.filter(l => l.includes('ENTRY')).map((log, i) => (
+                  <div key={i} className="py-1 text-emerald-300">{log}</div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* EXIT LOGS */}
+          <div className="bg-zinc-900 border border-red-500/30 rounded-2xl p-6 flex-1 flex flex-col min-h-0">
+            <h3 className="font-semibold mb-3 flex items-center gap-2 text-red-400">
+              <ArrowDown className="w-5 h-5" /> EXIT SIGNALS
+            </h3>
+            <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-sm font-mono">
+              {filteredLogs.filter(l => l.includes('EXIT')).length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No exit signals yet...</p>
+              ) : (
+                filteredLogs.filter(l => l.includes('EXIT')).map((log, i) => (
+                  <div key={i} className="py-1 text-red-300">{log}</div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* General Logs */}
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 flex-1 flex flex-col min-h-0">
+            <div className="flex justify-between mb-3">
+              <h3 className="font-semibold">ALL ACTIVITY LOGS</h3>
+              <select 
+                value={logFilter} 
+                onChange={(e) => setLogFilter(e.target.value as any)}
+                className="bg-zinc-800 text-xs px-3 py-1 rounded-lg border border-zinc-600"
+              >
+                <option value="all">All</option>
+                <option value="entry">Entry Only</option>
+                <option value="exit">Exit Only</option>
+                <option value="error">Errors Only</option>
+              </select>
+            </div>
+            <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-xs font-mono" style={{ maxHeight: logHeight }}>
+              {filteredLogs.map((log, i) => (
+                <div key={i} className="py-0.5">{log}</div>
+              ))}
+            </div>
+            <div 
+              className="h-1 bg-zinc-700 mt-2 rounded cursor-ns-resize" 
+              onMouseDown={handleMouseDown}
+            />
+          </div>
+
         </div>
       </div>
     </div>
