@@ -66,11 +66,19 @@ export default function TradingBotDashboard() {
 
   const safeNum = (v: any, fallback = 0) => Number.isFinite(Number(v)) ? Number(v) : fallback;
 
+  // ====================== IMPROVED ADDLOG (Keeps all original behavior) ======================
   const addLog = useCallback((msg: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') => {
     const time = new Date().toLocaleTimeString('en-US', { hour12: false });
     const icons: Record<string, string> = { error: '❌', warn: '⚠️', success: '✅', info: 'ℹ️' };
-    setLogs(prev => [`[${time}] ${icons[type]} ${msg}`, ...prev].slice(0, 2000));
+    
+    const upperMsg = msg.toUpperCase();
+    let prefix = '';
+    if (upperMsg.includes('ENTRY') || upperMsg.includes('LONG') || upperMsg.includes('BUY')) prefix = '📈 ENTRY ';
+    if (upperMsg.includes('EXIT') || upperMsg.includes('SELL') || upperMsg.includes('CLOSE')) prefix = '📉 EXIT ';
+
+    setLogs(prev => [`[${time}] ${icons[type]} ${prefix}${msg}`, ...prev].slice(0, 2000));
   }, []);
+  // =========================================================================================
 
   const fetchCore = useCallback(async () => {
     try {
@@ -217,7 +225,7 @@ export default function TradingBotDashboard() {
   const winRate = (safeNum(core.recentWinRate) * 100).toFixed(1);
   const isInDanger = drawdown > 12;
 
-  // Filter logs for Entry / Exit
+  // Filter logs
   const filteredLogs = logs.filter(log => {
     if (logFilter === 'all') return true;
     if (logFilter === 'entry') return log.includes('ENTRY');
@@ -264,7 +272,7 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* LEFT COLUMN */}
+        {/* LEFT COLUMN - Unchanged */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -321,7 +329,7 @@ export default function TradingBotDashboard() {
         {/* RIGHT COLUMN */}
         <div className="col-span-4 flex flex-col gap-4 overflow-hidden">
 
-          {/* ML TRAINING STATUS */}
+          {/* ML TRAINING STATUS - Unchanged */}
           <div className="bg-zinc-900 border border-violet-500/30 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center gap-2">
