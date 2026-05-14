@@ -63,7 +63,7 @@ export default function TradingBotDashboard() {
   const dragRef = useRef(false);
   const dragStartY = useRef(0);
   const dragStartHeight = useRef(380);
-  const [lastSeenTradeTs, setLastSeenTradeTs] = useState(0);   // ← New for polling
+  const [lastSeenTradeTs, setLastSeenTradeTs] = useState(0);
 
   const safeNum = (v: any, fallback = 0) => Number.isFinite(Number(v)) ? Number(v) : fallback;
 
@@ -77,7 +77,7 @@ export default function TradingBotDashboard() {
     if (upperMsg.includes('EXIT') || upperMsg.includes('SELL') || upperMsg.includes('CLOSE') || upperMsg.includes('STOP')) prefix = '📉 EXIT ';
 
     const logEntry = `[${time}] ${icons[type]} ${prefix}${msg}`;
-    console.log(logEntry); // Debug in browser console
+    console.log(logEntry);
     setLogs(prev => [logEntry, ...prev].slice(0, 2000));
   }, []);
 
@@ -116,7 +116,6 @@ export default function TradingBotDashboard() {
     }
   }, [addLog]);
 
-  // ====================== NEW: POLL RECENT TRADES ======================
   const fetchRecentTrades = useCallback(async () => {
     try {
       const res = await axios.get(`${CORE_BASE}/admin/trades`, {
@@ -132,7 +131,7 @@ export default function TradingBotDashboard() {
         .forEach(t => {
           const ts = t.ts || t.timestamp || Date.now();
           const symbol = t.symbol || t.ticker || '?';
-          const action = (t.action || t.side || t.type || '').toUpperCase();
+          const action = (t.action || t.side || '').toUpperCase();
           const pnl = t.pnl != null ? ` | PnL: $${Number(t.pnl).toFixed(2)}` : '';
           const reason = t.reason ? ` (${t.reason})` : '';
 
@@ -145,7 +144,6 @@ export default function TradingBotDashboard() {
       // Silent fail - endpoint may not exist yet
     }
   }, [addLog, lastSeenTradeTs]);
-  // ===================================================================
 
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
     if (isLocked) {
@@ -230,11 +228,11 @@ export default function TradingBotDashboard() {
   useEffect(() => {
     fetchCore();
     fetchMLStatus();
-    fetchRecentTrades();                    // ← Added
+    fetchRecentTrades();
 
     const coreInterval = setInterval(fetchCore, 7000);
     const mlInterval = setInterval(fetchMLStatus, 9000);
-    const tradesInterval = setInterval(fetchRecentTrades, 4000);   // ← Added
+    const tradesInterval = setInterval(fetchRecentTrades, 4000);
 
     return () => {
       clearInterval(coreInterval);
