@@ -63,10 +63,10 @@ export default function TradingBotDashboard() {
   const dragRef = useRef(false);
   const dragStartY = useRef(0);
   const dragStartHeight = useRef(380);
+  const [lastSeenTradeTs, setLastSeenTradeTs] = useState(0);   // ← New for polling
 
   const safeNum = (v: any, fallback = 0) => Number.isFinite(Number(v)) ? Number(v) : fallback;
 
-  // ====================== IMPROVED ADDLOG ======================
   const addLog = useCallback((msg: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') => {
     const time = new Date().toLocaleTimeString('en-US', { hour12: false });
     const icons: Record<string, string> = { error: '❌', warn: '⚠️', success: '✅', info: 'ℹ️' };
@@ -77,10 +77,9 @@ export default function TradingBotDashboard() {
     if (upperMsg.includes('EXIT') || upperMsg.includes('SELL') || upperMsg.includes('CLOSE') || upperMsg.includes('STOP')) prefix = '📉 EXIT ';
 
     const logEntry = `[${time}] ${icons[type]} ${prefix}${msg}`;
-    console.log(logEntry); // For debugging in browser console
+    console.log(logEntry); // Debug in browser console
     setLogs(prev => [logEntry, ...prev].slice(0, 2000));
   }, []);
-  // ========================================================
 
   const fetchCore = useCallback(async () => {
     try {
@@ -117,36 +116,54 @@ export default function TradingBotDashboard() {
     }
   }, [addLog]);
 
-  // ====================== IMPROVED POST COMMAND ======================
+  // ====================== NEW: POLL RECENT TRADES ======================
+  const fetchRecentTrades = useCallback(async () => {
+    try {
+      const res = await axios.get(`${CORE_BASE}/admin/trades`, {
+        headers: { 'x-admin-key': ADMIN_KEY },
+        timeout: 8000
+      });
+
+      const trades: any[] = Array.isArray(res.data?.trades) ? res.data.trades : 
+                           Array.isArray(res.data) ? res.data : [];
+
+      trades
+        .filter(t => (t.ts || t.timestamp || 0) > lastSeenTradeTs)
+        .forEach(t => {
+          const ts = t.ts || t.timestamp || Date.now();
+          const symbol = t.symbol || t.ticker || '?';
+          const action = (t.action || t.side || t.type || '').toUpperCase();
+          const pnl = t.pnl != null ? ` | PnL: $${Number(t.pnl).toFixed(2)}` : '';
+          const reason = t.reason ? ` (${t.reason})` : '';
+
+          addLog(`${symbol} ${action}${pnl}${reason}`, 
+                 action.includes('BUY') || action.includes('ENTRY') || action.includes('LONG') ? 'success' : 'info');
+
+          setLastSeenTradeTs(prev => Math.max(prev, ts));
+        });
+    } catch (e) {
+      // Silent fail - endpoint may not exist yet
+    }
+  }, [addLog, lastSeenTradeTs]);
+  // ===================================================================
+
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
     if (isLocked) {
       addLog("Command blocked - Account is locked", 'warn');
       return;
     }
-
-    console.log(`[DASHBOARD COMMAND] ${endpoint}`, body);
-
     try {
-      const res = await axios.post(`${CORE_BASE}${endpoint}`, body, {
-        headers: { 
-          'Content-Type': 'application/json', 
-          'x-admin-key': ADMIN_KEY 
-        },
+      await axios.post(`${CORE_BASE}${endpoint}`, body, {
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': ADMIN_KEY },
         timeout: 15000
       });
-
-      console.log(`[DASHBOARD COMMAND] Success: ${endpoint}`, res.data);
       addLog(successMsg, 'success');
-      
-      setTimeout(fetchCore, 800);
-      setTimeout(fetchMLStatus, 1200);
+      setTimeout(fetchCore, 1000);
+      setTimeout(fetchMLStatus, 1500);
     } catch (e: any) {
-      const errorMsg = e.response?.data?.message || e.message || 'Unknown error';
-      console.error(`[DASHBOARD COMMAND] Failed ${endpoint}:`, errorMsg);
-      addLog(`Command failed (${endpoint}): ${errorMsg}`, 'error');
+      addLog(`Command failed: ${e.response?.data?.message || e.message}`, 'error');
     }
   };
-  // =================================================================
 
   const forceScan = async () => {
     setIsScanning(true);
@@ -213,15 +230,18 @@ export default function TradingBotDashboard() {
   useEffect(() => {
     fetchCore();
     fetchMLStatus();
+    fetchRecentTrades();                    // ← Added
 
     const coreInterval = setInterval(fetchCore, 7000);
     const mlInterval = setInterval(fetchMLStatus, 9000);
+    const tradesInterval = setInterval(fetchRecentTrades, 4000);   // ← Added
 
     return () => {
       clearInterval(coreInterval);
       clearInterval(mlInterval);
+      clearInterval(tradesInterval);
     };
-  }, [fetchCore, fetchMLStatus]);
+  }, [fetchCore, fetchMLStatus, fetchRecentTrades]);
 
   useEffect(() => {
     if (lockTimeLeft <= 0) {
