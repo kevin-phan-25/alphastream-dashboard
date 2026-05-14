@@ -262,6 +262,10 @@ export default function TradingBotDashboard() {
   const winRate = (safeNum(core.recentWinRate) * 100).toFixed(1);
   const isInDanger = drawdown > 12;
 
+  const recentLoss = mlStatus.recentLoss || 0;
+  const avgLoss = mlStatus.avgLoss || 0;
+  const isHighLoss = recentLoss > 0.5 || avgLoss > 0.3;
+
   const filteredLogs = logs.filter(log => {
     if (logFilter === 'all') return true;
     if (logFilter === 'entry') return log.includes('ENTRY');
@@ -269,8 +273,6 @@ export default function TradingBotDashboard() {
     if (logFilter === 'error') return log.includes('❌');
     return true;
   });
-
-  const isHighLoss = (mlStatus.recentLoss || 0) > 0.4 || (mlStatus.avgLoss || 0) > 0.25;
 
   return (
     <div className="h-screen bg-zinc-950 text-gray-100 flex flex-col overflow-hidden">
@@ -310,7 +312,7 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* LEFT COLUMN */}
+        {/* LEFT COLUMN - Unchanged */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -390,31 +392,40 @@ export default function TradingBotDashboard() {
               </div>
             </div>
 
-            {/* Loss Metrics */}
-            <div className="bg-black/60 rounded-xl p-5 space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400 flex items-center gap-2">
-                  <TrendingDown className="w-4 h-4" /> Recent Loss
-                </span>
-                <span className={`font-mono font-bold ${isHighLoss ? 'text-red-500' : 'text-orange-400'}`}>
-                  {mlStatus.recentLoss ? mlStatus.recentLoss.toFixed(4) : '—'}
-                </span>
+            {/* Loss Metrics Visualization */}
+            <div className="bg-black/60 rounded-xl p-5 space-y-5">
+              <div>
+                <div className="flex justify-between text-sm mb-1.5">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <TrendingDown className="w-4 h-4" /> Recent Loss
+                  </span>
+                  <span className={`font-mono font-bold ${isHighLoss ? 'text-red-500' : 'text-orange-400'}`}>
+                    {recentLoss.toFixed(4)}
+                  </span>
+                </div>
+                <div className="h-2.5 bg-zinc-800 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full transition-all ${isHighLoss ? 'bg-red-500' : 'bg-orange-500'}`} 
+                    style={{ width: `${Math.min(recentLoss * 250, 100)}%` }}
+                  />
+                </div>
               </div>
 
-              <div className="flex justify-between items-center">
-                <span className="text-gray-400 flex items-center gap-2">
-                  <Award className="w-4 h-4" /> Avg Loss (last 50)
-                </span>
-                <span className="font-mono font-bold text-orange-400">
-                  {mlStatus.avgLoss ? mlStatus.avgLoss.toFixed(4) : '—'}
-                </span>
-              </div>
-
-              <div className="h-2 bg-zinc-800 rounded overflow-hidden">
-                <div 
-                  className={`h-full ${isHighLoss ? 'bg-red-500' : 'bg-orange-500'}`} 
-                  style={{ width: `${Math.min(((mlStatus.avgLoss || 0) * 100), 100)}%` }}
-                />
+              <div>
+                <div className="flex justify-between text-sm mb-1.5">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <Award className="w-4 h-4" /> Avg Loss (last 50)
+                  </span>
+                  <span className="font-mono font-bold text-orange-400">
+                    {avgLoss.toFixed(4)}
+                  </span>
+                </div>
+                <div className="h-2.5 bg-zinc-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-orange-500 transition-all" 
+                    style={{ width: `${Math.min(avgLoss * 250, 100)}%` }}
+                  />
+                </div>
               </div>
             </div>
 
@@ -461,7 +472,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* General Logs */}
+          {/* ALL ACTIVITY LOGS */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 flex-1 flex flex-col min-h-0">
             <div className="flex justify-between mb-3">
               <h3 className="font-semibold">ALL ACTIVITY LOGS</h3>
@@ -478,13 +489,19 @@ export default function TradingBotDashboard() {
             </div>
             <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-xs font-mono" style={{ maxHeight: logHeight }}>
               {filteredLogs.length === 0 ? (
-                <p className="text-gray-500 text-center py-12">Waiting for activity logs from core...</p>
+                <p className="text-gray-500 text-center py-12">Waiting for activity from core service...</p>
               ) : (
-                filteredLogs.map((log, i) => <div key={i} className="py-0.5">{log}</div>)
+                filteredLogs.map((log, i) => (
+                  <div key={i} className="py-0.5">{log}</div>
+                ))
               )}
             </div>
-            <div className="h-1 bg-zinc-700 mt-2 rounded cursor-ns-resize" onMouseDown={handleMouseDown} />
+            <div 
+              className="h-1 bg-zinc-700 mt-2 rounded cursor-ns-resize" 
+              onMouseDown={handleMouseDown}
+            />
           </div>
+
         </div>
       </div>
     </div>
