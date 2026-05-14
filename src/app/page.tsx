@@ -6,7 +6,6 @@ import {
   Bot, Activity, Loader2, AlertTriangle, Shield, Rocket, Lock, Unlock, TrendingUp,
   Brain, RefreshCw, ArrowUp, ArrowDown, TrendingDown, Award 
 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
 const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
@@ -40,7 +39,7 @@ type MLStatus = {
   version?: string;
   recentLoss?: number;
   avgLoss?: number;
-  lossHistory?: Array<{ ts: number; loss: number }>;   // For chart
+  lossHistory?: Array<{ ts: number; loss: number }>;
 };
 
 export default function TradingBotDashboard() {
@@ -51,9 +50,6 @@ export default function TradingBotDashboard() {
     exitBufferSize: 0,
     entryBufferSize: 0,
     trainingActive: false,
-    recentLoss: 0,
-    avgLoss: 0,
-    lossHistory: [],
   });
 
   const [logs, setLogs] = useState<string[]>([]);
@@ -102,6 +98,7 @@ export default function TradingBotDashboard() {
     setMlError('');
     try {
       const res = await axios.get(`${ML_BASE}/ml/status`, { timeout: 15000 });
+      
       if (res.data) {
         setMlStatus({
           entryModelReady: true,
@@ -149,7 +146,7 @@ export default function TradingBotDashboard() {
           setLastSeenTradeTs(prev => Math.max(prev, ts));
         });
     } catch (e) {
-      // Silent
+      // silent
     }
   }, [addLog, lastSeenTradeTs]);
 
@@ -273,7 +270,7 @@ export default function TradingBotDashboard() {
     return true;
   });
 
-  const isHighLoss = (mlStatus.recentLoss || 0) > 0.5 || (mlStatus.avgLoss || 0) > 0.3;
+  const isHighLoss = (mlStatus.recentLoss || 0) > 0.4 || (mlStatus.avgLoss || 0) > 0.25;
 
   return (
     <div className="h-screen bg-zinc-950 text-gray-100 flex flex-col overflow-hidden">
@@ -313,7 +310,7 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* LEFT COLUMN - Unchanged */}
+        {/* LEFT COLUMN */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -370,7 +367,7 @@ export default function TradingBotDashboard() {
         {/* RIGHT COLUMN */}
         <div className="col-span-4 flex flex-col gap-4 overflow-hidden">
 
-          {/* ML TRAINING STATUS WITH LOSS CHART */}
+          {/* ML TRAINING STATUS WITH LOSS VISUALIZATION */}
           <div className="bg-zinc-900 border border-violet-500/30 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center gap-2">
@@ -393,51 +390,101 @@ export default function TradingBotDashboard() {
               </div>
             </div>
 
-            {/* Loss Metrics + Chart */}
-            <div className="bg-black/60 rounded-xl p-5 mb-6">
-              <div className="flex justify-between mb-4">
-                <div>
-                  <div className="text-gray-400 text-sm flex items-center gap-2">
-                    <TrendingDown className="w-4 h-4" /> Recent Loss
-                  </div>
-                  <div className={`text-2xl font-bold ${isHighLoss ? 'text-red-500' : 'text-orange-400'}`}>
-                    {mlStatus.recentLoss ? mlStatus.recentLoss.toFixed(4) : '—'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-gray-400 text-sm flex items-center gap-2">
-                    <Award className="w-4 h-4" /> Avg Loss
-                  </div>
-                  <div className="text-2xl font-bold text-orange-400">
-                    {mlStatus.avgLoss ? mlStatus.avgLoss.toFixed(4) : '—'}
-                  </div>
-                </div>
+            {/* Loss Metrics */}
+            <div className="bg-black/60 rounded-xl p-5 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400 flex items-center gap-2">
+                  <TrendingDown className="w-4 h-4" /> Recent Loss
+                </span>
+                <span className={`font-mono font-bold ${isHighLoss ? 'text-red-500' : 'text-orange-400'}`}>
+                  {mlStatus.recentLoss ? mlStatus.recentLoss.toFixed(4) : '—'}
+                </span>
               </div>
 
-              {/* Loss History Chart */}
-              {mlStatus.lossHistory && mlStatus.lossHistory.length > 1 && (
-                <div className="h-48 mt-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={mlStatus.lossHistory.slice(-20)}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey="ts" tickFormatter={(ts) => new Date(ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} />
-                      <YAxis />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="loss" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b', r: 3 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400 flex items-center gap-2">
+                  <Award className="w-4 h-4" /> Avg Loss (last 50)
+                </span>
+                <span className="font-mono font-bold text-orange-400">
+                  {mlStatus.avgLoss ? mlStatus.avgLoss.toFixed(4) : '—'}
+                </span>
+              </div>
+
+              <div className="h-2 bg-zinc-800 rounded overflow-hidden">
+                <div 
+                  className={`h-full ${isHighLoss ? 'bg-red-500' : 'bg-orange-500'}`} 
+                  style={{ width: `${Math.min(((mlStatus.avgLoss || 0) * 100), 100)}%` }}
+                />
+              </div>
             </div>
 
-            <div className="text-xs text-gray-500 text-center">
+            <div className="text-xs text-gray-500 text-center mt-4">
               Exit Buffer: {mlStatus.exitBufferSize} | Entry Buffer: {mlStatus.entryBufferSize}
             </div>
           </div>
 
-          {/* ENTRY & EXIT LOGS and General Logs remain the same as your last version */}
-          {/* ... (your existing Entry Logs, Exit Logs, and All Activity Logs panels) ... */}
+          {/* ENTRY LOGS */}
+          <div className="bg-zinc-900 border border-emerald-500/30 rounded-2xl p-6 flex-1 flex flex-col min-h-0">
+            <h3 className="font-semibold mb-3 flex items-center gap-2 text-emerald-400">
+              <ArrowUp className="w-5 h-5" /> ENTRY SIGNALS
+            </h3>
+            <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-sm font-mono">
+              {filteredLogs.filter(l => l.includes('ENTRY')).length === 0 ? (
+                <p className="text-gray-500 text-center py-8">
+                  No entry signals logged yet<br/>
+                  <span className="text-xs">(Entry Buffer: {mlStatus.entryBufferSize})</span>
+                </p>
+              ) : (
+                filteredLogs.filter(l => l.includes('ENTRY')).map((log, i) => (
+                  <div key={i} className="py-1 text-emerald-300">{log}</div>
+                ))
+              )}
+            </div>
+          </div>
 
+          {/* EXIT LOGS */}
+          <div className="bg-zinc-900 border border-red-500/30 rounded-2xl p-6 flex-1 flex flex-col min-h-0">
+            <h3 className="font-semibold mb-3 flex items-center gap-2 text-red-400">
+              <ArrowDown className="w-5 h-5" /> EXIT SIGNALS
+            </h3>
+            <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-sm font-mono">
+              {filteredLogs.filter(l => l.includes('EXIT')).length === 0 ? (
+                <p className="text-gray-500 text-center py-8">
+                  No exit signals logged yet<br/>
+                  <span className="text-xs">(Exit Buffer: {mlStatus.exitBufferSize})</span>
+                </p>
+              ) : (
+                filteredLogs.filter(l => l.includes('EXIT')).map((log, i) => (
+                  <div key={i} className="py-1 text-red-300">{log}</div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* General Logs */}
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 flex-1 flex flex-col min-h-0">
+            <div className="flex justify-between mb-3">
+              <h3 className="font-semibold">ALL ACTIVITY LOGS</h3>
+              <select 
+                value={logFilter} 
+                onChange={(e) => setLogFilter(e.target.value as any)}
+                className="bg-zinc-800 text-xs px-3 py-1 rounded-lg border border-zinc-600"
+              >
+                <option value="all">All</option>
+                <option value="entry">Entry Only</option>
+                <option value="exit">Exit Only</option>
+                <option value="error">Errors Only</option>
+              </select>
+            </div>
+            <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-xs font-mono" style={{ maxHeight: logHeight }}>
+              {filteredLogs.length === 0 ? (
+                <p className="text-gray-500 text-center py-12">Waiting for activity logs from core...</p>
+              ) : (
+                filteredLogs.map((log, i) => <div key={i} className="py-0.5">{log}</div>)
+              )}
+            </div>
+            <div className="h-1 bg-zinc-700 mt-2 rounded cursor-ns-resize" onMouseDown={handleMouseDown} />
+          </div>
         </div>
       </div>
     </div>
