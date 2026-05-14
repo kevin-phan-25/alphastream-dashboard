@@ -36,6 +36,7 @@ type MLStatus = {
   entryBufferSize: number;
   lastSync?: string;
   trainingActive: boolean;
+  version?: string;
 };
 
 export default function TradingBotDashboard() {
@@ -80,6 +81,7 @@ export default function TradingBotDashboard() {
     }
   }, [addLog]);
 
+  // ====================== UPDATED FETCH ML STATUS ======================
   const fetchMLStatus = useCallback(async () => {
     setIsRefreshingML(true);
     setMlError('');
@@ -87,23 +89,33 @@ export default function TradingBotDashboard() {
       const res = await axios.get(`${ML_BASE}/ml/status`, { timeout: 15000 });
       
       if (res.data) {
+        const data = res.data;
         setMlStatus({
-          entryModelReady: !!res.data.entryModelReady,
-          exitModelReady: !!res.data.exitModelReady,
-          exitBufferSize: safeNum(res.data.exitBufferSize),
-          entryBufferSize: safeNum(res.data.entryBufferSize),
-          lastSync: res.data.lastSync,
-          trainingActive: true,
+          entryModelReady: data.models?.entry === "ready" || data.entryModelReady === true,
+          exitModelReady: data.models?.exit === "ready" || data.exitModelReady === true,
+          exitBufferSize: safeNum(data.replayBuffers?.exit),
+          entryBufferSize: safeNum(data.replayBuffers?.entry),
+          lastSync: data.timestamp,
+          trainingActive: !!data.trainingActive,
+          version: data.version
         });
       }
     } catch (e: any) {
-      const errorMsg = e.response?.status ? `HTTP ${e.response.status}` : e.message;
+      let errorMsg = e.message;
+      
+      if (e.response?.status === 404) {
+        errorMsg = "404 - /ml/status endpoint not found (Backend route issue)";
+      } else if (e.response?.status) {
+        errorMsg = `HTTP ${e.response.status}`;
+      }
+
       setMlError(errorMsg);
       addLog(`ML Status failed: ${errorMsg}`, 'error');
     } finally {
       setIsRefreshingML(false);
     }
-  }, []);
+  }, [addLog]);
+  // =====================================================================
 
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
     if (isLocked) {
@@ -253,7 +265,7 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* LEFT COLUMN */}
+        {/* LEFT COLUMN - unchanged */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -313,7 +325,8 @@ export default function TradingBotDashboard() {
           <div className="bg-zinc-900 border border-violet-500/30 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center gap-2">
-                <Brain className="w-5 h-5 text-violet-400" /> ML TRAINING
+                <Brain className="w-5 h-5 text-violet-400" /> 
+                ML TRAINING {mlStatus.version && <span className="text-xs text-violet-500">({mlStatus.version})</span>}
               </h3>
               <button onClick={fetchMLStatus} disabled={isRefreshingML} className="text-violet-400 hover:text-violet-300">
                 <RefreshCw className={`w-4 h-4 ${isRefreshingML ? 'animate-spin' : ''}`} />
@@ -357,7 +370,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Rocket Signals, Controls, Logs panels... (you can keep adding them as before) */}
+          {/* Add your other panels (Rocket Signals, Logs, etc.) here */}
         </div>
       </div>
     </div>
