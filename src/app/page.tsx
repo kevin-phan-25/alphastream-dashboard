@@ -74,7 +74,7 @@ export default function TradingBotDashboard() {
     const upperMsg = msg.toUpperCase();
     let prefix = '';
     if (upperMsg.includes('ENTRY') || upperMsg.includes('LONG') || upperMsg.includes('BUY')) prefix = '📈 ENTRY ';
-    if (upperMsg.includes('EXIT') || upperMsg.includes('SELL') || upperMsg.includes('CLOSE')) prefix = '📉 EXIT ';
+    if (upperMsg.includes('EXIT') || upperMsg.includes('SELL') || upperMsg.includes('CLOSE') || upperMsg.includes('TAKE PROFIT')) prefix = '📉 EXIT ';
 
     setLogs(prev => [`[${time}] ${icons[type]} ${prefix}${msg}`, ...prev].slice(0, 2000));
   }, []);
@@ -272,7 +272,7 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* LEFT COLUMN - Unchanged */}
+        {/* LEFT COLUMN */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -329,7 +329,7 @@ export default function TradingBotDashboard() {
         {/* RIGHT COLUMN */}
         <div className="col-span-4 flex flex-col gap-4 overflow-hidden">
 
-          {/* ML TRAINING STATUS - Unchanged */}
+          {/* ML TRAINING STATUS */}
           <div className="bg-zinc-900 border border-violet-500/30 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center gap-2">
@@ -385,7 +385,10 @@ export default function TradingBotDashboard() {
             </h3>
             <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-sm font-mono">
               {filteredLogs.filter(l => l.includes('ENTRY')).length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No entry signals yet...</p>
+                <p className="text-gray-500 text-center py-8">
+                  No entry signals logged yet<br/>
+                  <span className="text-xs">(Entry Buffer: {mlStatus.entryBufferSize})</span>
+                </p>
               ) : (
                 filteredLogs.filter(l => l.includes('ENTRY')).map((log, i) => (
                   <div key={i} className="py-1 text-emerald-300">{log}</div>
@@ -401,7 +404,10 @@ export default function TradingBotDashboard() {
             </h3>
             <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-sm font-mono">
               {filteredLogs.filter(l => l.includes('EXIT')).length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No exit signals yet...</p>
+                <p className="text-gray-500 text-center py-8">
+                  No exit signals logged yet<br/>
+                  <span className="text-xs">(Exit Buffer: {mlStatus.exitBufferSize})</span>
+                </p>
               ) : (
                 filteredLogs.filter(l => l.includes('EXIT')).map((log, i) => (
                   <div key={i} className="py-1 text-red-300">{log}</div>
