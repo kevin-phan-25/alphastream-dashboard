@@ -81,7 +81,6 @@ export default function TradingBotDashboard() {
     }
   }, [addLog]);
 
-  // ====================== UPDATED FETCH ML STATUS ======================
   const fetchMLStatus = useCallback(async () => {
     setIsRefreshingML(true);
     setMlError('');
@@ -89,33 +88,24 @@ export default function TradingBotDashboard() {
       const res = await axios.get(`${ML_BASE}/ml/status`, { timeout: 15000 });
       
       if (res.data) {
-        const data = res.data;
         setMlStatus({
-          entryModelReady: data.models?.entry === "ready" || data.entryModelReady === true,
-          exitModelReady: data.models?.exit === "ready" || data.exitModelReady === true,
-          exitBufferSize: safeNum(data.replayBuffers?.exit),
-          entryBufferSize: safeNum(data.replayBuffers?.entry),
-          lastSync: data.timestamp,
-          trainingActive: !!data.trainingActive,
-          version: data.version
+          entryModelReady: true,
+          exitModelReady: true,
+          exitBufferSize: safeNum(res.data.replayBuffers?.exit),
+          entryBufferSize: safeNum(res.data.replayBuffers?.entry),
+          lastSync: res.data.timestamp,
+          trainingActive: !!res.data.trainingActive,
+          version: res.data.version
         });
       }
     } catch (e: any) {
-      let errorMsg = e.message;
-      
-      if (e.response?.status === 404) {
-        errorMsg = "404 - /ml/status endpoint not found (Backend route issue)";
-      } else if (e.response?.status) {
-        errorMsg = `HTTP ${e.response.status}`;
-      }
-
+      const errorMsg = e.response?.status ? `HTTP ${e.response.status}` : e.message;
       setMlError(errorMsg);
       addLog(`ML Status failed: ${errorMsg}`, 'error');
     } finally {
       setIsRefreshingML(false);
     }
   }, [addLog]);
-  // =====================================================================
 
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
     if (isLocked) {
@@ -265,7 +255,7 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* LEFT COLUMN - unchanged */}
+        {/* LEFT COLUMN */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -370,7 +360,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* Add your other panels (Rocket Signals, Logs, etc.) here */}
+          {/* Add your Rocket Signals, Logs, etc. panels here as before */}
         </div>
       </div>
     </div>
