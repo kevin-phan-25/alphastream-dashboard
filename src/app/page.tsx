@@ -95,7 +95,6 @@ export default function TradingBotDashboard() {
     setMlError('');
     try {
       const res = await axios.get(`${ML_BASE}/ml/status`, { timeout: 15000 });
-      
       if (res.data) {
         setMlStatus({
           entryModelReady: true,
@@ -116,32 +115,26 @@ export default function TradingBotDashboard() {
     }
   }, [addLog]);
 
-  const fetchRecentTrades = useCallback(async () => {
+  // Poll recent activity from Core
+  const fetchRecentActivity = useCallback(async () => {
     try {
-      const res = await axios.get(`${CORE_BASE}/admin/trades`, {
+      const res = await axios.get(`${CORE_BASE}/admin/activity`, {
         headers: { 'x-admin-key': ADMIN_KEY },
         timeout: 8000
       });
 
-      const trades: any[] = Array.isArray(res.data?.trades) ? res.data.trades : 
-                           Array.isArray(res.data) ? res.data : [];
+      const activity = Array.isArray(res.data?.activity) ? res.data.activity : 
+                      Array.isArray(res.data) ? res.data : [];
 
-      trades
-        .filter(t => (t.ts || t.timestamp || 0) > lastSeenTradeTs)
-        .forEach(t => {
-          const ts = t.ts || t.timestamp || Date.now();
-          const symbol = t.symbol || t.ticker || '?';
-          const action = (t.action || t.side || '').toUpperCase();
-          const pnl = t.pnl != null ? ` | PnL: $${Number(t.pnl).toFixed(2)}` : '';
-          const reason = t.reason ? ` (${t.reason})` : '';
-
-          addLog(`${symbol} ${action}${pnl}${reason}`, 
-                 action.includes('BUY') || action.includes('ENTRY') || action.includes('LONG') ? 'success' : 'info');
-
+      activity
+        .filter((item: any) => (item.ts || item.timestamp || 0) > lastSeenTradeTs)
+        .forEach((item: any) => {
+          const ts = item.ts || item.timestamp || Date.now();
+          addLog(item.message || item.log || JSON.stringify(item), 'info');
           setLastSeenTradeTs(prev => Math.max(prev, ts));
         });
     } catch (e) {
-      // Silent fail - endpoint may not exist yet
+      // Silent - endpoint may not exist yet
     }
   }, [addLog, lastSeenTradeTs]);
 
@@ -156,8 +149,8 @@ export default function TradingBotDashboard() {
         timeout: 15000
       });
       addLog(successMsg, 'success');
-      setTimeout(fetchCore, 1000);
-      setTimeout(fetchMLStatus, 1500);
+      setTimeout(fetchCore, 800);
+      setTimeout(fetchMLStatus, 1200);
     } catch (e: any) {
       addLog(`Command failed: ${e.response?.data?.message || e.message}`, 'error');
     }
@@ -228,18 +221,18 @@ export default function TradingBotDashboard() {
   useEffect(() => {
     fetchCore();
     fetchMLStatus();
-    fetchRecentTrades();
+    fetchRecentActivity();
 
     const coreInterval = setInterval(fetchCore, 7000);
     const mlInterval = setInterval(fetchMLStatus, 9000);
-    const tradesInterval = setInterval(fetchRecentTrades, 4000);
+    const activityInterval = setInterval(fetchRecentActivity, 3000);
 
     return () => {
       clearInterval(coreInterval);
       clearInterval(mlInterval);
-      clearInterval(tradesInterval);
+      clearInterval(activityInterval);
     };
-  }, [fetchCore, fetchMLStatus, fetchRecentTrades]);
+  }, [fetchCore, fetchMLStatus, fetchRecentActivity]);
 
   useEffect(() => {
     if (lockTimeLeft <= 0) {
@@ -254,7 +247,6 @@ export default function TradingBotDashboard() {
   const peakEquity = safeNum(core.peakEquity);
   const drawdown = peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0;
   const positions: Position[] = Array.isArray(core.positions) ? core.positions : [];
-  const rockets: RocketSignal[] = Array.isArray(core.rockets) ? core.rockets : [];
   const winRate = (safeNum(core.recentWinRate) * 100).toFixed(1);
   const isInDanger = drawdown > 12;
 
@@ -263,7 +255,7 @@ export default function TradingBotDashboard() {
     if (logFilter === 'entry') return log.includes('ENTRY');
     if (logFilter === 'exit') return log.includes('EXIT');
     if (logFilter === 'error') return log.includes('❌');
-    return log.toLowerCase().includes(logFilter);
+    return true;
   });
 
   return (
@@ -448,7 +440,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* General Logs */}
+          {/* ALL ACTIVITY LOGS */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 flex-1 flex flex-col min-h-0">
             <div className="flex justify-between mb-3">
               <h3 className="font-semibold">ALL ACTIVITY LOGS</h3>
@@ -464,9 +456,13 @@ export default function TradingBotDashboard() {
               </select>
             </div>
             <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-xs font-mono" style={{ maxHeight: logHeight }}>
-              {filteredLogs.map((log, i) => (
-                <div key={i} className="py-0.5">{log}</div>
-              ))}
+              {filteredLogs.length === 0 ? (
+                <p className="text-gray-500 text-center py-12">Waiting for activity from core...</p>
+              ) : (
+                filteredLogs.map((log, i) => (
+                  <div key={i} className="py-0.5">{log}</div>
+                ))
+              )}
             </div>
             <div 
               className="h-1 bg-zinc-700 mt-2 rounded cursor-ns-resize" 
