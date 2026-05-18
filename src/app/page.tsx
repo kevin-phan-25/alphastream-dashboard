@@ -20,15 +20,6 @@ type Position = {
   unrealizedPl?: number;
 };
 
-type RocketSignal = {
-  symbol: string;
-  action?: string;
-  confidence?: number;
-  volatilityEstimate?: number;
-  timestamp?: number;
-  reason?: string;
-};
-
 type MLStatus = {
   entryModelReady: boolean;
   exitModelReady: boolean;
@@ -39,7 +30,6 @@ type MLStatus = {
   version?: string;
   recentLoss?: number;
   avgLoss?: number;
-  lossHistory?: Array<{ ts: number; loss: number }>;
 };
 
 export default function TradingBotDashboard() {
@@ -84,15 +74,47 @@ export default function TradingBotDashboard() {
     setLogs(prev => [logEntry, ...prev].slice(0, 2000));
   }, []);
 
+  // ================== CORE STATUS ==================
   const fetchCore = useCallback(async () => {
     try {
       const res = await axios.get(`${CORE_BASE}/health`, { timeout: 10000 });
       setCore(res.data || {});
+      
+      // Sync risk multiplier
+      if (res.data?.riskMultiplier) {
+        setRiskMult(res.data.riskMultiplier);
+      }
     } catch (e: any) {
       addLog(`Core unreachable: ${e.message}`, 'error');
     }
   }, [addLog]);
 
+  // ================== ACTIVITY LOGS (NEW) ==================
+  const fetchActivityLogs = useCallback(async () => {
+    try {
+      const res = await axios.get(`${CORE_BASE}/admin/logs?limit=150`, {
+        headers: { 'x-admin-key': ADMIN_KEY },
+        timeout: 8000
+      });
+
+      const newLogs = Array.isArray(res.data) ? res.data : [];
+
+      newLogs.forEach((line: any) => {
+        const rawLine = typeof line === 'string' ? line : JSON.stringify(line);
+        const cleanLine = rawLine.replace(/\x1b\[[0-9;]*m/g, ''); // Strip ANSI colors
+
+        // Avoid duplicates
+        if (!logs.some(existing => existing.includes(cleanLine.slice(0, 100)))) {
+          addLog(cleanLine, 'info');
+        }
+      });
+    } catch (e) {
+      // Silent - not critical
+      console.error("Activity logs fetch failed", e);
+    }
+  }, [addLog, logs]);
+
+  // ================== ML STATUS ==================
   const fetchMLStatus = useCallback(async () => {
     setIsRefreshingML(true);
     setMlError('');
@@ -110,7 +132,6 @@ export default function TradingBotDashboard() {
           version: res.data.version,
           recentLoss: safeNum(res.data.recentLoss),
           avgLoss: safeNum(res.data.avgLoss),
-          lossHistory: Array.isArray(res.data.lossHistory) ? res.data.lossHistory : []
         });
       }
     } catch (e: any) {
@@ -121,34 +142,6 @@ export default function TradingBotDashboard() {
       setIsRefreshingML(false);
     }
   }, [addLog]);
-
-  const fetchRecentTrades = useCallback(async () => {
-    try {
-      const res = await axios.get(`${CORE_BASE}/admin/trades`, {
-        headers: { 'x-admin-key': ADMIN_KEY },
-        timeout: 8000
-      });
-
-      const trades = Array.isArray(res.data?.trades) ? res.data.trades : Array.isArray(res.data) ? res.data : [];
-
-      trades
-        .filter((t: any) => (t.ts || t.timestamp || 0) > lastSeenTradeTs)
-        .forEach((t: any) => {
-          const ts = t.ts || t.timestamp || Date.now();
-          const symbol = t.symbol || '?';
-          const action = (t.action || t.side || '').toUpperCase();
-          const pnl = t.pnl != null ? ` | PnL: $${Number(t.pnl).toFixed(2)}` : '';
-          const reason = t.reason ? ` (${t.reason})` : '';
-
-          addLog(`${symbol} ${action}${pnl}${reason}`, 
-                 action.includes('BUY') || action.includes('ENTRY') ? 'success' : 'info');
-
-          setLastSeenTradeTs(prev => Math.max(prev, ts));
-        });
-    } catch (e) {
-      // silent
-    }
-  }, [addLog, lastSeenTradeTs]);
 
   const postCommand = async (endpoint: string, body = {}, successMsg: string) => {
     if (isLocked) {
@@ -161,8 +154,8 @@ export default function TradingBotDashboard() {
         timeout: 15000
       });
       addLog(successMsg, 'success');
-      setTimeout(fetchCore, 1000);
-      setTimeout(fetchMLStatus, 1500);
+      setTimeout(fetchCore, 800);
+      setTimeout(fetchActivityLogs, 1000);
     } catch (e: any) {
       addLog(`Command failed: ${e.response?.data?.message || e.message}`, 'error');
     }
@@ -185,11 +178,6 @@ export default function TradingBotDashboard() {
     await postCommand('/admin/reset-drawdown', {}, '✅ Drawdown Reset Successfully');
   };
 
-  const toggleHardFlat = () => {
-    const newState = !core.hardFlat;
-    postCommand('/admin/hard-flat', {}, newState ? 'HARD FLAT ACTIVATED' : 'HARD FLAT DEACTIVATED');
-  };
-
   const adjustRisk = (newMult: number) => {
     setRiskMult(newMult);
     postCommand('/admin/set-risk', { riskMultiplier: newMult }, `Risk multiplier set to ${newMult}x`);
@@ -207,6 +195,7 @@ export default function TradingBotDashboard() {
     }
   };
 
+  // Drag handler for log panel
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = true;
     dragStartY.current = e.clientY;
@@ -230,22 +219,24 @@ export default function TradingBotDashboard() {
     };
   }, []);
 
+  // Initial load + polling
   useEffect(() => {
     fetchCore();
     fetchMLStatus();
-    fetchRecentTrades();
+    fetchActivityLogs();
 
     const coreInterval = setInterval(fetchCore, 7000);
     const mlInterval = setInterval(fetchMLStatus, 9000);
-    const tradesInterval = setInterval(fetchRecentTrades, 4000);
+    const logsInterval = setInterval(fetchActivityLogs, 4000);
 
     return () => {
       clearInterval(coreInterval);
       clearInterval(mlInterval);
-      clearInterval(tradesInterval);
+      clearInterval(logsInterval);
     };
-  }, [fetchCore, fetchMLStatus, fetchRecentTrades]);
+  }, [fetchCore, fetchMLStatus, fetchActivityLogs]);
 
+  // Lock timer
   useEffect(() => {
     if (lockTimeLeft <= 0) {
       setIsLocked(false);
@@ -312,7 +303,7 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* LEFT COLUMN - Unchanged */}
+        {/* LEFT COLUMN */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
@@ -369,7 +360,7 @@ export default function TradingBotDashboard() {
         {/* RIGHT COLUMN */}
         <div className="col-span-4 flex flex-col gap-4 overflow-hidden">
 
-          {/* ML TRAINING STATUS WITH LOSS VISUALIZATION */}
+          {/* ML TRAINING STATUS */}
           <div className="bg-zinc-900 border border-violet-500/30 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center gap-2">
@@ -392,7 +383,6 @@ export default function TradingBotDashboard() {
               </div>
             </div>
 
-            {/* Loss Metrics Visualization */}
             <div className="bg-black/60 rounded-xl p-5 space-y-5">
               <div>
                 <div className="flex justify-between text-sm mb-1.5">
@@ -434,7 +424,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* ENTRY LOGS */}
+          {/* ENTRY SIGNALS */}
           <div className="bg-zinc-900 border border-emerald-500/30 rounded-2xl p-6 flex-1 flex flex-col min-h-0">
             <h3 className="font-semibold mb-3 flex items-center gap-2 text-emerald-400">
               <ArrowUp className="w-5 h-5" /> ENTRY SIGNALS
@@ -442,8 +432,7 @@ export default function TradingBotDashboard() {
             <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-sm font-mono">
               {filteredLogs.filter(l => l.includes('ENTRY')).length === 0 ? (
                 <p className="text-gray-500 text-center py-8">
-                  No entry signals logged yet<br/>
-                  <span className="text-xs">(Entry Buffer: {mlStatus.entryBufferSize})</span>
+                  No entry signals logged yet
                 </p>
               ) : (
                 filteredLogs.filter(l => l.includes('ENTRY')).map((log, i) => (
@@ -453,7 +442,7 @@ export default function TradingBotDashboard() {
             </div>
           </div>
 
-          {/* EXIT LOGS */}
+          {/* EXIT SIGNALS */}
           <div className="bg-zinc-900 border border-red-500/30 rounded-2xl p-6 flex-1 flex flex-col min-h-0">
             <h3 className="font-semibold mb-3 flex items-center gap-2 text-red-400">
               <ArrowDown className="w-5 h-5" /> EXIT SIGNALS
@@ -461,8 +450,7 @@ export default function TradingBotDashboard() {
             <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-sm font-mono">
               {filteredLogs.filter(l => l.includes('EXIT')).length === 0 ? (
                 <p className="text-gray-500 text-center py-8">
-                  No exit signals logged yet<br/>
-                  <span className="text-xs">(Exit Buffer: {mlStatus.exitBufferSize})</span>
+                  No exit signals logged yet
                 </p>
               ) : (
                 filteredLogs.filter(l => l.includes('EXIT')).map((log, i) => (
