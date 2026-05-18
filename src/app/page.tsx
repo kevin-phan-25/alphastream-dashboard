@@ -56,7 +56,6 @@ export default function TradingBotDashboard() {
   const dragRef = useRef(false);
   const dragStartY = useRef(0);
   const dragStartHeight = useRef(380);
-  const [lastSeenTradeTs, setLastSeenTradeTs] = useState(0);
 
   const safeNum = (v: any, fallback = 0) => Number.isFinite(Number(v)) ? Number(v) : fallback;
 
@@ -79,61 +78,56 @@ export default function TradingBotDashboard() {
     try {
       const res = await axios.get(`${CORE_BASE}/health`, { timeout: 10000 });
       setCore(res.data || {});
-      
-      // Sync risk multiplier
-      if (res.data?.riskMultiplier) {
-        setRiskMult(res.data.riskMultiplier);
-      }
+      if (res.data?.riskMultiplier) setRiskMult(res.data.riskMultiplier);
     } catch (e: any) {
       addLog(`Core unreachable: ${e.message}`, 'error');
     }
   }, [addLog]);
 
-  // ================== ACTIVITY LOGS (NEW) ==================
+  // ================== ACTIVITY LOGS ==================
   const fetchActivityLogs = useCallback(async () => {
     try {
-      const res = await axios.get(`${CORE_BASE}/admin/logs?limit=150`, {
+      const res = await axios.get(`${CORE_BASE}/admin/logs?limit=200`, {
         headers: { 'x-admin-key': ADMIN_KEY },
-        timeout: 8000
+        timeout: 10000
       });
 
       const newLogs = Array.isArray(res.data) ? res.data : [];
 
       newLogs.forEach((line: any) => {
-        const rawLine = typeof line === 'string' ? line : JSON.stringify(line);
-        const cleanLine = rawLine.replace(/\x1b\[[0-9;]*m/g, ''); // Strip ANSI colors
+        const raw = typeof line === 'string' ? line : JSON.stringify(line);
+        const clean = raw.replace(/\x1b\[[0-9;]*m/g, '').trim();
 
-        // Avoid duplicates
-        if (!logs.some(existing => existing.includes(cleanLine.slice(0, 100)))) {
-          addLog(cleanLine, 'info');
+        if (clean && !logs.some(l => l.includes(clean.slice(0, 80)))) {
+          addLog(clean, 'info');
         }
       });
     } catch (e) {
-      // Silent - not critical
-      console.error("Activity logs fetch failed", e);
+      console.error("Logs fetch failed:", e);
     }
   }, [addLog, logs]);
 
-  // ================== ML STATUS ==================
+  // ================== ML STATUS (Improved) ==================
   const fetchMLStatus = useCallback(async () => {
     setIsRefreshingML(true);
     setMlError('');
     try {
       const res = await axios.get(`${ML_BASE}/ml/status`, { timeout: 15000 });
+      console.log("📊 ML Status Raw:", res.data); // ← Helpful for debugging
+
+      const data = res.data || {};
       
-      if (res.data) {
-        setMlStatus({
-          entryModelReady: true,
-          exitModelReady: true,
-          exitBufferSize: safeNum(res.data.replayBuffers?.exit),
-          entryBufferSize: safeNum(res.data.replayBuffers?.entry),
-          lastSync: res.data.timestamp,
-          trainingActive: !!res.data.trainingActive,
-          version: res.data.version,
-          recentLoss: safeNum(res.data.recentLoss),
-          avgLoss: safeNum(res.data.avgLoss),
-        });
-      }
+      setMlStatus({
+        entryModelReady: !!data.entryModelReady || !!data.models?.entry,
+        exitModelReady: !!data.exitModelReady || !!data.models?.exit,
+        exitBufferSize: safeNum(data.replayBuffers?.exit || data.exitBuffer || data.exitBufferSize),
+        entryBufferSize: safeNum(data.replayBuffers?.entry || data.entryBuffer || data.entryBufferSize),
+        lastSync: data.timestamp,
+        trainingActive: !!data.trainingActive,
+        version: data.version,
+        recentLoss: safeNum(data.recentLoss),
+        avgLoss: safeNum(data.avgLoss),
+      });
     } catch (e: any) {
       const errorMsg = e.response?.status ? `HTTP ${e.response.status}` : e.message;
       setMlError(errorMsg);
@@ -155,7 +149,7 @@ export default function TradingBotDashboard() {
       });
       addLog(successMsg, 'success');
       setTimeout(fetchCore, 800);
-      setTimeout(fetchActivityLogs, 1000);
+      setTimeout(fetchActivityLogs, 1200);
     } catch (e: any) {
       addLog(`Command failed: ${e.response?.data?.message || e.message}`, 'error');
     }
@@ -195,7 +189,6 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Drag handler for log panel
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = true;
     dragStartY.current = e.clientY;
@@ -205,7 +198,7 @@ export default function TradingBotDashboard() {
   const handleMouseMove = (e: MouseEvent) => {
     if (!dragRef.current) return;
     const delta = dragStartY.current - e.clientY;
-    setLogHeight(Math.max(200, Math.min(700, dragStartHeight.current + delta)));
+    setLogHeight(Math.max(180, Math.min(700, dragStartHeight.current + delta)));
   };
 
   const handleMouseUp = () => { dragRef.current = false; };
@@ -219,15 +212,14 @@ export default function TradingBotDashboard() {
     };
   }, []);
 
-  // Initial load + polling
   useEffect(() => {
     fetchCore();
     fetchMLStatus();
     fetchActivityLogs();
 
     const coreInterval = setInterval(fetchCore, 7000);
-    const mlInterval = setInterval(fetchMLStatus, 9000);
-    const logsInterval = setInterval(fetchActivityLogs, 4000);
+    const mlInterval = setInterval(fetchMLStatus, 10000);
+    const logsInterval = setInterval(fetchActivityLogs, 3500);
 
     return () => {
       clearInterval(coreInterval);
@@ -236,7 +228,6 @@ export default function TradingBotDashboard() {
     };
   }, [fetchCore, fetchMLStatus, fetchActivityLogs]);
 
-  // Lock timer
   useEffect(() => {
     if (lockTimeLeft <= 0) {
       setIsLocked(false);
@@ -259,15 +250,15 @@ export default function TradingBotDashboard() {
 
   const filteredLogs = logs.filter(log => {
     if (logFilter === 'all') return true;
-    if (logFilter === 'entry') return log.includes('ENTRY');
-    if (logFilter === 'exit') return log.includes('EXIT');
+    if (logFilter === 'entry') return log.includes('ENTRY') || log.includes('📈');
+    if (logFilter === 'exit') return log.includes('EXIT') || log.includes('📉');
     if (logFilter === 'error') return log.includes('❌');
     return true;
   });
 
   return (
     <div className="h-screen bg-zinc-950 text-gray-100 flex flex-col overflow-hidden">
-      {/* Header */}
+      {/* Header - unchanged */}
       <header className="border-b border-zinc-800 bg-black px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Bot className="w-11 h-11 text-cyan-400" />
@@ -303,8 +294,9 @@ export default function TradingBotDashboard() {
       )}
 
       <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* LEFT COLUMN */}
+        {/* LEFT COLUMN - unchanged */}
         <div className="col-span-8 space-y-4 overflow-y-auto">
+          {/* ... (same as before) ... */}
           <div className="grid grid-cols-5 gap-4">
             <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6">
               <div className="text-cyan-400 text-sm">EQUITY</div>
@@ -357,11 +349,11 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN */}
+        {/* RIGHT COLUMN - Improved Layout */}
         <div className="col-span-4 flex flex-col gap-4 overflow-hidden">
 
-          {/* ML TRAINING STATUS */}
-          <div className="bg-zinc-900 border border-violet-500/30 rounded-2xl p-6">
+          {/* ML TRAINING */}
+          <div className="bg-zinc-900 border border-violet-500/30 rounded-2xl p-6 flex-shrink-0">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center gap-2">
                 <Brain className="w-5 h-5 text-violet-400" /> 
@@ -383,44 +375,9 @@ export default function TradingBotDashboard() {
               </div>
             </div>
 
-            <div className="bg-black/60 rounded-xl p-5 space-y-5">
-              <div>
-                <div className="flex justify-between text-sm mb-1.5">
-                  <span className="text-gray-400 flex items-center gap-2">
-                    <TrendingDown className="w-4 h-4" /> Recent Loss
-                  </span>
-                  <span className={`font-mono font-bold ${isHighLoss ? 'text-red-500' : 'text-orange-400'}`}>
-                    {recentLoss.toFixed(4)}
-                  </span>
-                </div>
-                <div className="h-2.5 bg-zinc-800 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full transition-all ${isHighLoss ? 'bg-red-500' : 'bg-orange-500'}`} 
-                    style={{ width: `${Math.min(recentLoss * 250, 100)}%` }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-sm mb-1.5">
-                  <span className="text-gray-400 flex items-center gap-2">
-                    <Award className="w-4 h-4" /> Avg Loss (last 50)
-                  </span>
-                  <span className="font-mono font-bold text-orange-400">
-                    {avgLoss.toFixed(4)}
-                  </span>
-                </div>
-                <div className="h-2.5 bg-zinc-800 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-orange-500 transition-all" 
-                    style={{ width: `${Math.min(avgLoss * 250, 100)}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="text-xs text-gray-500 text-center mt-4">
-              Exit Buffer: {mlStatus.exitBufferSize} | Entry Buffer: {mlStatus.entryBufferSize}
+            <div className="text-xs text-gray-400 text-center">
+              Exit Buffer: <span className="text-white font-mono">{mlStatus.exitBufferSize}</span> | 
+              Entry Buffer: <span className="text-white font-mono">{mlStatus.entryBufferSize}</span>
             </div>
           </div>
 
@@ -429,14 +386,12 @@ export default function TradingBotDashboard() {
             <h3 className="font-semibold mb-3 flex items-center gap-2 text-emerald-400">
               <ArrowUp className="w-5 h-5" /> ENTRY SIGNALS
             </h3>
-            <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-sm font-mono">
-              {filteredLogs.filter(l => l.includes('ENTRY')).length === 0 ? (
-                <p className="text-gray-500 text-center py-8">
-                  No entry signals logged yet
-                </p>
+            <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-sm font-mono min-h-0">
+              {filteredLogs.filter(l => l.includes('ENTRY') || l.includes('📈')).length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No entry signals yet</p>
               ) : (
-                filteredLogs.filter(l => l.includes('ENTRY')).map((log, i) => (
-                  <div key={i} className="py-1 text-emerald-300">{log}</div>
+                filteredLogs.filter(l => l.includes('ENTRY') || l.includes('📈')).map((log, i) => (
+                  <div key={i} className="py-1 text-emerald-300 break-all">{log}</div>
                 ))
               )}
             </div>
@@ -447,22 +402,20 @@ export default function TradingBotDashboard() {
             <h3 className="font-semibold mb-3 flex items-center gap-2 text-red-400">
               <ArrowDown className="w-5 h-5" /> EXIT SIGNALS
             </h3>
-            <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-sm font-mono">
-              {filteredLogs.filter(l => l.includes('EXIT')).length === 0 ? (
-                <p className="text-gray-500 text-center py-8">
-                  No exit signals logged yet
-                </p>
+            <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-sm font-mono min-h-0">
+              {filteredLogs.filter(l => l.includes('EXIT') || l.includes('📉')).length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No exit signals yet</p>
               ) : (
-                filteredLogs.filter(l => l.includes('EXIT')).map((log, i) => (
-                  <div key={i} className="py-1 text-red-300">{log}</div>
+                filteredLogs.filter(l => l.includes('EXIT') || l.includes('📉')).map((log, i) => (
+                  <div key={i} className="py-1 text-red-300 break-all">{log}</div>
                 ))
               )}
             </div>
           </div>
 
-          {/* ALL ACTIVITY LOGS */}
+          {/* ALL ACTIVITY LOGS - Improved scrolling */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 flex-1 flex flex-col min-h-0">
-            <div className="flex justify-between mb-3">
+            <div className="flex justify-between mb-3 flex-shrink-0">
               <h3 className="font-semibold">ALL ACTIVITY LOGS</h3>
               <select 
                 value={logFilter} 
@@ -475,17 +428,22 @@ export default function TradingBotDashboard() {
                 <option value="error">Errors Only</option>
               </select>
             </div>
-            <div className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-xs font-mono" style={{ maxHeight: logHeight }}>
+            
+            <div 
+              className="flex-1 bg-black/60 rounded-xl p-3 overflow-auto text-xs font-mono min-h-0"
+              style={{ maxHeight: logHeight }}
+            >
               {filteredLogs.length === 0 ? (
                 <p className="text-gray-500 text-center py-12">Waiting for activity from core service...</p>
               ) : (
                 filteredLogs.map((log, i) => (
-                  <div key={i} className="py-0.5">{log}</div>
+                  <div key={i} className="py-0.5 break-all whitespace-pre-wrap">{log}</div>
                 ))
               )}
             </div>
+
             <div 
-              className="h-1 bg-zinc-700 mt-2 rounded cursor-ns-resize" 
+              className="h-1 bg-zinc-700 mt-2 rounded cursor-ns-resize flex-shrink-0" 
               onMouseDown={handleMouseDown}
             />
           </div>
