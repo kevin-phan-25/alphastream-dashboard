@@ -46,12 +46,12 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // FIXED: Using correct /ml/status endpoint
+  // ✅ FIXED: Correct endpoint is /ml/status
   const fetchMLStatus = async () => {
     try {
       const res = await axios.get(`${ML_BASE}/ml/status`, {
         headers: { 'x-admin-key': ADMIN_KEY },
-        timeout: 8000
+        timeout: 10000
       });
       
       const data = res.data || {};
@@ -71,9 +71,8 @@ export default function TradingBotDashboard() {
         avgLoss: data.avgLoss,
       });
     } catch (e) {
-      console.warn("ML Status fetch failed (404 expected until backend /ml/status is added)", e);
+      console.warn("ML /ml/status not available yet (404 expected)", e);
       
-      // Graceful fallback
       setMlStatus({
         entryModelReady: true,
         exitModelReady: true,
