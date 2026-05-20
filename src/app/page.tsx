@@ -1,62 +1,32 @@
 'use client';
-
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
-import { 
+import {
   Bot, Activity, Loader2, AlertTriangle, Shield, Rocket, Lock, Unlock, TrendingUp,
-  Brain, RefreshCw, ArrowUp, ArrowDown, TrendingDown, Award 
+  Brain, RefreshCw, ArrowUp, ArrowDown, TrendingDown, Award
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
 const ML_BASE = 'https://alphastream-ml-1017433009054.us-east1.run.app';
-
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || '';
-
-type Position = {
-  symbol: string;
-  qty: number;
-  entry?: number;
-  side?: 'long' | 'short';
-  unrealizedPl?: number;
-};
-
-type RocketSignal = {
-  symbol: string;
-  action?: string;
-  confidence?: number;
-  volatilityEstimate?: number;
-  timestamp?: number;
-  reason?: string;
-};
-
-type MLStatus = {
-  entryModelReady: boolean;
-  exitModelReady: boolean;
-  exitBufferSize: number;
-  entryBufferSize: number;
-  lastSync?: string;
-  trainingActive: boolean;
-  version?: string;
-  recentLoss?: number;
-  avgLoss?: number;
-  lossHistory?: Array<{ ts: number; loss: number }>;
-};
 
 export default function TradingBotDashboard() {
   const [core, setCore] = useState<any>({});
-  const [mlStatus, setMlStatus] = useState<MLStatus>({
+  const [mlStatus, setMlStatus] = useState({
     entryModelReady: false,
     exitModelReady: false,
     exitBufferSize: 0,
     entryBufferSize: 0,
+    version: 'unknown',
     trainingActive: false,
+    recentLoss: null,
+    avgLoss: null,
   });
 
   const [logs, setLogs] = useState<string[]>([]);
   const [logFilter, setLogFilter] = useState<'all' | 'entry' | 'exit' | 'error'>('all');
   const [logHeight, setLogHeight] = useState(380);
   const [isResizing, setIsResizing] = useState(false);
-  const resizeRef = useRef<HTMLDivElement>(null);
 
   const cleanLog = (line: string): string => {
     let cleaned = line.replace(/\x1b\[[0-9;]*m/g, '').trim();
@@ -74,7 +44,7 @@ export default function TradingBotDashboard() {
       });
       setCore(res.data || {});
     } catch (e) {
-      console.error(e);
+      console.error("Core fetch failed", e);
     }
   };
 
@@ -84,19 +54,23 @@ export default function TradingBotDashboard() {
         headers: { 'x-admin-key': ADMIN_KEY }
       });
       const data = res.data || {};
+
       setMlStatus({
-        entryModelReady: data.models?.entry?.ready ?? false,
-        exitModelReady: data.models?.exit?.ready ?? false,
-        exitBufferSize: data.models?.exit?.bufferSize ?? data.exitBufferSize ?? 0,
-        entryBufferSize: data.models?.entry?.bufferSize ?? data.entryBufferSize ?? 0,
-        version: data.version,
+        entryModelReady: data.models?.entry?.ready ?? data.entryModelReady ?? false,
+        exitModelReady: data.models?.exit?.ready ?? data.exitModelReady ?? false,
+        exitBufferSize: data.models?.exit?.bufferSize ?? 
+                       data.exitBufferSize ?? 
+                       data.models?.exit?.size ?? 0,
+        entryBufferSize: data.models?.entry?.bufferSize ?? 
+                        data.entryBufferSize ?? 
+                        data.models?.entry?.size ?? 0,
+        version: data.version || 'v?.?',
         trainingActive: data.trainingActive ?? false,
         recentLoss: data.recentLoss,
         avgLoss: data.avgLoss,
-        lossHistory: data.lossHistory,
       });
     } catch (e) {
-      console.error(e);
+      console.error("ML Status fetch failed", e);
     }
   };
 
@@ -138,7 +112,7 @@ export default function TradingBotDashboard() {
     } catch (e) { alert("Reset failed"); }
   };
 
-  // Polling (slower to prevent spam)
+  // Polling
   useEffect(() => {
     fetchCore();
     fetchMLStatus();
@@ -153,7 +127,7 @@ export default function TradingBotDashboard() {
     };
   }, []);
 
-  // Resize Handler (original logic)
+  // Resize Handler
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setIsResizing(true);
     e.preventDefault();
@@ -180,7 +154,7 @@ export default function TradingBotDashboard() {
   const filteredLogs = logs.filter(log => {
     if (logFilter === 'all') return true;
     if (logFilter === 'entry') return log.includes("ENTRY") || log.includes("📈");
-    if (logFilter === 'exit') return log.includes("EXIT") || log.includes("📉");
+    if (logFilter === 'exit') return log.includes("EXIT") || log.includes("📉") || log.includes("PROFIT") || log.includes("STOP");
     if (logFilter === 'error') return log.includes("ERROR") || log.includes("✗");
     return true;
   });
@@ -195,8 +169,8 @@ export default function TradingBotDashboard() {
             </h1>
             <p className="text-zinc-500">MAG7 • LIVE PAPER TRADING BOT v4.7</p>
           </div>
-          <button 
-            onClick={() => window.location.reload()} 
+          <button
+            onClick={() => window.location.reload()}
             className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-5 py-2.5 rounded-2xl"
           >
             <RefreshCw size={20} /> Refresh
@@ -232,21 +206,33 @@ export default function TradingBotDashboard() {
           </div>
           <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
             <div className="text-zinc-400 text-sm">POSITIONS</div>
-            <div className="text-4xl font-mono mt-2">{core.positionsCount || core.positions?.length || 0}/5</div>
+            <div className="text-4xl font-mono mt-2">
+              {core.positionsCount || core.positions?.length || 0}/7
+            </div>
           </div>
         </div>
 
-        {/* ML Status */}
+        {/* ML Status - Fixed Buffer Display */}
         <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6 mb-8">
-          <h3 className="font-semibold mb-4 flex items-center gap-2"><Brain className="text-purple-400" /> ML TRAINING ({mlStatus.version})</h3>
+          <h3 className="font-semibold mb-4 flex items-center gap-2">
+            <Brain className="text-purple-400" /> ML TRAINING ({mlStatus.version})
+          </h3>
           <div className="grid grid-cols-2 gap-8">
             <div>
-              <div className="text-emerald-400 text-xl">ENTRY MODEL ✅ READY</div>
-              <div className="text-sm text-zinc-400 mt-1">Entry Buffer: {mlStatus.entryBufferSize}</div>
+              <div className="text-emerald-400 text-xl">
+                ENTRY MODEL {mlStatus.entryModelReady ? "✅ READY" : "⏳ LOADING"}
+              </div>
+              <div className="text-sm text-zinc-400 mt-1">
+                Entry Buffer: <span className="font-mono text-white">{mlStatus.entryBufferSize}</span>
+              </div>
             </div>
             <div>
-              <div className="text-emerald-400 text-xl">EXIT MODEL ✅ READY</div>
-              <div className="text-sm text-zinc-400 mt-1">Exit Buffer: {mlStatus.exitBufferSize}</div>
+              <div className="text-emerald-400 text-xl">
+                EXIT MODEL {mlStatus.exitModelReady ? "✅ READY" : "⏳ LOADING"}
+              </div>
+              <div className="text-sm text-zinc-400 mt-1">
+                Exit Buffer: <span className="font-mono text-white">{mlStatus.exitBufferSize}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -262,7 +248,7 @@ export default function TradingBotDashboard() {
                   <div className="text-sm text-zinc-400 mt-1">
                     {Math.abs(p.qty)} shares @ {Number(p.entry || p.avgEntryPrice || 0).toFixed(2)}
                   </div>
-                  {p.unrealizedPl && (
+                  {p.unrealizedPl !== undefined && (
                     <div className={`text-sm mt-1 ${p.unrealizedPl > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                       PnL: ${p.unrealizedPl.toFixed(2)}
                     </div>
@@ -275,12 +261,12 @@ export default function TradingBotDashboard() {
           )}
         </div>
 
-        {/* Logs Panel - Full Original Style */}
+        {/* Logs Panel */}
         <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6 flex-1 flex flex-col min-h-0">
           <div className="flex justify-between mb-3">
             <h3 className="font-semibold">ALL ACTIVITY LOGS</h3>
-            <select 
-              value={logFilter} 
+            <select
+              value={logFilter}
               onChange={(e) => setLogFilter(e.target.value as any)}
               className="bg-zinc-800 text-xs px-3 py-1 rounded-lg border border-zinc-600"
             >
@@ -290,9 +276,9 @@ export default function TradingBotDashboard() {
               <option value="error">Errors Only</option>
             </select>
           </div>
-          
-          <div 
-            className="flex-1 bg-black/60 rounded-2xl p-4 overflow-auto text-xs font-mono" 
+
+          <div
+            className="flex-1 bg-black/60 rounded-2xl p-4 overflow-auto text-xs font-mono"
             style={{ maxHeight: logHeight }}
           >
             {filteredLogs.length === 0 ? (
@@ -304,8 +290,8 @@ export default function TradingBotDashboard() {
             )}
           </div>
 
-          <div 
-            className="h-1 bg-zinc-700 mt-3 rounded cursor-ns-resize hover:bg-zinc-500" 
+          <div
+            className="h-1 bg-zinc-700 mt-3 rounded cursor-ns-resize hover:bg-zinc-500"
             onMouseDown={handleMouseDown}
           />
         </div>
