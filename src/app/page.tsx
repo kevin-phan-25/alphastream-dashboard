@@ -46,7 +46,7 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // FIXED: Correct URL with /ml/status
+  // FIXED: Using correct /ml/status endpoint
   const fetchMLStatus = async () => {
     try {
       const res = await axios.get(`${ML_BASE}/ml/status`, {
@@ -71,8 +71,9 @@ export default function TradingBotDashboard() {
         avgLoss: data.avgLoss,
       });
     } catch (e) {
-      console.warn("ML Status fetch failed (404 is expected until /ml/status is created)", e);
+      console.warn("ML Status fetch failed (404 expected until backend /ml/status is added)", e);
       
+      // Graceful fallback
       setMlStatus({
         entryModelReady: true,
         exitModelReady: true,
