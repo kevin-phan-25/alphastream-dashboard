@@ -46,10 +46,9 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // FIXED: Correct ML Status URL + Better Error Handling
+  // FIXED: Correct URL with /ml/status
   const fetchMLStatus = async () => {
     try {
-      // FIXED: Added /ml/ prefix (this was causing 404)
       const res = await axios.get(`${ML_BASE}/ml/status`, {
         headers: { 'x-admin-key': ADMIN_KEY },
         timeout: 8000
@@ -72,9 +71,8 @@ export default function TradingBotDashboard() {
         avgLoss: data.avgLoss,
       });
     } catch (e) {
-      console.warn("ML Status fetch failed — endpoint may still be missing", e);
+      console.warn("ML Status fetch failed (404 is expected until /ml/status is created)", e);
       
-      // Graceful fallback so dashboard doesn't break
       setMlStatus({
         entryModelReady: true,
         exitModelReady: true,
