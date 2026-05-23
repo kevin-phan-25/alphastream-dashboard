@@ -60,26 +60,21 @@ export default function TradingBotDashboard() {
       setMlStatus({
         entryModelReady: data.models?.entry?.ready ?? data.entryModelReady ?? true,
         exitModelReady: data.models?.exit?.ready ?? data.exitModelReady ?? true,
-        exitBufferSize: data.models?.exit?.bufferSize ?? 
-                       data.exitBufferSize ?? 
-                       data.models?.exit?.size ?? 0,
-        entryBufferSize: data.models?.entry?.bufferSize ?? 
-                        data.entryBufferSize ?? 
-                        data.models?.entry?.size ?? 0,
-        version: data.version || 'v4.0',
+        exitBufferSize: data.models?.exit?.bufferSize ?? data.exitBufferSize ?? 0,
+        entryBufferSize: data.models?.entry?.bufferSize ?? data.entryBufferSize ?? 0,
+        version: data.version || 'v4.1',
         trainingActive: data.trainingActive ?? false,
         recentLoss: data.recentLoss ?? null,
         avgLoss: data.avgLoss ?? null,
       });
     } catch (e) {
-      console.warn("ML /ml/status failed, using fallback", e);
-      
+      console.warn("ML status failed, using fallback", e);
       setMlStatus({
         entryModelReady: true,
         exitModelReady: true,
         exitBufferSize: 0,
         entryBufferSize: 0,
-        version: 'v4.0 (fallback)',
+        version: 'v4.1 (fallback)',
         trainingActive: false,
         recentLoss: null,
         avgLoss: null,
@@ -100,7 +95,21 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Action Buttons
+  // === NEW: Add Fake Data Button ===
+  const addFakeData = async () => {
+    if (!confirm("Add 50 fake experiences to ML buffer for testing?")) return;
+    try {
+      const res = await axios.post(`${ML_BASE}/ingest/fake?count=50`, {}, {
+        headers: { 'x-admin-key': ADMIN_KEY }
+      });
+      alert(`✅ ${res.data.added} fake experiences added!`);
+      fetchMLStatus();
+    } catch (e) {
+      alert("Fake data failed");
+      console.error(e);
+    }
+  };
+
   const triggerScan = async () => {
     try {
       await axios.post(`${CORE_BASE}/admin/scan`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
@@ -114,7 +123,7 @@ export default function TradingBotDashboard() {
       await axios.post(`${CORE_BASE}/admin/hard-flat`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
       alert("🚨 Panic Flat executed");
       fetchCore();
-      fetchMLStatus(); // Refresh ML buffers
+      fetchMLStatus();
     } catch (e) { alert("Panic Flat failed"); }
   };
 
@@ -196,7 +205,7 @@ export default function TradingBotDashboard() {
         </div>
 
         {/* Control Buttons */}
-        <div className="flex gap-3 mb-8">
+        <div className="flex flex-wrap gap-3 mb-8">
           <button onClick={triggerScan} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
             <Rocket /> SCAN MARKET
           </button>
@@ -205,6 +214,12 @@ export default function TradingBotDashboard() {
           </button>
           <button onClick={resetDD} className="bg-amber-600 hover:bg-amber-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
             RESET DD
+          </button>
+          <button 
+            onClick={addFakeData}
+            className="bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2"
+          >
+            <Brain /> Add Fake Data (Test)
           </button>
         </div>
 
