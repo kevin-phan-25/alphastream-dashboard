@@ -72,7 +72,7 @@ export default function TradingBotDashboard() {
         avgLoss: data.avgLoss ?? null,
       });
     } catch (e) {
-      console.warn("ML /ml/status not available, using fallback", e);
+      console.warn("ML /ml/status failed, using fallback", e);
       
       setMlStatus({
         entryModelReady: true,
@@ -114,7 +114,7 @@ export default function TradingBotDashboard() {
       await axios.post(`${CORE_BASE}/admin/hard-flat`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
       alert("🚨 Panic Flat executed");
       fetchCore();
-      fetchMLStatus();
+      fetchMLStatus(); // Refresh ML buffers
     } catch (e) { alert("Panic Flat failed"); }
   };
 
