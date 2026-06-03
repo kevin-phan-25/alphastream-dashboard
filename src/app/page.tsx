@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import {
-  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award
+  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award, Settings
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -11,27 +11,15 @@ const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || '';
 
 export default function TradingBotDashboard() {
   const [core, setCore] = useState<any>({});
-  const [mlStatus, setMlStatus] = useState({
-    entryModelReady: false,
-    exitModelReady: false,
-    exitBufferSize: 0,
-    entryBufferSize: 0,
-    version: 'v5.7',
-    trainingActive: false,
-    recentLoss: null as number | null,
-    avgLoss: null as number | null,
-  });
-
+  const [mlStatus, setMlStatus] = useState<any>({});
   const [logs, setLogs] = useState<string[]>([]);
   const [logFilter, setLogFilter] = useState<'all' | 'entry' | 'exit' | 'error'>('all');
   const [logHeight, setLogHeight] = useState(380);
   const [isResizing, setIsResizing] = useState(false);
   const [isTraining, setIsTraining] = useState(false);
-
-  // === NEW: Win Rate History for Chart ===
   const [winRateHistory, setWinRateHistory] = useState<number[]>([]);
 
-  const cleanLog = (line: string): string => {
+  const cleanLog = (line: string) => {
     let cleaned = line.replace(/\x1b\[[0-9;]*m/g, '').trim();
     if (cleaned.includes("ADMIN-AUTH")) return "";
     if (cleaned.includes("429")) return `[RATE LIMIT] ${cleaned}`;
@@ -45,7 +33,7 @@ export default function TradingBotDashboard() {
       });
       setCore(res.data || {});
     } catch (e) {
-      console.error("Core fetch failed", e);
+      console.error("Core fetch failed");
     }
   };
 
@@ -55,20 +43,7 @@ export default function TradingBotDashboard() {
         headers: { 'x-admin-key': ADMIN_KEY },
         timeout: 10000
       });
-
-      const data = res.data || {};
-      const newStatus = {
-        entryModelReady: data.models?.entry?.ready ?? true,
-        exitModelReady: data.models?.exit?.ready ?? true,
-        exitBufferSize: data.models?.exit?.bufferSize ?? 0,
-        entryBufferSize: data.models?.entry?.bufferSize ?? 0,
-        version: data.version || 'v5.7',
-        trainingActive: data.trainingActive ?? false,
-        recentLoss: data.recentLoss ?? data.lastTrainResult?.loss ?? null,
-        avgLoss: data.avgLoss ?? null,
-      };
-
-      setMlStatus(newStatus);
+      setMlStatus(res.data || {});
     } catch (e) {
       console.warn("ML status failed");
     }
@@ -87,7 +62,7 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // === NEW: Update Win Rate History ===
+  // Update Win Rate History
   useEffect(() => {
     if (core.recentWinRate !== undefined) {
       setWinRateHistory(prev => {
@@ -97,7 +72,6 @@ export default function TradingBotDashboard() {
     }
   }, [core.recentWinRate]);
 
-  // === Trigger Training ===
   const triggerTraining = async () => {
     if (!confirm("Trigger manual training cycle?")) return;
     setIsTraining(true);
@@ -105,9 +79,9 @@ export default function TradingBotDashboard() {
       await axios.post(`${ML_BASE}/train`, { source: "dashboard", epochs: 4 }, {
         headers: { 'x-admin-key': ADMIN_KEY }
       });
-      alert("✅ Training cycle triggered");
+      alert("✅ Training triggered");
       setTimeout(fetchMLStatus, 4000);
-    } catch (e) {
+    } catch {
       alert("Training failed");
     } finally {
       setIsTraining(false);
@@ -121,7 +95,7 @@ export default function TradingBotDashboard() {
         headers: { 'x-admin-key': ADMIN_KEY }
       });
       fetchMLStatus();
-    } catch (e) {
+    } catch {
       alert("Failed to add fake data");
     }
   };
@@ -130,7 +104,9 @@ export default function TradingBotDashboard() {
     try {
       await axios.post(`${CORE_BASE}/admin/scan`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
       alert("✅ Scan triggered");
-    } catch (e) { alert("Scan failed"); }
+    } catch {
+      alert("Scan failed");
+    }
   };
 
   const panicFlat = async () => {
@@ -138,14 +114,18 @@ export default function TradingBotDashboard() {
     try {
       await axios.post(`${CORE_BASE}/admin/hard-flat`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
       fetchCore();
-    } catch (e) { alert("Panic Flat failed"); }
+    } catch {
+      alert("Panic Flat failed");
+    }
   };
 
   const resetDD = async () => {
     try {
       await axios.post(`${CORE_BASE}/admin/reset-drawdown`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
       fetchCore();
-    } catch (e) { alert("Reset failed"); }
+    } catch {
+      alert("Reset failed");
+    }
   };
 
   // Polling
@@ -158,7 +138,6 @@ export default function TradingBotDashboard() {
       fetchCore();
       fetchMLStatus();
     }, 8000);
-
     const logsInt = setInterval(fetchActivityLogs, 5500);
 
     return () => {
@@ -199,7 +178,6 @@ export default function TradingBotDashboard() {
     return true;
   });
 
-  // === Simple SVG Win Rate Chart ===
   const renderWinRateChart = () => {
     if (winRateHistory.length < 2) {
       return <div className="text-zinc-500 text-sm py-8 text-center">Collecting win rate data...</div>;
@@ -218,12 +196,9 @@ export default function TradingBotDashboard() {
     return (
       <div className="relative h-48 w-full">
         <svg viewBox="0 0 100 100" className="w-full h-full">
-          {/* Grid */}
           {[0, 25, 50, 75, 100].map((y, i) => (
             <line key={i} x1="0" y1={y} x2="100" y2={y} stroke="#27272a" strokeWidth="0.5" />
           ))}
-
-          {/* Line */}
           <polyline
             fill="none"
             stroke="#10b981"
@@ -232,23 +207,12 @@ export default function TradingBotDashboard() {
             strokeLinecap="round"
             points={points}
           />
-
-          {/* Dots */}
           {winRateHistory.map((value, index) => {
             const x = (index / (winRateHistory.length - 1)) * 100;
             const y = 100 - ((value - min) / range) * 100;
-            return (
-              <circle
-                key={index}
-                cx={x}
-                cy={y}
-                r="1.5"
-                fill="#10b981"
-              />
-            );
+            return <circle key={index} cx={x} cy={y} r="1.5" fill="#10b981" />;
           })}
         </svg>
-
         <div className="absolute bottom-0 left-0 right-0 flex justify-between text-[10px] text-zinc-500 px-1">
           <div>Oldest</div>
           <div>Now</div>
@@ -266,7 +230,7 @@ export default function TradingBotDashboard() {
             <h1 className="text-4xl font-bold flex items-center gap-3">
               <Rocket className="text-emerald-500" /> ALPHASTREAM
             </h1>
-            <p className="text-zinc-500">MAG7 Trading Bot • Enhanced ML v5.7</p>
+            <p className="text-zinc-500">MAG7 Trading Bot • Dynamic Sizing v6.7</p>
           </div>
           <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-5 py-2.5 rounded-2xl">
             <RefreshCw size={20} /> Refresh
@@ -296,84 +260,56 @@ export default function TradingBotDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
             <div className="text-zinc-400 text-sm">EQUITY</div>
-            <div className="text-4xl font-mono mt-2">${(core.equity || 82282).toLocaleString()}</div>
+            <div className="text-4xl font-mono mt-2">${(core.equity || 0).toLocaleString()}</div>
           </div>
           <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
             <div className="text-zinc-400 text-sm">DRAWDOWN</div>
-            <div className="text-4xl font-mono mt-2 text-emerald-400">{core.drawdownPct || 0}%</div>
+            <div className="text-4xl font-mono mt-2 text-emerald-400">{(core.drawdownPct || 0).toFixed(2)}%</div>
           </div>
           <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
             <div className="text-zinc-400 text-sm">WIN RATE</div>
             <div className="text-4xl font-mono mt-2">{(core.recentWinRate || 0).toFixed(1)}%</div>
           </div>
           <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
-            <div className="text-zinc-400 text-sm">POSITIONS</div>
+            <div className="text-zinc-400 text-sm">OPEN POSITIONS</div>
             <div className="text-4xl font-mono mt-2">{core.positions?.length || 0}/7</div>
           </div>
         </div>
 
-        {/* ML Status + Model Performance */}
+        {/* ML + Risk Parameters */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* ML Status */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Brain className="text-purple-400" /> ML MODELS ({mlStatus.version})
+              <Brain className="text-purple-400" /> ML MODELS
             </h3>
-            <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span>Entry Model</span>
-                  <span className={mlStatus.entryModelReady ? "text-emerald-400" : "text-yellow-400"}>
-                    {mlStatus.entryModelReady ? "READY" : "LOADING"}
-                  </span>
-                </div>
-                <div className="text-xs text-zinc-500">Buffer: {mlStatus.entryBufferSize}</div>
+                <div className="text-emerald-400">Entry Model</div>
+                <div className="text-xs text-zinc-500 mt-1">Buffer: {mlStatus.entryBufferSize || 0}</div>
               </div>
               <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span>Exit Model</span>
-                  <span className={mlStatus.exitModelReady ? "text-emerald-400" : "text-yellow-400"}>
-                    {mlStatus.exitModelReady ? "READY" : "LOADING"}
-                  </span>
-                </div>
-                <div className="text-xs text-zinc-500">Buffer: {mlStatus.exitBufferSize}</div>
+                <div className="text-emerald-400">Exit Model</div>
+                <div className="text-xs text-zinc-500 mt-1">Buffer: {mlStatus.exitBufferSize || 0}</div>
               </div>
             </div>
           </div>
 
-          {/* === NEW: Model Performance Metrics === */}
+          {/* Risk & Adaptation Parameters */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Award className="text-amber-400" /> MODEL PERFORMANCE
+              <Settings className="text-amber-400" /> RISK & ADAPTATION
             </h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <div className="text-zinc-400">Recent Loss</div>
-                <div className="text-2xl font-mono mt-1">
-                  {mlStatus.recentLoss !== null ? mlStatus.recentLoss.toFixed(4) : "—"}
-                </div>
-              </div>
-              <div>
-                <div className="text-zinc-400">Avg Loss</div>
-                <div className="text-2xl font-mono mt-1">
-                  {mlStatus.avgLoss !== null ? mlStatus.avgLoss.toFixed(4) : "—"}
-                </div>
-              </div>
-              <div>
-                <div className="text-zinc-400">Training Runs</div>
-                <div className="text-2xl font-mono mt-1">{core.totalTrainingRuns || 0}</div>
-              </div>
-              <div>
-                <div className="text-zinc-400">Training Active</div>
-                <div className={`text-2xl font-mono mt-1 ${mlStatus.trainingActive ? "text-emerald-400" : "text-zinc-500"}`}>
-                  {mlStatus.trainingActive ? "YES" : "NO"}
-                </div>
-              </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+              <div>Min Confidence: <span className="font-mono text-white">{core.adaptationParams?.minConfidence || 68}</span></div>
+              <div>Base Risk $: <span className="font-mono text-white">{core.adaptationParams?.baseRiskDollar || 160}</span></div>
+              <div>Max Positions: <span className="font-mono text-white">{core.adaptationParams?.maxPositions || 7}</span></div>
+              <div>Win Rate: <span className="font-mono text-white">{(core.recentWinRate || 0).toFixed(1)}%</span></div>
             </div>
           </div>
         </div>
 
-        {/* === NEW: Win Rate Trend Chart === */}
+        {/* Win Rate Trend */}
         <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6 mb-8">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold flex items-center gap-2">
@@ -383,7 +319,6 @@ export default function TradingBotDashboard() {
               {(core.recentWinRate || 0).toFixed(1)}%
             </div>
           </div>
-
           {renderWinRateChart()}
         </div>
 
@@ -394,11 +329,13 @@ export default function TradingBotDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {core.positions.map((p: any, i: number) => (
                 <div key={i} className="bg-black/40 rounded-2xl p-4 border border-zinc-700">
-                  <div className="font-mono">{p.symbol} {p.side}</div>
-                  <div className="text-sm text-zinc-400">{Math.abs(p.qty)} @ {Number(p.entry || 0).toFixed(2)}</div>
+                  <div className="font-mono text-lg">{p.symbol} {p.side?.toUpperCase()}</div>
+                  <div className="text-sm text-zinc-400 mt-1">
+                    {Math.abs(p.qty)} @ ${Number(p.entry || 0).toFixed(2)}
+                  </div>
                   {p.unrealizedPl !== undefined && (
-                    <div className={p.unrealizedPl > 0 ? "text-emerald-400" : "text-red-400"}>
-                      ${p.unrealizedPl.toFixed(2)}
+                    <div className={`text-sm mt-1 ${p.unrealizedPl > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      PnL: ${p.unrealizedPl.toFixed(2)}
                     </div>
                   )}
                 </div>
@@ -413,7 +350,7 @@ export default function TradingBotDashboard() {
         <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
           <div className="flex justify-between mb-3">
             <h3 className="font-semibold">ACTIVITY LOGS</h3>
-            <select value={logFilter} onChange={(e) => setLogFilter(e.target.value as any)} className="bg-zinc-800 text-xs px-3 py-1 rounded-lg">
+            <select value={logFilter} onChange={(e) => setLogFilter(e.target.value as any)} className="bg-zinc-800 text-xs px-3 py-1 rounded-lg border border-zinc-600">
               <option value="all">All</option>
               <option value="entry">Entry</option>
               <option value="exit">Exit</option>
@@ -424,10 +361,10 @@ export default function TradingBotDashboard() {
             {filteredLogs.length === 0 ? (
               <p className="text-center text-zinc-500 py-12">Waiting for logs...</p>
             ) : (
-              filteredLogs.map((log, i) => <div key={i} className="py-0.5">{log}</div>)
+              filteredLogs.map((log, i) => <div key={i} className="py-0.5 break-all">{log}</div>)
             )}
           </div>
-          <div className="h-1 bg-zinc-700 mt-3 rounded cursor-ns-resize" onMouseDown={handleMouseDown} />
+          <div className="h-1 bg-zinc-700 mt-3 rounded cursor-ns-resize hover:bg-zinc-500" onMouseDown={handleMouseDown} />
         </div>
       </div>
     </div>
