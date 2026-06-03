@@ -1,9 +1,8 @@
 'use client';
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import {
-  Bot, Activity, Loader2, AlertTriangle, Shield, Rocket, Lock, Unlock, TrendingUp,
-  Brain, RefreshCw, ArrowUp, ArrowDown, TrendingDown, Award
+  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -17,7 +16,7 @@ export default function TradingBotDashboard() {
     exitModelReady: false,
     exitBufferSize: 0,
     entryBufferSize: 0,
-    version: 'unknown',
+    version: 'v5.7',
     trainingActive: false,
     recentLoss: null as number | null,
     avgLoss: null as number | null,
@@ -27,13 +26,15 @@ export default function TradingBotDashboard() {
   const [logFilter, setLogFilter] = useState<'all' | 'entry' | 'exit' | 'error'>('all');
   const [logHeight, setLogHeight] = useState(380);
   const [isResizing, setIsResizing] = useState(false);
+  const [isTraining, setIsTraining] = useState(false);
+
+  // === NEW: Win Rate History for Chart ===
+  const [winRateHistory, setWinRateHistory] = useState<number[]>([]);
 
   const cleanLog = (line: string): string => {
     let cleaned = line.replace(/\x1b\[[0-9;]*m/g, '').trim();
     if (cleaned.includes("ADMIN-AUTH")) return "";
-    if (cleaned.includes("429") || cleaned.includes("rate limit")) {
-      return `[RATE LIMIT] ${cleaned.split("Request failed")[0] || cleaned}`;
-    }
+    if (cleaned.includes("429")) return `[RATE LIMIT] ${cleaned}`;
     return cleaned;
   };
 
@@ -54,31 +55,22 @@ export default function TradingBotDashboard() {
         headers: { 'x-admin-key': ADMIN_KEY },
         timeout: 10000
       });
-      
-      const data = res.data || {};
 
-      setMlStatus({
-        entryModelReady: data.models?.entry?.ready ?? data.entryModelReady ?? true,
-        exitModelReady: data.models?.exit?.ready ?? data.exitModelReady ?? true,
-        exitBufferSize: data.models?.exit?.bufferSize ?? data.exitBufferSize ?? 0,
-        entryBufferSize: data.models?.entry?.bufferSize ?? data.entryBufferSize ?? 0,
-        version: data.version || 'v4.1',
+      const data = res.data || {};
+      const newStatus = {
+        entryModelReady: data.models?.entry?.ready ?? true,
+        exitModelReady: data.models?.exit?.ready ?? true,
+        exitBufferSize: data.models?.exit?.bufferSize ?? 0,
+        entryBufferSize: data.models?.entry?.bufferSize ?? 0,
+        version: data.version || 'v5.7',
         trainingActive: data.trainingActive ?? false,
-        recentLoss: data.recentLoss ?? null,
+        recentLoss: data.recentLoss ?? data.lastTrainResult?.loss ?? null,
         avgLoss: data.avgLoss ?? null,
-      });
+      };
+
+      setMlStatus(newStatus);
     } catch (e) {
-      console.warn("ML status failed, using fallback", e);
-      setMlStatus({
-        entryModelReady: true,
-        exitModelReady: true,
-        exitBufferSize: 0,
-        entryBufferSize: 0,
-        version: 'v4.1 (fallback)',
-        trainingActive: false,
-        recentLoss: null,
-        avgLoss: null,
-      });
+      console.warn("ML status failed");
     }
   };
 
@@ -87,50 +79,71 @@ export default function TradingBotDashboard() {
       const res = await axios.get(`${CORE_BASE}/admin/logs?limit=300`, {
         headers: { 'x-admin-key': ADMIN_KEY }
       });
-      let rawLogs = Array.isArray(res.data) ? res.data : (res.data?.logs || res.data || []);
+      const rawLogs = Array.isArray(res.data) ? res.data : (res.data?.logs || []);
       const cleaned = rawLogs.map(cleanLog).filter(Boolean);
       setLogs(cleaned.slice(-300));
     } catch (e) {
-      console.error("Logs fetch failed", e);
+      console.error("Logs fetch failed");
     }
   };
 
-  // === NEW: Add Fake Data Button ===
-  const addFakeData = async () => {
-    if (!confirm("Add 50 fake experiences to ML buffer for testing?")) return;
+  // === NEW: Update Win Rate History ===
+  useEffect(() => {
+    if (core.recentWinRate !== undefined) {
+      setWinRateHistory(prev => {
+        const newHistory = [...prev, Number(core.recentWinRate)];
+        return newHistory.length > 20 ? newHistory.slice(-20) : newHistory;
+      });
+    }
+  }, [core.recentWinRate]);
+
+  // === Trigger Training ===
+  const triggerTraining = async () => {
+    if (!confirm("Trigger manual training cycle?")) return;
+    setIsTraining(true);
     try {
-      const res = await axios.post(`${ML_BASE}/ingest/fake?count=50`, {}, {
+      await axios.post(`${ML_BASE}/train`, { source: "dashboard", epochs: 4 }, {
         headers: { 'x-admin-key': ADMIN_KEY }
       });
-      alert(`✅ ${res.data.added} fake experiences added!`);
+      alert("✅ Training cycle triggered");
+      setTimeout(fetchMLStatus, 4000);
+    } catch (e) {
+      alert("Training failed");
+    } finally {
+      setIsTraining(false);
+    }
+  };
+
+  const addFakeData = async () => {
+    if (!confirm("Add 50 fake experiences?")) return;
+    try {
+      await axios.post(`${ML_BASE}/ingest/fake?count=50`, {}, {
+        headers: { 'x-admin-key': ADMIN_KEY }
+      });
       fetchMLStatus();
     } catch (e) {
-      alert("Fake data failed");
-      console.error(e);
+      alert("Failed to add fake data");
     }
   };
 
   const triggerScan = async () => {
     try {
       await axios.post(`${CORE_BASE}/admin/scan`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
-      alert("✅ Manual scan triggered");
+      alert("✅ Scan triggered");
     } catch (e) { alert("Scan failed"); }
   };
 
   const panicFlat = async () => {
-    if (!confirm("Close ALL positions right now?")) return;
+    if (!confirm("Close ALL positions?")) return;
     try {
       await axios.post(`${CORE_BASE}/admin/hard-flat`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
-      alert("🚨 Panic Flat executed");
       fetchCore();
-      fetchMLStatus();
     } catch (e) { alert("Panic Flat failed"); }
   };
 
   const resetDD = async () => {
     try {
       await axios.post(`${CORE_BASE}/admin/reset-drawdown`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
-      alert("✅ Drawdown Reset");
       fetchCore();
     } catch (e) { alert("Reset failed"); }
   };
@@ -141,9 +154,9 @@ export default function TradingBotDashboard() {
     fetchMLStatus();
     fetchActivityLogs();
 
-    const coreInt = setInterval(() => { 
-      fetchCore(); 
-      fetchMLStatus(); 
+    const coreInt = setInterval(() => {
+      fetchCore();
+      fetchMLStatus();
     }, 8000);
 
     const logsInt = setInterval(fetchActivityLogs, 5500);
@@ -154,7 +167,7 @@ export default function TradingBotDashboard() {
     };
   }, []);
 
-  // Resize Handler
+  // Resize handler
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setIsResizing(true);
     e.preventDefault();
@@ -180,34 +193,90 @@ export default function TradingBotDashboard() {
 
   const filteredLogs = logs.filter(log => {
     if (logFilter === 'all') return true;
-    if (logFilter === 'entry') return log.includes("ENTRY") || log.includes("📈");
-    if (logFilter === 'exit') return log.includes("EXIT") || log.includes("📉") || log.includes("PROFIT") || log.includes("STOP");
-    if (logFilter === 'error') return log.includes("ERROR") || log.includes("✗");
+    if (logFilter === 'entry') return log.includes("ENTRY");
+    if (logFilter === 'exit') return log.includes("EXIT") || log.includes("PROFIT") || log.includes("STOP");
+    if (logFilter === 'error') return log.includes("ERROR");
     return true;
   });
+
+  // === Simple SVG Win Rate Chart ===
+  const renderWinRateChart = () => {
+    if (winRateHistory.length < 2) {
+      return <div className="text-zinc-500 text-sm py-8 text-center">Collecting win rate data...</div>;
+    }
+
+    const max = Math.max(...winRateHistory, 100);
+    const min = Math.min(...winRateHistory, 0);
+    const range = max - min || 1;
+
+    const points = winRateHistory.map((value, index) => {
+      const x = (index / (winRateHistory.length - 1)) * 100;
+      const y = 100 - ((value - min) / range) * 100;
+      return `${x},${y}`;
+    }).join(" ");
+
+    return (
+      <div className="relative h-48 w-full">
+        <svg viewBox="0 0 100 100" className="w-full h-full">
+          {/* Grid */}
+          {[0, 25, 50, 75, 100].map((y, i) => (
+            <line key={i} x1="0" y1={y} x2="100" y2={y} stroke="#27272a" strokeWidth="0.5" />
+          ))}
+
+          {/* Line */}
+          <polyline
+            fill="none"
+            stroke="#10b981"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            points={points}
+          />
+
+          {/* Dots */}
+          {winRateHistory.map((value, index) => {
+            const x = (index / (winRateHistory.length - 1)) * 100;
+            const y = 100 - ((value - min) / range) * 100;
+            return (
+              <circle
+                key={index}
+                cx={x}
+                cy={y}
+                r="1.5"
+                fill="#10b981"
+              />
+            );
+          })}
+        </svg>
+
+        <div className="absolute bottom-0 left-0 right-0 flex justify-between text-[10px] text-zinc-500 px-1">
+          <div>Oldest</div>
+          <div>Now</div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-7xl mx-auto">
+        {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-4xl font-bold flex items-center gap-3">
               <Rocket className="text-emerald-500" /> ALPHASTREAM
             </h1>
-            <p className="text-zinc-500">MAG7 • LIVE PAPER TRADING BOT v4.7</p>
+            <p className="text-zinc-500">MAG7 Trading Bot • Enhanced ML v5.7</p>
           </div>
-          <button
-            onClick={() => window.location.reload()}
-            className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-5 py-2.5 rounded-2xl"
-          >
+          <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-5 py-2.5 rounded-2xl">
             <RefreshCw size={20} /> Refresh
           </button>
         </div>
 
-        {/* Control Buttons */}
+        {/* Controls */}
         <div className="flex flex-wrap gap-3 mb-8">
           <button onClick={triggerScan} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
-            <Rocket /> SCAN MARKET
+            <Rocket /> SCAN
           </button>
           <button onClick={panicFlat} className="bg-red-600 hover:bg-red-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
             <Shield /> PANIC FLAT
@@ -215,11 +284,11 @@ export default function TradingBotDashboard() {
           <button onClick={resetDD} className="bg-amber-600 hover:bg-amber-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
             RESET DD
           </button>
-          <button 
-            onClick={addFakeData}
-            className="bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2"
-          >
-            <Brain /> Add Fake Data (Test)
+          <button onClick={addFakeData} className="bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
+            <Brain /> Add Fake Data
+          </button>
+          <button onClick={triggerTraining} disabled={isTraining} className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
+            <Play /> {isTraining ? "Training..." : "Trigger Training"}
           </button>
         </div>
 
@@ -239,94 +308,126 @@ export default function TradingBotDashboard() {
           </div>
           <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
             <div className="text-zinc-400 text-sm">POSITIONS</div>
-            <div className="text-4xl font-mono mt-2">
-              {core.positionsCount || core.positions?.length || 0}/7
+            <div className="text-4xl font-mono mt-2">{core.positions?.length || 0}/7</div>
+          </div>
+        </div>
+
+        {/* ML Status + Model Performance */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* ML Status */}
+          <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <Brain className="text-purple-400" /> ML MODELS ({mlStatus.version})
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span>Entry Model</span>
+                  <span className={mlStatus.entryModelReady ? "text-emerald-400" : "text-yellow-400"}>
+                    {mlStatus.entryModelReady ? "READY" : "LOADING"}
+                  </span>
+                </div>
+                <div className="text-xs text-zinc-500">Buffer: {mlStatus.entryBufferSize}</div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span>Exit Model</span>
+                  <span className={mlStatus.exitModelReady ? "text-emerald-400" : "text-yellow-400"}>
+                    {mlStatus.exitModelReady ? "READY" : "LOADING"}
+                  </span>
+                </div>
+                <div className="text-xs text-zinc-500">Buffer: {mlStatus.exitBufferSize}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* === NEW: Model Performance Metrics === */}
+          <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <Award className="text-amber-400" /> MODEL PERFORMANCE
+            </h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <div className="text-zinc-400">Recent Loss</div>
+                <div className="text-2xl font-mono mt-1">
+                  {mlStatus.recentLoss !== null ? mlStatus.recentLoss.toFixed(4) : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-zinc-400">Avg Loss</div>
+                <div className="text-2xl font-mono mt-1">
+                  {mlStatus.avgLoss !== null ? mlStatus.avgLoss.toFixed(4) : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-zinc-400">Training Runs</div>
+                <div className="text-2xl font-mono mt-1">{core.totalTrainingRuns || 0}</div>
+              </div>
+              <div>
+                <div className="text-zinc-400">Training Active</div>
+                <div className={`text-2xl font-mono mt-1 ${mlStatus.trainingActive ? "text-emerald-400" : "text-zinc-500"}`}>
+                  {mlStatus.trainingActive ? "YES" : "NO"}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* ML Status */}
+        {/* === NEW: Win Rate Trend Chart === */}
         <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6 mb-8">
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <Brain className="text-purple-400" /> ML TRAINING ({mlStatus.version})
-          </h3>
-          <div className="grid grid-cols-2 gap-8">
-            <div>
-              <div className="text-emerald-400 text-xl">
-                ENTRY MODEL {mlStatus.entryModelReady ? "✅ READY" : "⏳ LOADING"}
-              </div>
-              <div className="text-sm text-zinc-400 mt-1">
-                Entry Buffer: <span className="font-mono text-white">{mlStatus.entryBufferSize}</span>
-              </div>
-            </div>
-            <div>
-              <div className="text-emerald-400 text-xl">
-                EXIT MODEL {mlStatus.exitModelReady ? "✅ READY" : "⏳ LOADING"}
-              </div>
-              <div className="text-sm text-zinc-400 mt-1">
-                Exit Buffer: <span className="font-mono text-white">{mlStatus.exitBufferSize}</span>
-              </div>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold flex items-center gap-2">
+              <TrendingUp className="text-emerald-400" /> WIN RATE TREND (Last 20 cycles)
+            </h3>
+            <div className="text-emerald-400 font-mono text-lg">
+              {(core.recentWinRate || 0).toFixed(1)}%
             </div>
           </div>
+
+          {renderWinRateChart()}
         </div>
 
         {/* Open Positions */}
         <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6 mb-8">
           <h3 className="font-semibold mb-4">OPEN POSITIONS ({core.positions?.length || 0})</h3>
           {core.positions?.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {core.positions.map((p: any, i: number) => (
                 <div key={i} className="bg-black/40 rounded-2xl p-4 border border-zinc-700">
-                  <div className="font-mono text-lg">{p.symbol} {p.side?.toUpperCase()}</div>
-                  <div className="text-sm text-zinc-400 mt-1">
-                    {Math.abs(p.qty)} shares @ {Number(p.entry || p.avgEntryPrice || 0).toFixed(2)}
-                  </div>
+                  <div className="font-mono">{p.symbol} {p.side}</div>
+                  <div className="text-sm text-zinc-400">{Math.abs(p.qty)} @ {Number(p.entry || 0).toFixed(2)}</div>
                   {p.unrealizedPl !== undefined && (
-                    <div className={`text-sm mt-1 ${p.unrealizedPl > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      PnL: ${p.unrealizedPl.toFixed(2)}
+                    <div className={p.unrealizedPl > 0 ? "text-emerald-400" : "text-red-400"}>
+                      ${p.unrealizedPl.toFixed(2)}
                     </div>
                   )}
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-center text-zinc-500 py-12">No open positions</p>
+            <p className="text-center text-zinc-500 py-8">No open positions</p>
           )}
         </div>
 
-        {/* Logs Panel */}
-        <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6 flex-1 flex flex-col min-h-0">
+        {/* Logs */}
+        <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
           <div className="flex justify-between mb-3">
-            <h3 className="font-semibold">ALL ACTIVITY LOGS</h3>
-            <select
-              value={logFilter}
-              onChange={(e) => setLogFilter(e.target.value as any)}
-              className="bg-zinc-800 text-xs px-3 py-1 rounded-lg border border-zinc-600"
-            >
+            <h3 className="font-semibold">ACTIVITY LOGS</h3>
+            <select value={logFilter} onChange={(e) => setLogFilter(e.target.value as any)} className="bg-zinc-800 text-xs px-3 py-1 rounded-lg">
               <option value="all">All</option>
-              <option value="entry">Entry Only</option>
-              <option value="exit">Exit Only</option>
-              <option value="error">Errors Only</option>
+              <option value="entry">Entry</option>
+              <option value="exit">Exit</option>
+              <option value="error">Errors</option>
             </select>
           </div>
-
-          <div
-            className="flex-1 bg-black/60 rounded-2xl p-4 overflow-auto text-xs font-mono"
-            style={{ maxHeight: logHeight }}
-          >
+          <div className="bg-black/60 rounded-2xl p-4 overflow-auto text-xs font-mono" style={{ maxHeight: logHeight }}>
             {filteredLogs.length === 0 ? (
-              <p className="text-gray-500 text-center py-16">Waiting for activity from core service...</p>
+              <p className="text-center text-zinc-500 py-12">Waiting for logs...</p>
             ) : (
-              filteredLogs.map((log, i) => (
-                <div key={i} className="py-0.5 break-all">{log}</div>
-              ))
+              filteredLogs.map((log, i) => <div key={i} className="py-0.5">{log}</div>)
             )}
           </div>
-
-          <div
-            className="h-1 bg-zinc-700 mt-3 rounded cursor-ns-resize hover:bg-zinc-500"
-            onMouseDown={handleMouseDown}
-          />
+          <div className="h-1 bg-zinc-700 mt-3 rounded cursor-ns-resize" onMouseDown={handleMouseDown} />
         </div>
       </div>
     </div>
