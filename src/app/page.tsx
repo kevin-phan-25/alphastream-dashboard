@@ -1,6 +1,6 @@
 "use strict";
-// core/alpaca.js — v5.3 FINAL COMPATIBLE VERSION
-// All original logic preserved. Simplified bars handling for Cloud Run SDK.
+// core/alpaca.js — v5.4 FINAL COMPATIBLE + IEX FEED + NO 403 RETRY
+// All original logic preserved. Fixed getBarsV2 + strong 403 handling.
 
 import { ALPACA_KEY, ALPACA_SECRET } from "./config.js";
 import { state } from "./state.js";
@@ -17,30 +17,30 @@ export const alpaca = new Alpaca({
   baseUrl: PAPER_BASE_URL
 });
 
-log("[ALPACA] ✅ v5.3 COMPATIBLE LOADED");
+log("[ALPACA] ✅ v5.4 FINAL + IEX FEED LOADED");
 
-// ====================== CANDLES (Most Reliable) ======================
+// ====================== REAL CANDLES (Fixed + IEX) ======================
 export async function getRecentCandles(symbol, timeframe = "1Min", limit = 50) {
   const sym = symbol.toUpperCase();
   
   try {
-    // Primary method - getBarsV2 with proper handling
-    const barsResponse = await alpaca.getBarsV2({
-      symbol: sym,
+    // Correct getBarsV2 signature + IEX feed for paper trading
+    const barsIterable = alpaca.getBarsV2(sym, {
       timeframe: timeframe,
       limit: limit,
-      adjustment: "raw"
+      adjustment: "raw",
+      feed: "iex"          // Critical for paper accounts
     });
 
     const result = [];
-    for await (const bar of barsResponse) {
+    for await (const bar of barsIterable) {
       result.push({
-        o: Number(bar.open),
-        h: Number(bar.high),
-        l: Number(bar.low),
-        c: Number(bar.close),
-        v: Number(bar.volume || 0),
-        t: bar.timestamp
+        o: Number(bar.OpenPrice),
+        h: Number(bar.HighPrice),
+        l: Number(bar.LowPrice),
+        c: Number(bar.ClosePrice),
+        v: Number(bar.Volume || 0),
+        t: bar.Timestamp
       });
     }
 
@@ -49,11 +49,33 @@ export async function getRecentCandles(symbol, timeframe = "1Min", limit = 50) {
       return result;
     }
   } catch (e) {
-    log(`[CANDLES] ${sym} V2 failed: ${e.message}`, "warn");
+    log(`[CANDLES] ${sym} — V2 failed: ${e.message}`, "warn");
   }
 
-  // Ultimate safe fallback
-  log(`[CANDLES] ${sym} → using synthetic fallback`, "warn");
+  // Legacy fallback
+  try {
+    const bars = await alpaca.getBars({
+      symbol: sym,
+      timeframe,
+      limit,
+      adjustment: "raw"
+    });
+    const result = bars.map(bar => ({
+      o: Number(bar.open),
+      h: Number(bar.high),
+      l: Number(bar.low),
+      c: Number(bar.close),
+      v: Number(bar.volume || 0),
+      t: bar.timestamp
+    }));
+    log(`[CANDLES] ${sym} → ${result.length} legacy bars`);
+    return result;
+  } catch (e) {
+    log(`[CANDLES] ${sym} — legacy failed: ${e.message}`, "warn");
+  }
+
+  // Synthetic fallback
+  log(`[CANDLES] ${sym} — using synthetic fallback`, "warn");
   return Array.from({ length: limit }, (_, i) => {
     const base = 280 + Math.random() * 120;
     const price = base + (i * (Math.random() - 0.5) * 1.2);
@@ -68,14 +90,18 @@ export async function getRecentCandles(symbol, timeframe = "1Min", limit = 50) {
   });
 }
 
-// ====================== RETRY HELPER ======================
+// ====================== RETRY (NO RETRY ON 403) ======================
 async function executeWithRetry(fn, maxRetries = 3, baseDelay = 1300) {
   for (let i = 0; i <= maxRetries; i++) {
     try {
       return await fn();
     } catch (e) {
       const msg = e.message || '';
-      if (i === maxRetries || (!msg.includes("403") && !msg.includes("429") && !msg.includes("timeout"))) {
+      if (msg.includes("403")) {
+        log(`[ALPACA] 403 Auth failure — check API keys! Not retrying.`, "error");
+        throw e;
+      }
+      if (i === maxRetries || (!msg.includes("429") && !msg.includes("timeout") && !msg.includes("network"))) {
         log(`[ALPACA] Final failure after ${i+1} attempts: ${msg}`, "error");
         throw e;
       }
@@ -196,4 +222,4 @@ export async function getAccountEquity() {
   }
 }
 
-log("[ALPACA] ✅ v5.3 FULL Ready");
+log("[ALPACA] ✅ v5.4 FINAL Ready");
