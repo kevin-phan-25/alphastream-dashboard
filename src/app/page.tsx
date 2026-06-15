@@ -51,12 +51,12 @@ export default function TradingBotDashboard() {
 
   const fetchActivityLogs = async () => {
     try {
-      const res = await axios.get(`${CORE_BASE}/admin/logs?limit=400`, {
+      const res = await axios.get(`${CORE_BASE}/admin/logs?limit=500`, {
         headers: { 'x-admin-key': ADMIN_KEY }
       });
       const rawLogs = Array.isArray(res.data) ? res.data : (res.data?.logs || []);
       const cleaned = rawLogs.map(cleanLog).filter(Boolean);
-      setLogs(cleaned.slice(-400));
+      setLogs(cleaned.slice(-500));
     } catch (e) {
       console.error("Logs fetch failed");
     }
@@ -169,9 +169,9 @@ export default function TradingBotDashboard() {
 
   const filteredLogs = logs.filter(log => {
     if (logFilter === 'all') return true;
-    if (logFilter === 'entry') return log.includes("ENTRY") || log.includes("ATTEMPT");
-    if (logFilter === 'exit') return log.includes("EXIT") || log.includes("PROFIT") || log.includes("STOP") || log.includes("CLEANUP");
-    if (logFilter === 'error') return log.includes("ERROR") || log.includes("SKIP");
+    if (logFilter === 'entry') return log.includes("ENTRY") || log.includes("ATTEMPT") || log.includes("SUCCESS");
+    if (logFilter === 'exit') return log.includes("EXIT") || log.includes("PROFIT") || log.includes("STOP") || log.includes("CLEANUP") || log.includes("CLOSE");
+    if (logFilter === 'error') return log.includes("ERROR") || log.includes("SKIP") || log.includes("FAIL");
     return true;
   });
 
