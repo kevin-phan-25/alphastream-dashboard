@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import {
-  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award, Settings, AlertTriangle
+  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award, Settings, AlertTriangle, Target
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -144,7 +144,7 @@ export default function TradingBotDashboard() {
     };
   }, []);
 
-  // Resize handler
+  // Resize handler (Original)
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setIsResizing(true);
     e.preventDefault();
@@ -224,7 +224,7 @@ export default function TradingBotDashboard() {
             <h1 className="text-4xl font-bold flex items-center gap-3">
               <Rocket className="text-emerald-500" /> ALPHASTREAM
             </h1>
-            <p className="text-zinc-500">MAG7 Trading Bot • Dynamic Sizing v5.6 BEAST</p>
+            <p className="text-zinc-500">MAG7 Trading Bot • FABLE-5 Dynamic Sizing v5.8 BEAST</p>
           </div>
           <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-5 py-2.5 rounded-2xl">
             <RefreshCw size={20} /> Refresh
@@ -275,7 +275,7 @@ export default function TradingBotDashboard() {
           {/* ML Status */}
           <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Brain className="text-purple-400" /> ML MODELS
+              <Brain className="text-purple-400" /> ML MODELS (FABLE-5)
             </h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
@@ -315,7 +315,7 @@ export default function TradingBotDashboard() {
           {renderWinRateChart()}
         </div>
 
-        {/* Open Positions - Improved */}
+        {/* Open Positions - Improved with Fable-5 */}
         <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6 mb-8">
           <h3 className="font-semibold mb-4 flex items-center gap-2">
             OPEN POSITIONS ({core.positions?.length || 0})
@@ -325,13 +325,21 @@ export default function TradingBotDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {core.positions.map((p: any, i: number) => (
                 <div key={i} className="bg-black/40 rounded-2xl p-4 border border-zinc-700">
-                  <div className="font-mono text-lg">{p.symbol} {p.side?.toUpperCase()}</div>
+                  <div className="font-mono text-lg flex justify-between">
+                    {p.symbol} {p.side?.toUpperCase()}
+                    {p.farSlope && Math.abs(p.farSlope) > 0.8 && <Target className="text-amber-400" size={18} />}
+                  </div>
                   <div className="text-sm text-zinc-400 mt-1">
                     {Math.abs(p.qty)} @ ${Number(p.entry || 0).toFixed(2)}
                   </div>
                   {p.unrealizedPl !== undefined && (
                     <div className={`text-sm mt-1 ${p.unrealizedPl > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                       PnL: ${p.unrealizedPl.toFixed(2)}
+                    </div>
+                  )}
+                  {p.farSlope !== undefined && (
+                    <div className="text-xs text-amber-400 mt-1">
+                      FarSlope: {p.farSlope.toFixed(2)}
                     </div>
                   )}
                 </div>
