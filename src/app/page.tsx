@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import {
-  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award, Settings, AlertTriangle, Target
+  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award, Settings, AlertTriangle, Target, Zap
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -89,12 +89,13 @@ export default function TradingBotDashboard() {
   };
 
   const addFakeData = async () => {
-    if (!confirm("Add 50 fake experiences?")) return;
+    if (!confirm("Add 100 fake experiences?")) return;
     try {
-      await axios.post(`${ML_BASE}/ingest/fake?count=50`, {}, {
+      await axios.post(`${ML_BASE}/ingest/fake?count=100`, {}, {
         headers: { 'x-admin-key': ADMIN_KEY }
       });
       fetchMLStatus();
+      alert("✅ 100 fake experiences added");
     } catch {
       alert("Failed to add fake data");
     }
@@ -103,7 +104,7 @@ export default function TradingBotDashboard() {
   const triggerScan = async () => {
     try {
       await axios.post(`${CORE_BASE}/admin/scan`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
-      alert("✅ Manual SCAN triggered — check logs for ENTRY ATTEMPT");
+      alert("✅ Manual SCAN triggered");
     } catch {
       alert("Scan failed");
     }
@@ -144,7 +145,7 @@ export default function TradingBotDashboard() {
     };
   }, []);
 
-  // Resize handler (Original)
+  // Resize handler
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setIsResizing(true);
     e.preventDefault();
@@ -224,7 +225,7 @@ export default function TradingBotDashboard() {
             <h1 className="text-4xl font-bold flex items-center gap-3">
               <Rocket className="text-emerald-500" /> ALPHASTREAM
             </h1>
-            <p className="text-zinc-500">MAG7 Trading Bot • FABLE-5 Dynamic Sizing v5.8 BEAST</p>
+            <p className="text-zinc-500">MAG7 Trading Bot • FABLE-5 Dynamic Intelligence v5.8</p>
           </div>
           <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-5 py-2.5 rounded-2xl">
             <RefreshCw size={20} /> Refresh
@@ -243,7 +244,7 @@ export default function TradingBotDashboard() {
             RESET DD
           </button>
           <button onClick={addFakeData} className="bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
-            <Brain /> Add Fake Data
+            <Brain /> Add Fake Data (100)
           </button>
           <button onClick={triggerTraining} disabled={isTraining} className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
             <Play /> {isTraining ? "Training..." : "Trigger Training"}
@@ -270,34 +271,31 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
-        {/* ML + Risk Parameters */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* ML Status */}
-          <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Brain className="text-purple-400" /> ML MODELS (FABLE-5)
-            </h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <div className="text-emerald-400">Entry Model</div>
-                <div className="text-xs text-zinc-500 mt-1">Buffer: {mlStatus.entryBufferSize || 0}</div>
-              </div>
-              <div>
-                <div className="text-emerald-400">Exit Model</div>
-                <div className="text-xs text-zinc-500 mt-1">Buffer: {mlStatus.exitBufferSize || 0}</div>
+        {/* Fable-5 Metrics */}
+        <div className="bg-zinc-900 border border-amber-500/30 rounded-3xl p-6 mb-8">
+          <h3 className="font-semibold mb-4 flex items-center gap-2 text-amber-400">
+            <Target /> FABLE-5 METRICS
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
+            <div>
+              <div className="text-zinc-400">Far-Slope Win Rate</div>
+              <div className="text-2xl font-mono text-amber-400">
+                {(core.fable5?.farSlopeWinRate || 0).toFixed(1)}%
               </div>
             </div>
-          </div>
-          {/* Risk & Adaptation Parameters */}
-          <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Settings className="text-amber-400" /> RISK & ADAPTATION
-            </h3>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-              <div>Min Confidence: <span className="font-mono text-white">{core.adaptationParams?.minConfidence || 68}</span></div>
-              <div>Base Risk $: <span className="font-mono text-white">{core.adaptationParams?.baseRiskDollar || 160}</span></div>
-              <div>Max Positions: <span className="font-mono text-white">{core.adaptationParams?.maxPositions || 7}</span></div>
-              <div>Win Rate: <span className="font-mono text-white">{(core.recentWinRate || 0).toFixed(1)}%</span></div>
+            <div>
+              <div className="text-zinc-400">Strong Slope Win Rate</div>
+              <div className="text-2xl font-mono text-amber-400">
+                {(core.fable5?.strongSlopeWinRate || 0).toFixed(1)}%
+              </div>
+            </div>
+            <div>
+              <div className="text-zinc-400">Active Far-Slope</div>
+              <div className="text-2xl font-mono">{core.fable5?.activeFarSlopePositions || 0}</div>
+            </div>
+            <div>
+              <div className="text-zinc-400">Mag7 Sentiment</div>
+              <div className="text-2xl font-mono">{(core.fable5?.avgMag7Sentiment || 0).toFixed(3)}</div>
             </div>
           </div>
         </div>
@@ -315,11 +313,10 @@ export default function TradingBotDashboard() {
           {renderWinRateChart()}
         </div>
 
-        {/* Open Positions - Improved with Fable-5 */}
+        {/* Open Positions */}
         <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6 mb-8">
           <h3 className="font-semibold mb-4 flex items-center gap-2">
             OPEN POSITIONS ({core.positions?.length || 0})
-            {core.positions?.length === 0 && <AlertTriangle className="text-amber-400" size={18} />}
           </h3>
           {core.positions?.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
