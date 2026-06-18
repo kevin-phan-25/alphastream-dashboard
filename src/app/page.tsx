@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import {
-  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award, Settings, AlertTriangle, Target, Zap
+  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award, Settings, AlertTriangle, Target, Zap, Activity
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -21,7 +21,7 @@ export default function TradingBotDashboard() {
 
   const cleanLog = (line: string) => {
     let cleaned = line.replace(/\x1b\[[0-9;]*m/g, '').trim();
-    if (cleaned.includes("ADMIN-AUTH")) return "";
+    if (cleaned.includes("ADMIN-AUTH") || cleaned.includes("x-admin-key")) return "";
     if (cleaned.includes("429")) return `[RATE LIMIT] ${cleaned}`;
     return cleaned;
   };
@@ -76,20 +76,20 @@ export default function TradingBotDashboard() {
     if (!confirm("Trigger manual training cycle?")) return;
     setIsTraining(true);
     try {
-      await axios.post(`${ML_BASE}/train`, { source: "dashboard", epochs: 4 }, {
+      await axios.post(`${ML_BASE}/train`, { source: "dashboard", epochs: 5 }, {
         headers: { 'x-admin-key': ADMIN_KEY }
       });
-      alert("✅ Training triggered");
-      setTimeout(fetchMLStatus, 4000);
-    } catch {
-      alert("Training failed");
+      alert("✅ Training triggered successfully");
+      setTimeout(fetchMLStatus, 3000);
+    } catch (e) {
+      alert("Training request failed");
     } finally {
       setIsTraining(false);
     }
   };
 
   const addFakeData = async () => {
-    if (!confirm("Add 100 fake experiences?")) return;
+    if (!confirm("Add 100 fake experiences to replay buffer?")) return;
     try {
       await axios.post(`${ML_BASE}/ingest/fake?count=100`, {}, {
         headers: { 'x-admin-key': ADMIN_KEY }
@@ -111,10 +111,11 @@ export default function TradingBotDashboard() {
   };
 
   const panicFlat = async () => {
-    if (!confirm("Close ALL positions?")) return;
+    if (!confirm("Close ALL positions immediately?")) return;
     try {
       await axios.post(`${CORE_BASE}/admin/hard-flat`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
       fetchCore();
+      alert("✅ Panic flat executed");
     } catch {
       alert("Panic Flat failed");
     }
@@ -124,6 +125,7 @@ export default function TradingBotDashboard() {
     try {
       await axios.post(`${CORE_BASE}/admin/reset-drawdown`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
       fetchCore();
+      alert("✅ Drawdown reset");
     } catch {
       alert("Reset failed");
     }
@@ -134,11 +136,14 @@ export default function TradingBotDashboard() {
     fetchCore();
     fetchMLStatus();
     fetchActivityLogs();
+
     const coreInt = setInterval(() => {
       fetchCore();
       fetchMLStatus();
     }, 8000);
+
     const logsInt = setInterval(fetchActivityLogs, 5500);
+
     return () => {
       clearInterval(coreInt);
       clearInterval(logsInt);
@@ -158,6 +163,7 @@ export default function TradingBotDashboard() {
       if (newHeight > 180 && newHeight < 700) setLogHeight(newHeight);
     };
     const handleMouseUp = () => setIsResizing(false);
+
     if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
@@ -170,13 +176,13 @@ export default function TradingBotDashboard() {
 
   const filteredLogs = logs.filter(log => {
     if (logFilter === 'all') return true;
-    if (logFilter === 'entry') return log.includes("ENTRY") || log.includes("ATTEMPT") || log.includes("SUCCESS");
-    if (logFilter === 'exit') return log.includes("EXIT") || log.includes("PROFIT") || log.includes("STOP") || log.includes("CLEANUP") || log.includes("CLOSE");
-    if (logFilter === 'error') return log.includes("ERROR") || log.includes("SKIP") || log.includes("FAIL");
+    if (logFilter === 'entry') return log.includes("ENTRY") || log.includes("ATTEMPT");
+    if (logFilter === 'exit') return log.includes("EXIT") || log.includes("CLOSE") || log.includes("PROFIT") || log.includes("STOP");
+    if (logFilter === 'error') return log.includes("ERROR") || log.includes("FAIL") || log.includes("WARN");
     return true;
   });
 
-  const renderWinRateChart = () => {
+  const renderWinRateChart = () => { /* unchanged - kept as-is */ 
     if (winRateHistory.length < 2) {
       return <div className="text-zinc-500 text-sm py-8 text-center">Collecting win rate data...</div>;
     }
@@ -188,20 +194,14 @@ export default function TradingBotDashboard() {
       const y = 100 - ((value - min) / range) * 100;
       return `${x},${y}`;
     }).join(" ");
+
     return (
       <div className="relative h-48 w-full">
         <svg viewBox="0 0 100 100" className="w-full h-full">
           {[0, 25, 50, 75, 100].map((y, i) => (
             <line key={i} x1="0" y1={y} x2="100" y2={y} stroke="#27272a" strokeWidth="0.5" />
           ))}
-          <polyline
-            fill="none"
-            stroke="#10b981"
-            strokeWidth="2"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            points={points}
-          />
+          <polyline fill="none" stroke="#10b981" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" points={points} />
           {winRateHistory.map((value, index) => {
             const x = (index / (winRateHistory.length - 1)) * 100;
             const y = 100 - ((value - min) / range) * 100;
@@ -209,8 +209,7 @@ export default function TradingBotDashboard() {
           })}
         </svg>
         <div className="absolute bottom-0 left-0 right-0 flex justify-between text-[10px] text-zinc-500 px-1">
-          <div>Oldest</div>
-          <div>Now</div>
+          <div>Oldest</div><div>Now</div>
         </div>
       </div>
     );
@@ -225,34 +224,34 @@ export default function TradingBotDashboard() {
             <h1 className="text-4xl font-bold flex items-center gap-3">
               <Rocket className="text-emerald-500" /> ALPHASTREAM
             </h1>
-            <p className="text-zinc-500">MAG7 Trading Bot • FABLE-5 Dynamic Intelligence v5.8</p>
+            <p className="text-zinc-500">MAG7 • FABLE-5 v5.9 • Live Intelligence</p>
           </div>
-          <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-5 py-2.5 rounded-2xl">
-            <RefreshCw size={20} /> Refresh
+          <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-5 py-2.5 rounded-2xl transition">
+            <RefreshCw size={20} /> Refresh All
           </button>
         </div>
 
         {/* Controls */}
         <div className="flex flex-wrap gap-3 mb-8">
-          <button onClick={triggerScan} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
+          <button onClick={triggerScan} className="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2 transition">
             <Rocket /> MANUAL SCAN
           </button>
-          <button onClick={panicFlat} className="bg-red-600 hover:bg-red-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
+          <button onClick={panicFlat} className="bg-red-600 hover:bg-red-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2 transition">
             <Shield /> PANIC FLAT
           </button>
-          <button onClick={resetDD} className="bg-amber-600 hover:bg-amber-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
+          <button onClick={resetDD} className="bg-amber-600 hover:bg-amber-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2 transition">
             RESET DD
           </button>
-          <button onClick={addFakeData} className="bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
-            <Brain /> Add Fake Data (100)
+          <button onClick={addFakeData} className="bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2 transition">
+            <Brain /> Fake Data (100)
           </button>
-          <button onClick={triggerTraining} disabled={isTraining} className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 px-6 py-3 rounded-2xl font-medium flex items-center gap-2">
+          <button onClick={triggerTraining} disabled={isTraining} className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 px-6 py-3 rounded-2xl font-medium flex items-center gap-2 transition">
             <Play /> {isTraining ? "Training..." : "Trigger Training"}
           </button>
         </div>
 
         {/* Status Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
           <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
             <div className="text-zinc-400 text-sm">EQUITY</div>
             <div className="text-4xl font-mono mt-2">${(core.equity || 0).toLocaleString()}</div>
@@ -266,36 +265,45 @@ export default function TradingBotDashboard() {
             <div className="text-4xl font-mono mt-2">{(core.recentWinRate || 0).toFixed(1)}%</div>
           </div>
           <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
-            <div className="text-zinc-400 text-sm">OPEN POSITIONS</div>
+            <div className="text-zinc-400 text-sm">POSITIONS</div>
             <div className="text-4xl font-mono mt-2">{core.positions?.length || 0}/7</div>
+          </div>
+          <div className="bg-zinc-900 border border-amber-500/30 rounded-3xl p-6">
+            <div className="text-amber-400 text-sm flex items-center gap-1">
+              <Activity size={16} /> ML BUFFER
+            </div>
+            <div className="text-3xl font-mono mt-2">{mlStatus.globalBufferSize || 0}</div>
+            <div className="text-xs text-zinc-500">Experiences • Trained {mlStatus.totalTrainingRuns || 0}x</div>
           </div>
         </div>
 
-        {/* Fable-5 Metrics */}
+        {/* Fable-5 + ML Status */}
         <div className="bg-zinc-900 border border-amber-500/30 rounded-3xl p-6 mb-8">
           <h3 className="font-semibold mb-4 flex items-center gap-2 text-amber-400">
-            <Target /> FABLE-5 METRICS
+            <Target /> FABLE-5 + ML STATUS
           </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-6 text-sm">
             <div>
-              <div className="text-zinc-400">Far-Slope Win Rate</div>
-              <div className="text-2xl font-mono text-amber-400">
-                {(core.fable5?.farSlopeWinRate || 0).toFixed(1)}%
+              <div className="text-zinc-400">Far-Slope Enabled</div>
+              <div className="text-xl font-mono text-emerald-400">✓ {mlStatus.fable5?.farSlopeEnabled ? 'ACTIVE' : 'OFF'}</div>
+            </div>
+            <div>
+              <div className="text-zinc-400">Training Active</div>
+              <div className={`text-xl font-mono ${mlStatus.trainingActive ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {mlStatus.trainingActive ? 'IN PROGRESS' : 'IDLE'}
               </div>
             </div>
             <div>
-              <div className="text-zinc-400">Strong Slope Win Rate</div>
-              <div className="text-2xl font-mono text-amber-400">
-                {(core.fable5?.strongSlopeWinRate || 0).toFixed(1)}%
-              </div>
+              <div className="text-zinc-400">Last Trained</div>
+              <div className="text-xl font-mono">{mlStatus.lastTrainedAt ? new Date(mlStatus.lastTrainedAt).toLocaleTimeString() : 'Never'}</div>
             </div>
             <div>
-              <div className="text-zinc-400">Active Far-Slope</div>
-              <div className="text-2xl font-mono">{core.fable5?.activeFarSlopePositions || 0}</div>
+              <div className="text-zinc-400">Exit Buffer</div>
+              <div className="text-2xl font-mono">{mlStatus.exitBufferSize || 0}</div>
             </div>
             <div>
-              <div className="text-zinc-400">Mag7 Sentiment</div>
-              <div className="text-2xl font-mono">{(core.fable5?.avgMag7Sentiment || 0).toFixed(3)}</div>
+              <div className="text-zinc-400">Distributional</div>
+              <div className="text-xl font-mono text-purple-400">{mlStatus.fable5?.distributional ? 'ENABLED' : 'OFF'}</div>
             </div>
           </div>
         </div>
@@ -304,7 +312,7 @@ export default function TradingBotDashboard() {
         <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6 mb-8">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold flex items-center gap-2">
-              <TrendingUp className="text-emerald-400" /> WIN RATE TREND (Last 20 cycles)
+              <TrendingUp className="text-emerald-400" /> WIN RATE TREND (Last 20)
             </h3>
             <div className="text-emerald-400 font-mono text-lg">
               {(core.recentWinRate || 0).toFixed(1)}%
@@ -335,9 +343,7 @@ export default function TradingBotDashboard() {
                     </div>
                   )}
                   {p.farSlope !== undefined && (
-                    <div className="text-xs text-amber-400 mt-1">
-                      FarSlope: {p.farSlope.toFixed(2)}
-                    </div>
+                    <div className="text-xs text-amber-400 mt-1">FarSlope: {p.farSlope.toFixed(2)}</div>
                   )}
                 </div>
               ))}
@@ -354,7 +360,9 @@ export default function TradingBotDashboard() {
         {/* Logs */}
         <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
           <div className="flex justify-between mb-3">
-            <h3 className="font-semibold">ACTIVITY LOGS</h3>
+            <h3 className="font-semibold flex items-center gap-2">
+              <Activity className="text-zinc-400" /> ACTIVITY LOGS
+            </h3>
             <select value={logFilter} onChange={(e) => setLogFilter(e.target.value as any)} className="bg-zinc-800 text-xs px-3 py-1 rounded-lg border border-zinc-600">
               <option value="all">All</option>
               <option value="entry">Entry</option>
@@ -364,7 +372,7 @@ export default function TradingBotDashboard() {
           </div>
           <div className="bg-black/60 rounded-2xl p-4 overflow-auto text-xs font-mono" style={{ maxHeight: logHeight }}>
             {filteredLogs.length === 0 ? (
-              <p className="text-center text-zinc-500 py-12">Waiting for logs...</p>
+              <p className="text-center text-zinc-500 py-12">Waiting for activity...</p>
             ) : (
               filteredLogs.map((log, i) => <div key={i} className="py-0.5 break-all">{log}</div>)
             )}
