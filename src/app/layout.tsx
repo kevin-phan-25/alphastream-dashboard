@@ -2,11 +2,18 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ 
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 export const metadata: Metadata = {
-  title: 'AlphaStream v81.0 — Final Perfection',
-  description: 'Nuclear Momentum Engine • Unblockable • Real P&L',
+  title: 'AlphaStream • FABLE-5 MAG7 Trader',
+  description: 'Real-time Autonomous Trading • Far-Slope Intelligence • Live P&L',
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
@@ -16,7 +23,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="scroll-smooth">
-      <body className={`${inter.className} bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white antialiased`}>
+      <body className={`${inter.className} bg-zinc-950 text-white antialiased`}>
         {children}
       </body>
     </html>
