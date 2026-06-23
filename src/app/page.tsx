@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import {
-  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award, Settings, AlertTriangle, Target, Zap, Activity
+  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award, Settings, AlertTriangle, Target, Zap, Activity, CheckCircle, XCircle
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -16,8 +16,15 @@ export default function TradingBotDashboard() {
   const [logFilter, setLogFilter] = useState<'all' | 'entry' | 'exit' | 'error'>('all');
   const [logHeight, setLogHeight] = useState(380);
   const [isResizing, setIsResizing] = useState(false);
-  const [isTraining, setIsTraining] = useState(false);
   const [winRateHistory, setWinRateHistory] = useState<number[]>([]);
+  
+  // Feedback system (replaces alerts)
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const showFeedback = (type: 'success' | 'error', message: string) => {
+    setFeedback({ type, message });
+    setTimeout(() => setFeedback(null), 4000);
+  };
 
   const cleanLog = (line: string) => {
     let cleaned = line.replace(/\x1b\[[0-9;]*m/g, '').trim();
@@ -54,7 +61,7 @@ export default function TradingBotDashboard() {
       const res = await axios.get(`${CORE_BASE}/admin/logs?limit=500`, {
         headers: { 'x-admin-key': ADMIN_KEY }
       });
-      const rawLogs = Array.isArray(res.data) ? res.data : (res.data?.logs || []);
+      const rawLogs = Array.isArray(res.data) ? res.data : [];
       const cleaned = rawLogs.map(cleanLog).filter(Boolean);
       setLogs(cleaned.slice(-500));
     } catch (e) {
@@ -62,7 +69,7 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Update Win Rate History
+  // Win Rate History
   useEffect(() => {
     if (core.recentWinRate !== undefined) {
       setWinRateHistory(prev => {
@@ -72,62 +79,57 @@ export default function TradingBotDashboard() {
     }
   }, [core.recentWinRate]);
 
-  const triggerTraining = async () => {
-    if (!confirm("Trigger manual training cycle?")) return;
-    setIsTraining(true);
-    try {
-      await axios.post(`${ML_BASE}/train`, { source: "dashboard", epochs: 5 }, {
-        headers: { 'x-admin-key': ADMIN_KEY }
-      });
-      alert("✅ Training triggered successfully");
-      setTimeout(fetchMLStatus, 3000);
-    } catch (e) {
-      alert("Training request failed");
-    } finally {
-      setIsTraining(false);
-    }
-  };
-
-  const addFakeData = async () => {
-    if (!confirm("Add 100 fake experiences to replay buffer?")) return;
-    try {
-      await axios.post(`${ML_BASE}/ingest/fake?count=100`, {}, {
-        headers: { 'x-admin-key': ADMIN_KEY }
-      });
-      fetchMLStatus();
-      alert("✅ 100 fake experiences added");
-    } catch {
-      alert("Failed to add fake data");
-    }
-  };
-
+  // Silent Action Handlers (no popups)
   const triggerScan = async () => {
     try {
       await axios.post(`${CORE_BASE}/admin/scan`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
-      alert("✅ Manual SCAN triggered");
-    } catch {
-      alert("Scan failed");
+      showFeedback('success', 'Manual scan triggered');
+    } catch (e) {
+      showFeedback('error', 'Scan failed');
     }
   };
 
   const panicFlat = async () => {
-    if (!confirm("Close ALL positions immediately?")) return;
     try {
       await axios.post(`${CORE_BASE}/admin/hard-flat`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
+      showFeedback('success', 'Panic flat executed — all positions closed');
       fetchCore();
-      alert("✅ Panic flat executed");
-    } catch {
-      alert("Panic Flat failed");
+    } catch (e) {
+      showFeedback('error', 'Panic flat failed');
     }
   };
 
   const resetDD = async () => {
     try {
       await axios.post(`${CORE_BASE}/admin/reset-drawdown`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
+      showFeedback('success', 'Drawdown reset successfully');
       fetchCore();
-      alert("✅ Drawdown reset");
-    } catch {
-      alert("Reset failed");
+    } catch (e) {
+      showFeedback('error', 'Reset failed');
+    }
+  };
+
+  const addFakeData = async () => {
+    try {
+      await axios.post(`${ML_BASE}/ingest/fake?count=100`, {}, {
+        headers: { 'x-admin-key': ADMIN_KEY }
+      });
+      showFeedback('success', '100 fake experiences added to buffer');
+      fetchMLStatus();
+    } catch (e) {
+      showFeedback('error', 'Failed to add fake data');
+    }
+  };
+
+  const triggerTraining = async () => {
+    try {
+      await axios.post(`${ML_BASE}/train`, { source: "dashboard", epochs: 5 }, {
+        headers: { 'x-admin-key': ADMIN_KEY }
+      });
+      showFeedback('success', 'Training cycle triggered');
+      setTimeout(fetchMLStatus, 2000);
+    } catch (e) {
+      showFeedback('error', 'Training request failed');
     }
   };
 
@@ -150,7 +152,7 @@ export default function TradingBotDashboard() {
     };
   }, []);
 
-  // Resize handler
+  // Log resize handler (unchanged)
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setIsResizing(true);
     e.preventDefault();
@@ -182,7 +184,7 @@ export default function TradingBotDashboard() {
     return true;
   });
 
-  const renderWinRateChart = () => { /* unchanged - kept as-is */ 
+  const renderWinRateChart = () => { 
     if (winRateHistory.length < 2) {
       return <div className="text-zinc-500 text-sm py-8 text-center">Collecting win rate data...</div>;
     }
@@ -224,12 +226,22 @@ export default function TradingBotDashboard() {
             <h1 className="text-4xl font-bold flex items-center gap-3">
               <Rocket className="text-emerald-500" /> ALPHASTREAM
             </h1>
-            <p className="text-zinc-500">MAG7 • FABLE-5 v5.9 • Live Intelligence</p>
+            <p className="text-zinc-500">MAG7 • FABLE-5 v6.5 • Live Intelligence</p>
           </div>
           <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-5 py-2.5 rounded-2xl transition">
             <RefreshCw size={20} /> Refresh All
           </button>
         </div>
+
+        {/* Feedback Toast */}
+        {feedback && (
+          <div className={`fixed top-6 right-6 px-6 py-3 rounded-2xl flex items-center gap-3 z-50 shadow-xl ${
+            feedback.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
+          }`}>
+            {feedback.type === 'success' ? <CheckCircle size={20} /> : <XCircle size={20} />}
+            <span>{feedback.message}</span>
+          </div>
+        )}
 
         {/* Controls */}
         <div className="flex flex-wrap gap-3 mb-8">
@@ -245,8 +257,8 @@ export default function TradingBotDashboard() {
           <button onClick={addFakeData} className="bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2 transition">
             <Brain /> Fake Data (100)
           </button>
-          <button onClick={triggerTraining} disabled={isTraining} className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 px-6 py-3 rounded-2xl font-medium flex items-center gap-2 transition">
-            <Play /> {isTraining ? "Training..." : "Trigger Training"}
+          <button onClick={triggerTraining} className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-2xl font-medium flex items-center gap-2 transition">
+            <Play /> Trigger Training
           </button>
         </div>
 
@@ -277,7 +289,7 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
-        {/* Fable-5 + ML Status */}
+        {/* Enhanced Fable-5 + ML Status */}
         <div className="bg-zinc-900 border border-amber-500/30 rounded-3xl p-6 mb-8">
           <h3 className="font-semibold mb-4 flex items-center gap-2 text-amber-400">
             <Target /> FABLE-5 + ML STATUS
@@ -295,15 +307,17 @@ export default function TradingBotDashboard() {
             </div>
             <div>
               <div className="text-zinc-400">Last Trained</div>
-              <div className="text-xl font-mono">{mlStatus.lastTrainedAt ? new Date(mlStatus.lastTrainedAt).toLocaleTimeString() : 'Never'}</div>
+              <div className="text-xl font-mono">
+                {mlStatus.lastTrainedAt ? new Date(mlStatus.lastTrainedAt).toLocaleTimeString() : 'Never'}
+              </div>
             </div>
             <div>
               <div className="text-zinc-400">Exit Buffer</div>
               <div className="text-2xl font-mono">{mlStatus.exitBufferSize || 0}</div>
             </div>
             <div>
-              <div className="text-zinc-400">Distributional</div>
-              <div className="text-xl font-mono text-purple-400">{mlStatus.fable5?.distributional ? 'ENABLED' : 'OFF'}</div>
+              <div className="text-zinc-400">Total Experiences</div>
+              <div className="text-2xl font-mono text-purple-400">{mlStatus.totalExperiences || 0}</div>
             </div>
           </div>
         </div>
