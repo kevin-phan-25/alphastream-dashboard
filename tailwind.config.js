@@ -37,23 +37,28 @@ module.exports = {
       animation: {
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'float': 'float 20s ease-in-out infinite',
-        'glow': 'glow 2s ease-in-out infinite alternate'
+        'glow': 'glow 2s ease-in-out infinite alternate',
+        'fadeIn': 'fadeIn 0.4s ease forwards',
       },
       keyframes: {
         float: {
           '0%, 100%': { transform: 'translateY(0) rotate(0deg)' },
-          '50%': { transform: 'translateY(-30px) rotate(10deg)' }
+          '50%': { transform: 'translateY(-30px) rotate(8deg)' }
         },
         glow: {
-          from: { boxShadow: '0 0 20px rgba(0,255,255,0.3)' },
-          to: { boxShadow: '0 0 40px rgba(0,255,255,0.6)' }
+          from: { boxShadow: '0 0 20px rgba(168, 85, 247, 0.4)' },
+          to: { boxShadow: '0 0 45px rgba(168, 85, 247, 0.8)' }
+        },
+        fadeIn: {
+          from: { opacity: '0', transform: 'translateY(10px)' },
+          to: { opacity: '1', transform: 'translateY(0)' }
         }
       },
       backgroundImage: {
-        grid: 'linear-gradient(to right, rgba(0,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,255,255,0.05) 1px, transparent 1px)'
+        grid: 'linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)'
       },
       backgroundSize: {
-        grid: '50px 50px'
+        grid: '60px 60px'
       }
     },
   },
