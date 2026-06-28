@@ -69,7 +69,6 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Real-time Price Feed (for open positions)
   const fetchLivePrices = async () => {
     if (!core.positions?.length) return;
     try {
@@ -97,7 +96,6 @@ export default function TradingBotDashboard() {
     }
   }, [core.recentWinRate]);
 
-  // Silent Actions
   const triggerAction = async (endpoint: string, successMsg: string) => {
     setActionLoading(endpoint);
     try {
@@ -106,6 +104,7 @@ export default function TradingBotDashboard() {
       });
       showFeedback('success', successMsg);
       fetchCore();
+      fetchMLStatus();
     } catch {
       showFeedback('error', `${successMsg.split(' ')[0]} failed`);
     } finally {
@@ -190,7 +189,7 @@ export default function TradingBotDashboard() {
 
   const filteredLogs = logs.filter(log => {
     if (logFilter === 'all') return true;
-    if (logFilter === 'entry') return log.includes("ENTRY") || log.includes("ATTEMPT");
+    if (logFilter === 'entry') return log.includes("ENTRY") || log.includes("ATTEMPT") || log.includes("SCAN");
     if (logFilter === 'exit') return log.includes("EXIT") || log.includes("CLOSE") || log.includes("PROFIT") || log.includes("STOP");
     if (logFilter === 'error') return log.includes("ERROR") || log.includes("FAIL") || log.includes("WARN");
     return true;
@@ -235,7 +234,7 @@ export default function TradingBotDashboard() {
             <h1 className="text-5xl font-bold flex items-center gap-4">
               <Rocket className="text-emerald-500" /> ALPHASTREAM
             </h1>
-            <p className="text-zinc-400">FABLE-5 • MAG7 Autonomous Trading System</p>
+            <p className="text-zinc-400">FABLE-5 • MAG7 Autonomous Trading System (v6.11)</p>
           </div>
           <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-6 py-3 rounded-2xl transition nuclear-glow">
             <RefreshCw size={20} /> Refresh All
