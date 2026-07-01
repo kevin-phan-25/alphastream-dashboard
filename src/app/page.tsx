@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import {
-  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award, 
+  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award,
   AlertTriangle, Target, Activity, CheckCircle, XCircle, Zap, DollarSign
 } from 'lucide-react';
 
@@ -34,14 +34,15 @@ export default function TradingBotDashboard() {
     return cleaned;
   };
 
+  // ✅ FIXED: Now calls /status instead of /health
   const fetchCore = async () => {
     try {
-      const res = await axios.get(`${CORE_BASE}/health`, {
+      const res = await axios.get(`${CORE_BASE}/status`, {
         headers: { 'x-admin-key': ADMIN_KEY }
       });
       setCore(res.data || {});
     } catch (e) {
-      console.error("Core fetch failed");
+      console.error("Core status fetch failed");
     }
   };
 
@@ -115,7 +116,10 @@ export default function TradingBotDashboard() {
   const triggerScan = () => triggerAction('/admin/scan', 'Manual scan triggered');
   const panicFlat = () => triggerAction('/admin/hard-flat', 'Panic flat executed');
   const resetDD = () => triggerAction('/admin/reset-drawdown', 'Drawdown reset');
-  
+
+  // NEW: Clear Blacklist
+  const clearBlacklist = () => triggerAction('/admin/clear-blacklist', 'Blacklist cleared successfully');
+
   const addFakeData = async () => {
     setActionLoading('fake');
     try {
@@ -159,7 +163,6 @@ export default function TradingBotDashboard() {
       setInterval(fetchActivityLogs, 5000),
       setInterval(fetchLivePrices, 12000)
     ];
-
     return () => intervals.forEach(clearInterval);
   }, []);
 
@@ -176,7 +179,6 @@ export default function TradingBotDashboard() {
       if (newHeight > 200 && newHeight < 720) setLogHeight(newHeight);
     };
     const handleMouseUp = () => setIsResizing(false);
-
     if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
@@ -195,7 +197,7 @@ export default function TradingBotDashboard() {
     return true;
   });
 
-  const renderWinRateChart = () => { 
+  const renderWinRateChart = () => {
     if (winRateHistory.length < 2) {
       return <div className="text-zinc-500 text-sm py-8 text-center">Collecting win rate data...</div>;
     }
@@ -234,7 +236,7 @@ export default function TradingBotDashboard() {
             <h1 className="text-5xl font-bold flex items-center gap-4">
               <Rocket className="text-emerald-500" /> ALPHASTREAM
             </h1>
-            <p className="text-zinc-400">FABLE-5 • MAG7 Autonomous Trading System (v6.11)</p>
+            <p className="text-zinc-400">FABLE-5 • MAG7 Autonomous Trading System</p>
           </div>
           <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-6 py-3 rounded-2xl transition nuclear-glow">
             <RefreshCw size={20} /> Refresh All
@@ -261,6 +263,16 @@ export default function TradingBotDashboard() {
           <button onClick={resetDD} disabled={actionLoading === '/admin/reset-drawdown'} className="bg-amber-600 hover:bg-amber-500 disabled:bg-zinc-700 px-7 py-3.5 rounded-2xl font-medium flex items-center gap-3 transition hover-scale">
             RESET DD
           </button>
+
+          {/* NEW: Clear Blacklist Button */}
+          <button 
+            onClick={clearBlacklist} 
+            disabled={actionLoading === '/admin/clear-blacklist'}
+            className="bg-orange-600 hover:bg-orange-500 disabled:bg-zinc-700 px-7 py-3.5 rounded-2xl font-medium flex items-center gap-3 transition hover-scale"
+          >
+            Clear Blacklist
+          </button>
+
           <button onClick={addFakeData} disabled={actionLoading === 'fake'} className="bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-700 px-7 py-3.5 rounded-2xl font-medium flex items-center gap-3 transition hover-scale">
             <Brain /> Fake Data (100)
           </button>
@@ -340,7 +352,7 @@ export default function TradingBotDashboard() {
           {renderWinRateChart()}
         </div>
 
-        {/* Open Positions with Live Prices */}
+        {/* Open Positions */}
         <div className="glass rounded-3xl p-6 mb-8">
           <h3 className="font-semibold mb-4 flex items-center gap-2">
             OPEN POSITIONS ({core.positions?.length || 0})
@@ -374,7 +386,7 @@ export default function TradingBotDashboard() {
             <p className="text-center text-amber-400 py-12 flex flex-col items-center gap-2">
               <AlertTriangle size={28} />
               No open positions<br/>
-              <span className="text-sm text-zinc-500">Click MANUAL SCAN to force entries</span>
+              <span className="text-sm text-zinc-500">Click MANUAL SCAN or Clear Blacklist</span>
             </p>
           )}
         </div>
