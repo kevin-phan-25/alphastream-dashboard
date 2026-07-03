@@ -114,23 +114,6 @@ export default function TradingBotDashboard() {
   const resetDD = () => triggerAction('/admin/reset-drawdown', 'Drawdown reset');
   const clearBlacklist = () => triggerAction('/admin/clear-blacklist', 'Blacklist cleared');
 
-  const addFakeData = async () => {
-    if (!confirm('Add 100 fake experiences to the production ML buffer?')) return;
-
-    setActionLoading('fake');
-    try {
-      await axios.post(`${ML_BASE}/ingest/fake?count=100`, {}, {
-        headers: { 'x-admin-key': ADMIN_KEY }
-      });
-      showFeedback('success', '100 fake experiences added');
-      fetchMLStatus();
-    } catch {
-      showFeedback('error', 'Failed to add fake data');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   const triggerTraining = async () => {
     setActionLoading('train');
     try {
@@ -267,9 +250,6 @@ export default function TradingBotDashboard() {
           </button>
           <button onClick={clearBlacklist} disabled={actionLoading === '/admin/clear-blacklist'} className="bg-orange-600 hover:bg-orange-500 disabled:bg-zinc-700 px-7 py-3.5 rounded-2xl font-medium flex items-center gap-3 transition">
             Clear Blacklist
-          </button>
-          <button onClick={addFakeData} disabled={actionLoading === 'fake'} className="bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-700 px-7 py-3.5 rounded-2xl font-medium flex items-center gap-3 transition">
-            <Brain /> Add Fake Data (100)
           </button>
           <button onClick={triggerTraining} disabled={actionLoading === 'train'} className="bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 px-7 py-3.5 rounded-2xl font-medium flex items-center gap-3 transition">
             <Play /> Trigger Training
