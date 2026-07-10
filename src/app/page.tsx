@@ -15,24 +15,31 @@ export default function TradingBotDashboard() {
   const [mlStatus, setMlStatus] = useState<any>({});
   const [logs, setLogs] = useState<string[]>([]);
   const [logFilter, setLogFilter] = useState<'all' | 'entry' | 'exit' | 'error'>('all');
-  const [logHeight, setLogHeight] = useState(420);
-  const [isResizing, setIsResizing] = useState(false);
   const [winRateHistory, setWinRateHistory] = useState<number[]>([]);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
 
-  const showFeedback = (type, message) => {
+  const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
     setTimeout(() => setFeedback(null), 4200);
   };
 
-  const cleanLog = (line) => line.replace(/\x1b\[[0-9;]*m/g, '').trim();
+  const cleanLog = (line: string) => line.replace(/\x1b\[[0-9;]*m/g, '').trim();
 
   const fetchCore = async () => {
     try {
       const res = await axios.get(`${CORE_BASE}/status`, { headers: { 'x-admin-key': ADMIN_KEY } });
-      setCore(res.data || {});
+      const data = res.data || {};
+      setCore(data);
+
+      // Auto-update win rate history
+      if (typeof data.recentWinRate === 'number') {
+        setWinRateHistory(prev => {
+          const next = [...prev, data.recentWinRate];
+          return next.length > 20 ? next.slice(-20) : next;
+        });
+      }
     } catch {}
   };
 
@@ -54,7 +61,7 @@ export default function TradingBotDashboard() {
   const fetchLivePrices = useCallback(async () => {
     if (!core.positions?.length) return;
     try {
-      const prices = {};
+      const prices: Record<string, number> = {};
       for (const p of core.positions) {
         try {
           const res = await axios.get(`${CORE_BASE}/price/${p.symbol}`, { headers: { 'x-admin-key': ADMIN_KEY } });
@@ -70,14 +77,16 @@ export default function TradingBotDashboard() {
     fetchCore();
     fetchMLStatus();
     fetchActivityLogs();
+
     const i1 = setInterval(fetchCore, 7000);
     const i2 = setInterval(fetchMLStatus, 8000);
     const i3 = setInterval(fetchActivityLogs, 5000);
     const i4 = setInterval(fetchLivePrices, 10000);
-    return () => [i1,i2,i3,i4].forEach(clearInterval);
+
+    return () => [i1, i2, i3, i4].forEach(clearInterval);
   }, [fetchLivePrices]);
 
-  const triggerAction = async (endpoint, msg, dangerous = false) => {
+  const triggerAction = async (endpoint: string, msg: string, dangerous = false) => {
     if (dangerous && !confirm(`Confirm ${msg}?`)) return;
     setActionLoading(endpoint);
     try {
@@ -104,34 +113,13 @@ export default function TradingBotDashboard() {
     }
   };
 
-  const renderWinRateChart = () => {
-    if (winRateHistory.length < 2) return <div className="text-zinc-500 py-8 text-center">Collecting win rate data...</div>;
-    const max = Math.max(...winRateHistory, 100);
-    const min = Math.min(...winRateHistory, 0);
-    const range = max - min || 1;
-    const points = winRateHistory.map((value, index) => {
-      const x = (index / (winRateHistory.length - 1)) * 100;
-      const y = 100 - ((value - min) / range) * 100;
-      return `${x},${y}`;
-    }).join(" ");
-    return (
-      <div className="relative h-48 w-full">
-        <svg viewBox="0 0 100 100" className="w-full h-full">
-          {[0, 25, 50, 75, 100].map((y, i) => <line key={i} x1="0" y1={y} x2="100" y2={y} stroke="#27272a" strokeWidth="0.5" />)}
-          <polyline fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={points} />
-          {winRateHistory.map((value, index) => {
-            const x = (index / (winRateHistory.length - 1)) * 100;
-            const y = 100 - ((value - min) / range) * 100;
-            return <circle key={index} cx={x} cy={y} r="1.8" fill="#10b981" />;
-          })}
-        </svg>
-      </div>
-    );
-  };
+  // Dynamic training status
+  const isTrainingActive = (mlStatus.entryBufferSize || 0) + (mlStatus.exitBufferSize || 0) > 0;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-7xl mx-auto">
+        {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-5xl font-bold flex items-center gap-4">
@@ -177,15 +165,38 @@ export default function TradingBotDashboard() {
           </div>
         </div>
 
-        {/* Fable-5 ML Status */}
+        {/* FABLE-5 ML Status */}
         <div className="glass rounded-3xl p-6 mb-8">
           <h3 className="font-semibold mb-4 flex items-center gap-2 text-amber-400"><Target /> FABLE-5 + ML STATUS</h3>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-6 text-sm">
-            <div><div className="text-zinc-400">Far-Slope</div><div className="text-xl font-mono text-emerald-400">✓ ACTIVE</div></div>
-            <div><div className="text-zinc-400">Training</div><div className="text-xl font-mono text-amber-400">RUNNING</div></div>
-            <div><div className="text-zinc-400">Entry Buffer</div><div className="text-2xl font-mono">{mlStatus.entryBufferSize || 0}</div></div>
-            <div><div className="text-zinc-400">Exit Buffer</div><div className="text-2xl font-mono">{mlStatus.exitBufferSize || 0}</div></div>
-            <div><div className="text-zinc-400">SumTree</div><div className="text-sm font-mono">E: {mlStatus.sumTreeEntry || 0} / X: {mlStatus.sumTreeExit || 0}</div></div>
+            <div>
+              <div className="text-zinc-400">Far-Slope</div>
+              <div className="text-xl font-mono text-emerald-400">✓ ACTIVE</div>
+            </div>
+            <div>
+              <div className="text-zinc-400">Training</div>
+              <div className={`text-xl font-mono ${isTrainingActive ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                {isTrainingActive ? 'RUNNING' : 'IDLE'}
+              </div>
+            </div>
+            <div>
+              <div className="text-zinc-400">Entry Buffer</div>
+              <div className="text-2xl font-mono">{mlStatus.entryBufferSize || 0}</div>
+            </div>
+            <div>
+              <div className="text-zinc-400">Exit Buffer</div>
+              <div className="text-2xl font-mono">{mlStatus.exitBufferSize || 0}</div>
+            </div>
+            <div>
+              <div className="text-zinc-400">SumTree</div>
+              <div className="text-sm font-mono">E: {mlStatus.sumTreeEntry || 0} / X: {mlStatus.sumTreeExit || 0}</div>
+            </div>
+            <div>
+              <div className="text-zinc-400">Last Trained</div>
+              <div className="text-sm font-mono text-zinc-400">
+                {mlStatus.lastTrainedAt ? new Date(mlStatus.lastTrainedAt).toLocaleTimeString() : 'Never'}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -195,18 +206,27 @@ export default function TradingBotDashboard() {
             <h3 className="font-semibold flex items-center gap-2"><TrendingUp className="text-emerald-400" /> WIN RATE TREND (Last 20)</h3>
             <div className="text-emerald-400 font-mono text-lg">{(core.recentWinRate || 0).toFixed(1)}%</div>
           </div>
-          {/* Win Rate Chart */}
+
           {winRateHistory.length < 2 ? (
             <div className="text-zinc-500 py-8 text-center">Collecting win rate data...</div>
           ) : (
             <div className="relative h-48 w-full">
               <svg viewBox="0 0 100 100" className="w-full h-full">
-                {[0, 25, 50, 75, 100].map((y, i) => <line key={i} x1="0" y1={y} x2="100" y2={y} stroke="#27272a" strokeWidth="0.5" />)}
-                <polyline fill="none" stroke="#10b981" strokeWidth="2.5" points={winRateHistory.map((v, i) => {
-                  const x = (i / (winRateHistory.length - 1)) * 100;
-                  const y = 100 - ((v - Math.min(...winRateHistory)) / (Math.max(...winRateHistory) - Math.min(...winRateHistory) || 1)) * 100;
-                  return `${x},${y}`;
-                }).join(" ")} />
+                {[0, 25, 50, 75, 100].map((y, i) => (
+                  <line key={i} x1="0" y1={y} x2="100" y2={y} stroke="#27272a" strokeWidth="0.5" />
+                ))}
+                <polyline
+                  fill="none"
+                  stroke="#10b981"
+                  strokeWidth="2.5"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  points={winRateHistory.map((v, i) => {
+                    const x = (i / (winRateHistory.length - 1)) * 100;
+                    const y = 100 - ((v - Math.min(...winRateHistory)) / (Math.max(...winRateHistory) - Math.min(...winRateHistory) || 1)) * 100;
+                    return `${x},${y}`;
+                  }).join(" ")}
+                />
               </svg>
             </div>
           )}
@@ -217,7 +237,7 @@ export default function TradingBotDashboard() {
           <h3 className="font-semibold mb-4">OPEN POSITIONS ({core.positionsCount || 0})</h3>
           {core.positions?.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {core.positions.map((p, i) => (
+              {core.positions.map((p: any, i: number) => (
                 <div key={i} className="glass rounded-2xl p-5">
                   <div className="font-mono text-xl">{p.symbol} <span className="text-emerald-400">{p.side?.toUpperCase()}</span></div>
                   <div className="text-sm text-zinc-400">{Math.abs(p.qty)} @ ${Number(p.entry).toFixed(2)}</div>
