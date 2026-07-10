@@ -33,7 +33,6 @@ export default function TradingBotDashboard() {
       const data = res.data || {};
       setCore(data);
 
-      // Auto-update win rate history
       if (typeof data.recentWinRate === 'number') {
         setWinRateHistory(prev => {
           const next = [...prev, data.recentWinRate];
@@ -250,11 +249,15 @@ export default function TradingBotDashboard() {
           )}
         </div>
 
-        {/* Logs */}
+        {/* Logs - FIXED TypeScript Error */}
         <div className="glass rounded-3xl p-6">
           <div className="flex justify-between mb-4">
             <h3 className="font-semibold flex items-center gap-2"><Activity /> ACTIVITY LOGS</h3>
-            <select value={logFilter} onChange={(e) => setLogFilter(e.target.value)} className="bg-zinc-800 px-4 py-2 rounded-xl">
+            <select
+              value={logFilter}
+              onChange={(e) => setLogFilter(e.target.value as 'all' | 'entry' | 'exit' | 'error')}
+              className="bg-zinc-800 px-4 py-2 rounded-xl"
+            >
               <option value="all">All</option>
               <option value="entry">Entry</option>
               <option value="exit">Exit</option>
