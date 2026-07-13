@@ -2,8 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import {
-  Rocket, Shield, RefreshCw, Brain, Play, TrendingUp, Award,
-  AlertTriangle, Target, Activity, CheckCircle, XCircle, Zap, DollarSign
+  Rocket, Shield, RefreshCw, Target, Activity
 } from 'lucide-react';
 
 const CORE_BASE = 'https://alphastream-core-1017433009054.us-east1.run.app';
@@ -19,6 +18,7 @@ export default function TradingBotDashboard() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+  const [coreError, setCoreError] = useState<string | null>(null);
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
@@ -27,34 +27,55 @@ export default function TradingBotDashboard() {
 
   const cleanLog = (line: string) => line.replace(/\x1b\[[0-9;]*m/g, '').trim();
 
+  // ==================== IMPROVED FETCH FUNCTIONS ====================
   const fetchCore = async () => {
     try {
-      const res = await axios.get(`${CORE_BASE}/status`, { headers: { 'x-admin-key': ADMIN_KEY } });
-      const data = res.data || {};
-      setCore(data);
+      const res = await axios.get(`${CORE_BASE}/status`, {
+        headers: { 'x-admin-key': ADMIN_KEY },
+        timeout: 8000
+      });
+      const newData = res.data || {};
 
-      if (typeof data.recentWinRate === 'number') {
-        setWinRateHistory(prev => {
-          const next = [...prev, data.recentWinRate];
-          return next.length > 20 ? next.slice(-20) : next;
-        });
+      // Only update if data actually changed (prevents unnecessary re-renders)
+      if (JSON.stringify(newData) !== JSON.stringify(core)) {
+        setCore(newData);
+
+        if (typeof newData.recentWinRate === 'number') {
+          setWinRateHistory(prev => {
+            const next = [...prev, newData.recentWinRate];
+            return next.length > 20 ? next.slice(-20) : next;
+          });
+        }
       }
-    } catch {}
+      setCoreError(null);
+    } catch (err: any) {
+      setCoreError(`Core service error: ${err.message}`);
+    }
   };
 
   const fetchMLStatus = async () => {
     try {
-      const res = await axios.get(`${ML_BASE}/ml/status`, { headers: { 'x-admin-key': ADMIN_KEY } });
+      const res = await axios.get(`${ML_BASE}/ml/status`, {
+        headers: { 'x-admin-key': ADMIN_KEY },
+        timeout: 8000
+      });
       setMlStatus(res.data || {});
-    } catch {}
+    } catch (err) {
+      // Silent fail is ok for ML status
+    }
   };
 
   const fetchActivityLogs = async () => {
     try {
-      const res = await axios.get(`${CORE_BASE}/admin/logs?limit=700`, { headers: { 'x-admin-key': ADMIN_KEY } });
+      const res = await axios.get(`${CORE_BASE}/admin/logs?limit=700`, {
+        headers: { 'x-admin-key': ADMIN_KEY },
+        timeout: 8000
+      });
       const raw = Array.isArray(res.data?.logs) ? res.data.logs : [];
       setLogs(raw.map(cleanLog).filter(Boolean).slice(-700));
-    } catch {}
+    } catch (err) {
+      // Silent fail is ok
+    }
   };
 
   const fetchLivePrices = useCallback(async () => {
@@ -63,7 +84,10 @@ export default function TradingBotDashboard() {
       const prices: Record<string, number> = {};
       for (const p of core.positions) {
         try {
-          const res = await axios.get(`${CORE_BASE}/price/${p.symbol}`, { headers: { 'x-admin-key': ADMIN_KEY } });
+          const res = await axios.get(`${CORE_BASE}/price/${p.symbol}`, {
+            headers: { 'x-admin-key': ADMIN_KEY },
+            timeout: 5000
+          });
           prices[p.symbol] = res.data.price || 0;
         } catch {}
       }
@@ -71,29 +95,36 @@ export default function TradingBotDashboard() {
     } catch {}
   }, [core.positions]);
 
-  // Polling
+  // ==================== LIGHTER POLLING ====================
   useEffect(() => {
     fetchCore();
     fetchMLStatus();
     fetchActivityLogs();
 
-    const i1 = setInterval(fetchCore, 7000);
-    const i2 = setInterval(fetchMLStatus, 8000);
-    const i3 = setInterval(fetchActivityLogs, 5000);
-    const i4 = setInterval(fetchLivePrices, 10000);
+    const i1 = setInterval(fetchCore, 15000);        // every 15 seconds
+    const i2 = setInterval(fetchMLStatus, 20000);    // every 20 seconds
+    const i3 = setInterval(fetchActivityLogs, 12000); // every 12 seconds
+    const i4 = setInterval(fetchLivePrices, 30000);   // every 30 seconds
 
     return () => [i1, i2, i3, i4].forEach(clearInterval);
   }, [fetchLivePrices]);
 
+  // ==================== ACTIONS ====================
   const triggerAction = async (endpoint: string, msg: string, dangerous = false) => {
     if (dangerous && !confirm(`Confirm ${msg}?`)) return;
+
     setActionLoading(endpoint);
     try {
-      await axios.post(`${CORE_BASE}${endpoint}`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
+      await axios.post(`${CORE_BASE}${endpoint}`, {}, {
+        headers: { 'x-admin-key': ADMIN_KEY },
+        timeout: 15000
+      });
       showFeedback('success', msg);
       fetchCore();
-    } catch {
-      showFeedback('error', 'Failed');
+      fetchActivityLogs();
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || err.message || 'Unknown error';
+      showFeedback('error', `Action failed: ${errorMsg}`);
     } finally {
       setActionLoading(null);
     }
@@ -102,7 +133,10 @@ export default function TradingBotDashboard() {
   const triggerTraining = async () => {
     setActionLoading('train');
     try {
-      await axios.post(`${ML_BASE}/train`, {}, { headers: { 'x-admin-key': ADMIN_KEY } });
+      await axios.post(`${ML_BASE}/train`, {}, {
+        headers: { 'x-admin-key': ADMIN_KEY },
+        timeout: 15000
+      });
       showFeedback('success', 'Training triggered');
       setTimeout(fetchMLStatus, 3000);
     } catch {
@@ -112,12 +146,12 @@ export default function TradingBotDashboard() {
     }
   };
 
-  // Dynamic training status
   const isTrainingActive = (mlStatus.entryBufferSize || 0) + (mlStatus.exitBufferSize || 0) > 0;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white p-6">
       <div className="max-w-7xl mx-auto">
+
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -131,12 +165,26 @@ export default function TradingBotDashboard() {
           </button>
         </div>
 
+        {/* ERROR BANNER - Now visible when Core has problems */}
+        {coreError && (
+          <div className="bg-red-900/70 border border-red-500 text-red-200 px-6 py-4 rounded-2xl mb-6">
+            <div className="font-semibold">⚠️ Core Service Problem</div>
+            <div className="text-sm mt-1">{coreError}</div>
+          </div>
+        )}
+
         {/* Controls */}
         <div className="flex flex-wrap gap-3 mb-8">
-          <button onClick={() => triggerAction('/admin/scan', 'Manual scan triggered')} className="bg-emerald-600 px-7 py-3.5 rounded-2xl font-medium">MANUAL SCAN</button>
-          <button onClick={() => triggerAction('/admin/hard-flat', 'Panic flat executed', true)} className="bg-red-600 px-7 py-3.5 rounded-2xl font-medium">PANIC FLAT</button>
-          <button onClick={() => triggerAction('/admin/clear-blacklist', 'Blacklist cleared')} className="bg-orange-600 px-7 py-3.5 rounded-2xl font-medium">Clear Blacklist</button>
-          <button onClick={triggerTraining} className="bg-blue-600 px-7 py-3.5 rounded-2xl font-medium">Trigger Training</button>
+          <button 
+            onClick={() => triggerAction('/admin/scan', 'Manual scan triggered')} 
+            disabled={!!actionLoading}
+            className="bg-emerald-600 hover:bg-emerald-700 px-7 py-3.5 rounded-2xl font-medium disabled:opacity-50 transition"
+          >
+            MANUAL SCAN
+          </button>
+          <button onClick={() => triggerAction('/admin/hard-flat', 'Panic flat executed', true)} className="bg-red-600 hover:bg-red-700 px-7 py-3.5 rounded-2xl font-medium">PANIC FLAT</button>
+          <button onClick={() => triggerAction('/admin/clear-blacklist', 'Blacklist cleared')} className="bg-orange-600 hover:bg-orange-700 px-7 py-3.5 rounded-2xl font-medium">Clear Blacklist</button>
+          <button onClick={triggerTraining} className="bg-blue-600 hover:bg-blue-700 px-7 py-3.5 rounded-2xl font-medium">Trigger Training</button>
         </div>
 
         {/* Status Cards */}
@@ -168,28 +216,16 @@ export default function TradingBotDashboard() {
         <div className="glass rounded-3xl p-6 mb-8">
           <h3 className="font-semibold mb-4 flex items-center gap-2 text-amber-400"><Target /> FABLE-5 + ML STATUS</h3>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-6 text-sm">
-            <div>
-              <div className="text-zinc-400">Far-Slope</div>
-              <div className="text-xl font-mono text-emerald-400">✓ ACTIVE</div>
-            </div>
+            <div><div className="text-zinc-400">Far-Slope</div><div className="text-xl font-mono text-emerald-400">✓ ACTIVE</div></div>
             <div>
               <div className="text-zinc-400">Training</div>
               <div className={`text-xl font-mono ${isTrainingActive ? 'text-emerald-400' : 'text-zinc-500'}`}>
                 {isTrainingActive ? 'RUNNING' : 'IDLE'}
               </div>
             </div>
-            <div>
-              <div className="text-zinc-400">Entry Buffer</div>
-              <div className="text-2xl font-mono">{mlStatus.entryBufferSize || 0}</div>
-            </div>
-            <div>
-              <div className="text-zinc-400">Exit Buffer</div>
-              <div className="text-2xl font-mono">{mlStatus.exitBufferSize || 0}</div>
-            </div>
-            <div>
-              <div className="text-zinc-400">SumTree</div>
-              <div className="text-sm font-mono">E: {mlStatus.sumTreeEntry || 0} / X: {mlStatus.sumTreeExit || 0}</div>
-            </div>
+            <div><div className="text-zinc-400">Entry Buffer</div><div className="text-2xl font-mono">{mlStatus.entryBufferSize || 0}</div></div>
+            <div><div className="text-zinc-400">Exit Buffer</div><div className="text-2xl font-mono">{mlStatus.exitBufferSize || 0}</div></div>
+            <div><div className="text-zinc-400">SumTree</div><div className="text-sm font-mono">E: {mlStatus.sumTreeEntry || 0} / X: {mlStatus.sumTreeExit || 0}</div></div>
             <div>
               <div className="text-zinc-400">Last Trained</div>
               <div className="text-sm font-mono text-zinc-400">
@@ -202,30 +238,20 @@ export default function TradingBotDashboard() {
         {/* Win Rate Trend */}
         <div className="glass rounded-3xl p-6 mb-8">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold flex items-center gap-2"><TrendingUp className="text-emerald-400" /> WIN RATE TREND (Last 20)</h3>
+            <h3 className="font-semibold flex items-center gap-2"><Target /> WIN RATE TREND (Last 20)</h3>
             <div className="text-emerald-400 font-mono text-lg">{(core.recentWinRate || 0).toFixed(1)}%</div>
           </div>
-
           {winRateHistory.length < 2 ? (
             <div className="text-zinc-500 py-8 text-center">Collecting win rate data...</div>
           ) : (
             <div className="relative h-48 w-full">
               <svg viewBox="0 0 100 100" className="w-full h-full">
-                {[0, 25, 50, 75, 100].map((y, i) => (
-                  <line key={i} x1="0" y1={y} x2="100" y2={y} stroke="#27272a" strokeWidth="0.5" />
-                ))}
-                <polyline
-                  fill="none"
-                  stroke="#10b981"
-                  strokeWidth="2.5"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  points={winRateHistory.map((v, i) => {
-                    const x = (i / (winRateHistory.length - 1)) * 100;
-                    const y = 100 - ((v - Math.min(...winRateHistory)) / (Math.max(...winRateHistory) - Math.min(...winRateHistory) || 1)) * 100;
-                    return `${x},${y}`;
-                  }).join(" ")}
-                />
+                {[0, 25, 50, 75, 100].map((y, i) => <line key={i} x1="0" y1={y} x2="100" y2={y} stroke="#27272a" strokeWidth="0.5" />)}
+                <polyline fill="none" stroke="#10b981" strokeWidth="2.5" points={winRateHistory.map((v, i) => {
+                  const x = (i / (winRateHistory.length - 1)) * 100;
+                  const y = 100 - ((v - Math.min(...winRateHistory)) / (Math.max(...winRateHistory) - Math.min(...winRateHistory) || 1)) * 100;
+                  return `${x},${y}`;
+                }).join(" ")} />
               </svg>
             </div>
           )}
@@ -239,7 +265,7 @@ export default function TradingBotDashboard() {
               {core.positions.map((p: any, i: number) => (
                 <div key={i} className="glass rounded-2xl p-5">
                   <div className="font-mono text-xl">{p.symbol} <span className="text-emerald-400">{p.side?.toUpperCase()}</span></div>
-                  <div className="text-sm text-zinc-400">{Math.abs(p.qty)} @ ${Number(p.entry).toFixed(2)}</div>
+                  <div className="text-sm text-zinc-400">{Math.abs(p.qty)} @ ${Number(p.entry || 0).toFixed(2)}</div>
                   {livePrices[p.symbol] && <div className="text-sm mt-2">Live: ${livePrices[p.symbol].toFixed(2)}</div>}
                 </div>
               ))}
@@ -249,15 +275,11 @@ export default function TradingBotDashboard() {
           )}
         </div>
 
-        {/* Logs - FIXED TypeScript Error */}
+        {/* Logs */}
         <div className="glass rounded-3xl p-6">
           <div className="flex justify-between mb-4">
             <h3 className="font-semibold flex items-center gap-2"><Activity /> ACTIVITY LOGS</h3>
-            <select
-              value={logFilter}
-              onChange={(e) => setLogFilter(e.target.value as 'all' | 'entry' | 'exit' | 'error')}
-              className="bg-zinc-800 px-4 py-2 rounded-xl"
-            >
+            <select value={logFilter} onChange={(e) => setLogFilter(e.target.value as any)} className="bg-zinc-800 px-4 py-2 rounded-xl">
               <option value="all">All</option>
               <option value="entry">Entry</option>
               <option value="exit">Exit</option>
@@ -272,6 +294,7 @@ export default function TradingBotDashboard() {
             )}
           </div>
         </div>
+
       </div>
     </div>
   );
