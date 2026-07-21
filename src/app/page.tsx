@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import {
   Rocket, Shield, RefreshCw, Target, Activity, AlertTriangle, TrendingUp,
@@ -28,6 +28,9 @@ export default function TradingBotDashboard() {
   const [confusionMatrix, setConfusionMatrix] = useState<number[][]>([[0,0],[0,0]]);
   const [shapValues, setShapValues] = useState<Array<{feature: string, value: number}>>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [autoScroll, setAutoScroll] = useState(true);
+
+  const logsContainerRef = useRef<HTMLDivElement>(null);
 
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
@@ -35,6 +38,13 @@ export default function TradingBotDashboard() {
   };
 
   const cleanLog = (line: string) => line.replace(/\x1b\[[0-9;]*m/g, '').trim();
+
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    if (autoScroll && logsContainerRef.current) {
+      logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight;
+    }
+  }, [logs, autoScroll]);
 
   // ==================== FETCH FUNCTIONS ====================
   const fetchCore = async () => {
@@ -431,18 +441,24 @@ export default function TradingBotDashboard() {
           )}
         </div>
 
-        {/* Logs */}
+        {/* Logs with Auto-Scroll Toggle */}
         <div className="glass rounded-3xl p-6">
-          <div className="flex justify-between mb-4">
+          <div className="flex justify-between mb-4 items-center">
             <h3 className="font-semibold flex items-center gap-2"><Activity /> ACTIVITY LOGS</h3>
-            <select value={logFilter} onChange={(e) => setLogFilter(e.target.value as any)} className="bg-zinc-800 px-4 py-2 rounded-xl">
-              <option value="all">All</option>
-              <option value="entry">Entry</option>
-              <option value="exit">Exit</option>
-              <option value="error">Errors</option>
-            </select>
+            <div className="flex items-center gap-4">
+              <select value={logFilter} onChange={(e) => setLogFilter(e.target.value as any)} className="bg-zinc-800 px-4 py-2 rounded-xl">
+                <option value="all">All</option>
+                <option value="entry">Entry</option>
+                <option value="exit">Exit</option>
+                <option value="error">Errors</option>
+              </select>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={autoScroll} onChange={(e) => setAutoScroll(e.target.checked)} className="accent-emerald-500" />
+                Auto-scroll
+              </label>
+            </div>
           </div>
-          <div className="bg-black/60 rounded-2xl p-5 overflow-auto text-sm font-mono h-[420px]">
+          <div ref={logsContainerRef} className="bg-black/60 rounded-2xl p-5 overflow-auto text-sm font-mono h-[420px]">
             {filteredLogs.length === 0 ? (
               <p className="text-center text-zinc-500 py-12">Waiting for activity logs...</p>
             ) : (
