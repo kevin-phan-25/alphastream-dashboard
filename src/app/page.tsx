@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import {
   Rocket, Shield, RefreshCw, Target, Activity, AlertTriangle, TrendingUp,
@@ -29,25 +29,12 @@ export default function TradingBotDashboard() {
   const [shapValues, setShapValues] = useState<Array<{feature: string, value: number}>>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const logsContainerRef = useRef<HTMLDivElement>(null);
-
   const showFeedback = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
     setTimeout(() => setFeedback(null), 4200);
   };
 
   const cleanLog = (line: string) => line.replace(/\x1b\[[0-9;]*m/g, '').trim();
-
-  // Smart auto-scroll: only scroll if user is already at the bottom
-  useEffect(() => {
-    const container = logsContainerRef.current;
-    if (!container) return;
-
-    const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
-    if (isAtBottom) {
-      container.scrollTop = container.scrollHeight;
-    }
-  }, [logs]);
 
   // ==================== FETCH FUNCTIONS ====================
   const fetchCore = async () => {
@@ -444,20 +431,18 @@ export default function TradingBotDashboard() {
           )}
         </div>
 
-        {/* Logs with Smart Auto-Scroll */}
+        {/* Logs (No Auto-Scroll) */}
         <div className="glass rounded-3xl p-6">
-          <div className="flex justify-between mb-4 items-center">
+          <div className="flex justify-between mb-4">
             <h3 className="font-semibold flex items-center gap-2"><Activity /> ACTIVITY LOGS</h3>
-            <div className="flex items-center gap-4">
-              <select value={logFilter} onChange={(e) => setLogFilter(e.target.value as any)} className="bg-zinc-800 px-4 py-2 rounded-xl">
-                <option value="all">All</option>
-                <option value="entry">Entry</option>
-                <option value="exit">Exit</option>
-                <option value="error">Errors</option>
-              </select>
-            </div>
+            <select value={logFilter} onChange={(e) => setLogFilter(e.target.value as any)} className="bg-zinc-800 px-4 py-2 rounded-xl">
+              <option value="all">All</option>
+              <option value="entry">Entry</option>
+              <option value="exit">Exit</option>
+              <option value="error">Errors</option>
+            </select>
           </div>
-          <div ref={logsContainerRef} className="bg-black/60 rounded-2xl p-5 overflow-auto text-sm font-mono h-[420px] scroll-smooth">
+          <div className="bg-black/60 rounded-2xl p-5 overflow-auto text-sm font-mono h-[420px]">
             {filteredLogs.length === 0 ? (
               <p className="text-center text-zinc-500 py-12">Waiting for activity logs...</p>
             ) : (
