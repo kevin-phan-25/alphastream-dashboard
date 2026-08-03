@@ -1,26 +1,22 @@
 /**
- * -----------------------------------------------------------------------------
- * Date: 2026-08-03
- * File: src/types/alphastream.ts
+ * AlphaStream Dashboard Types
  *
- * Description:
- * Shared AlphaStream dashboard TypeScript types.
- *
- * Changes:
- * • Added AlphaStreamStatus interface
- * • Added position types
- * • Added trading state types
- * • Added API response types
- * • Matches Go Core service responses
- * -----------------------------------------------------------------------------
+ * Shared contracts between:
+ * - alphastream-core (Go service)
+ * - dashboard frontend
  */
 
-
 export interface AlphaStreamStatus {
-
   status: string;
 
-  running: boolean;
+  service?: string;
+
+  timestamp?: string;
+
+  uptime?: string;
+
+  version?: string;
+
 
   equity: number;
 
@@ -28,22 +24,32 @@ export interface AlphaStreamStatus {
 
   buyingPower: number;
 
+
   drawdown: number;
 
   winRate: number;
+
 
   positions: number;
 
   maxPositions: number;
 
-  tradesToday?: number;
+
+  mlExperiences: number;
+
+
+  tradingEnabled?: boolean;
+
+  marketOpen?: boolean;
+
 
   lastScan?: string;
 
-  uptime?: string;
+  lastTrade?: string;
 
+
+  error?: string;
 }
-
 
 
 export interface AlphaStreamPosition {
@@ -60,56 +66,52 @@ export interface AlphaStreamPosition {
 
   pnlPercent: number;
 
+  side: "LONG" | "SHORT";
+
 }
 
 
-
-export interface AlphaStreamTrade {
-
-  id?: string;
+export interface AlphaStreamDecision {
 
   symbol: string;
 
-  side: "BUY" | "SELL";
-
-  qty: number;
-
-  price: number;
-
-  timestamp: string;
-
-}
+  action:
+    | "BUY"
+    | "SELL"
+    | "HOLD"
+    | "NONE";
 
 
+  confidence: number;
 
-export interface AlphaStreamLog {
 
-  timestamp: string;
+  reason?: string;
 
-  level: "INFO" | "WARN" | "ERROR";
 
-  message: string;
+  timestamp?: string;
 
 }
 
 
 
-export interface ScanResponse {
+export interface AlphaStreamScanResult {
 
-  success: boolean;
+  scanned: number;
 
-  message?: string;
+  signals: AlphaStreamDecision[];
 
-  signals?: number;
+  timestamp?: string;
 
 }
 
 
 
-export interface ActionResponse {
+export interface AlphaStreamActionResponse {
 
   success: boolean;
 
   message: string;
+
+  timestamp?: string;
 
 }
