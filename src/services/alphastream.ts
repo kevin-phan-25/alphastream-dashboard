@@ -1,137 +1,125 @@
-const CORE_URL =
-  process.env.NEXT_PUBLIC_CORE_URL ||
-  "https://alphastream-core-1017433009054.us-east1.run.app";
+/**
+ * ---------------------------------------------------------
+ * Date: 2026-08-03
+ * File: src/services/alphastream.ts
+ *
+ * Changes:
+ * - Added compatibility aliases for trading components
+ * - Added triggerScan()
+ * - Added triggerHardFlat()
+ * - Preserved existing Core API methods
+ * ---------------------------------------------------------
+ */
+
+import axios from "axios";
 
 
-const ADMIN_KEY =
-  process.env.NEXT_PUBLIC_ADMIN_KEY || "";
+const API_URL =
+  process.env.NEXT_PUBLIC_ALPHASTREAM_API ||
+  "https://alphastream-core.example.com";
 
 
 
-async function request<T>(
-  endpoint: string,
-  options?: RequestInit
-): Promise<T> {
+const client = axios.create({
 
+  baseURL: API_URL,
+
+  headers: {
+    "Content-Type": "application/json",
+  },
+
+});
+
+
+
+
+export async function getStatus() {
 
   const response =
-    await fetch(
-      `${CORE_URL}${endpoint}`,
-      {
-
-        ...options,
+    await client.get("/status");
 
 
-        headers: {
-
-          "Content-Type":
-            "application/json",
-
-
-          "x-admin-key":
-            ADMIN_KEY,
-
-
-          ...(options?.headers || {}),
-
-        },
-
-      }
-    );
-
-
-
-  if (!response.ok) {
-
-    throw new Error(
-      `AlphaStream Core error: ${response.status}`
-    );
-
-  }
-
-
-
-  return response.json();
+  return response.data;
 
 }
 
 
 
 
-// =========================
-// CORE STATUS
-// =========================
-
-export function getStatus() {
-
-  return request<any>(
-    "/status"
-  );
-
-}
-
-
-
-// =========================
-// CORE LOGS
-// =========================
 
 export async function getLogs() {
 
   const response =
-    await request<{
-      logs:string[]
-    }>(
-      "/admin/logs?limit=200"
-    );
+    await client.get("/admin/logs");
 
 
-  return response.logs || [];
+  return response.data;
 
 }
 
 
 
 
-// =========================
-// TRADING ACTIONS
-// =========================
 
-export function scan() {
+export async function scan() {
 
-  return request(
-    "/admin/scan",
-    {
-      method:"POST",
-    }
-  );
+  const response =
+    await client.post("/admin/scan");
+
+
+  return response.data;
 
 }
 
 
 
 
-export function hardFlat() {
 
-  return request(
-    "/admin/hard-flat",
-    {
-      method:"POST",
-    }
-  );
+export async function hardFlat() {
+
+  const response =
+    await client.post("/admin/hard-flat");
+
+
+  return response.data;
 
 }
 
 
 
 
-export function clearBlacklist() {
 
-  return request(
-    "/admin/clear-blacklist",
-    {
-      method:"POST",
-    }
-  );
+export async function health() {
+
+  const response =
+    await client.get("/health");
+
+
+  return response.data;
+
+}
+
+
+
+
+// ---------------------------------------------------------
+// Compatibility exports
+// Used by ActionPanel.tsx
+// ---------------------------------------------------------
+
+
+export async function triggerScan() {
+
+  return scan();
+
+}
+
+
+
+
+
+export async function triggerHardFlat() {
+
+  return hardFlat();
 
 }
