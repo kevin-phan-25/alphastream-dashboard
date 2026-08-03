@@ -2,53 +2,120 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Nuclear Grid Background */
-.bg-grid-white\/5 {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 60px 60px;
+
+:root {
+
+  --background: #000000;
+
+  --foreground: #ffffff;
+
 }
 
-/* Glassmorphism */
-.glass {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+
+* {
+
+  box-sizing: border-box;
+
 }
 
-/* Hover Effects */
-.hover-scale {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.hover-scale:hover {
-  transform: scale(1.04);
+
+html {
+
+  background: var(--background);
+
 }
 
-/* Nuclear Glow Buttons */
-.nuclear-glow {
-  box-shadow: 0 0 25px rgba(168, 85, 247, 0.4);
-}
-.nuclear-glow:hover {
-  box-shadow: 0 0 45px rgba(168, 85, 247, 0.7);
+
+body {
+
+  margin: 0;
+
+  background:
+    radial-gradient(
+      circle at top,
+      rgba(16,185,129,0.08),
+      transparent 35%
+    ),
+    #000000;
+
+  color: var(--foreground);
+
+  min-height:100vh;
+
+  font-family:
+    Inter,
+    Arial,
+    Helvetica,
+    sans-serif;
+
 }
 
-/* Toast Feedback */
-.feedback-toast {
-  animation: slideIn 0.4s ease forwards;
-}
-@keyframes slideIn {
-  from { transform: translateX(120%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+
+
+button {
+
+  transition:
+    all 0.2s ease;
+
 }
 
-/* Log Scrollbar */
-div[style*="overflow-auto"]::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+
+
+::-webkit-scrollbar {
+
+  width:8px;
+
 }
-div[style*="overflow-auto"]::-webkit-scrollbar-thumb {
-  background: #4b5563;
-  border-radius: 3px;
+
+
+::-webkit-scrollbar-track {
+
+  background:#09090b;
+
+}
+
+
+::-webkit-scrollbar-thumb {
+
+  background:#27272a;
+
+  border-radius:999px;
+
+}
+
+
+::-webkit-scrollbar-thumb:hover {
+
+  background:#3f3f46;
+
+}
+
+
+
+@layer components {
+
+
+  .glass {
+
+    @apply
+    bg-zinc-900/70
+    backdrop-blur-xl
+    border
+    border-zinc-800;
+
+  }
+
+
+  .card {
+
+    @apply
+    rounded-2xl
+    p-5
+    bg-zinc-900
+    border
+    border-zinc-800;
+
+  }
+
+
 }
