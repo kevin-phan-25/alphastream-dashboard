@@ -1,113 +1,156 @@
-import { CoreLogs, CoreStatus } from "@/types/alphastream";
-
-
 const CORE_URL =
-process.env.NEXT_PUBLIC_CORE_URL;
+  process.env.NEXT_PUBLIC_CORE_URL ||
+  "https://alphastream-core-1017433009054.us-east1.run.app";
 
 
 const ADMIN_KEY =
-process.env.NEXT_PUBLIC_ADMIN_KEY;
-
-
-
-const headers = {
-
-"x-admin-key":ADMIN_KEY ?? "",
-
-"Content-Type":"application/json"
-
-};
+  process.env.NEXT_PUBLIC_ADMIN_KEY || "";
 
 
 
 async function request<T>(
-endpoint:string,
-options?:RequestInit
+
+  url:string,
+
+  options?:RequestInit
+
 ):Promise<T>{
 
 
-const res = await fetch(
-`${CORE_URL}${endpoint}`,
-{
-...options,
-headers:{
-...headers,
-...(options?.headers || {})
-},
+  const response =
+    await fetch(
 
-cache:"no-store"
+      url,
 
-});
+      {
 
+        ...options,
 
-if(!res.ok){
+        headers:{
 
-throw new Error(
-`${endpoint} failed ${res.status}`
-);
+          "Content-Type":
+            "application/json",
 
-}
+          "x-admin-key":
+            ADMIN_KEY,
 
+          ...(options?.headers || {}),
 
-return res.json();
+        },
 
-}
+      }
+
+    );
 
 
 
-export function getStatus(){
+  if(!response.ok){
 
-return request<CoreStatus>(
-"/status"
-);
+    throw new Error(
+      `API Error ${response.status}`
+    );
 
-}
+  }
 
 
 
-export function getLogs(){
-
-return request<CoreLogs>(
-"/admin/logs"
-);
+  return response.json();
 
 }
 
 
 
-export function scan(){
 
-return request(
-"/admin/scan",
-{
-method:"POST"
-}
-);
-
-}
+export function getCoreStatus(){
 
 
+  return request<any>(
 
-export function hardFlat(){
+    `${CORE_URL}/status`
 
-return request(
-"/admin/hard-flat",
-{
-method:"POST"
-}
-);
+  );
+
 
 }
+
+
+
+export async function getCoreLogs(){
+
+
+  const data =
+    await request<any>(
+
+      `${CORE_URL}/admin/logs?limit=200`
+
+    );
+
+
+
+  return Array.isArray(data.logs)
+
+    ? data.logs
+
+    : [];
+
+}
+
+
+
+
+export function triggerScan(){
+
+
+  return request(
+
+    `${CORE_URL}/admin/scan`,
+
+    {
+
+      method:"POST",
+
+    }
+
+  );
+
+}
+
+
+
+
+export function triggerHardFlat(){
+
+
+  return request(
+
+    `${CORE_URL}/admin/hard-flat`,
+
+    {
+
+      method:"POST",
+
+    }
+
+  );
+
+}
+
 
 
 
 export function clearBlacklist(){
 
-return request(
-"/admin/clear-blacklist",
-{
-method:"POST"
-}
-);
+
+  return request(
+
+    `${CORE_URL}/admin/clear-blacklist`,
+
+    {
+
+      method:"POST",
+
+    }
+
+  );
 
 }
