@@ -1,108 +1,137 @@
 "use client";
 
-
+import { useCallback, useEffect, useState } from "react";
 import {
-useEffect,
-useState
-} from "react";
-
-
-import {
-getStatus,
-getLogs
+  getStatus,
+  getLogs,
 } from "@/services/alphastream";
 
 
-import {
-CoreStatus
-} from "@/types/alphastream";
+export interface AlphaStreamStatus {
+  ok: boolean;
 
+  equity: number;
 
+  peakEquity: number;
 
-export function useAlphaStream(){
+  buyingPower: number;
 
+  positions: number;
 
-const [status,setStatus]=
-useState<CoreStatus|null>(null);
+  positionsCount: number;
 
+  hardFlat: boolean;
 
-const [logs,setLogs]=
-useState<string[]>([]);
+  degraded: boolean;
 
+  winRate: number;
 
-const [error,setError]=
-useState<string|null>(null);
+  drawdownPct: number;
 
+  totalTrades: number;
 
+  lastMag7Sentiment?: number;
 
-async function refresh(){
-
-try{
-
-
-const [
-statusData,
-logsData
-]=await Promise.all([
-
-getStatus(),
-
-getLogs()
-
-]);
-
-
-
-setStatus(statusData);
-
-setLogs(
-logsData.logs || []
-);
-
-
-setError(null);
-
-
-}catch(e:any){
-
-setError(e.message);
-
-}
-
+  version?: string;
 }
 
 
 
-useEffect(()=>{
+export function useAlphaStream() {
+
+  const [status, setStatus] =
+    useState<AlphaStreamStatus | null>(null);
 
 
-refresh();
+  const [logs, setLogs] =
+    useState<string[]>([]);
 
 
-const timer=setInterval(
-refresh,
-10000
-);
+  const [connected, setConnected] =
+    useState(false);
 
 
-return()=>clearInterval(timer);
-
-
-},[]);
+  const [error, setError] =
+    useState<string | null>(null);
 
 
 
-return{
+  const refresh = useCallback(async () => {
 
-status,
+    try {
 
-logs,
+      const [
+        statusResponse,
+        logsResponse
+      ] = await Promise.all([
+        getStatus(),
+        getLogs(),
+      ]);
 
-error,
 
-refresh
+      setStatus(statusResponse);
 
-};
+      setLogs(logsResponse);
 
+      setConnected(true);
+
+      setError(null);
+
+
+    } catch (err: any) {
+
+      console.error(
+        "AlphaStream connection failed:",
+        err
+      );
+
+
+      setConnected(false);
+
+      setError(
+        err.message ||
+        "AlphaStream Core unavailable"
+      );
+
+    }
+
+
+  }, []);
+
+
+
+  useEffect(() => {
+
+    refresh();
+
+
+    const interval =
+      setInterval(
+        refresh,
+        15000
+      );
+
+
+    return () =>
+      clearInterval(interval);
+
+
+  }, [refresh]);
+
+
+
+  return {
+
+    status,
+
+    logs,
+
+    connected,
+
+    error,
+
+    refresh,
+
+  };
 
 }
