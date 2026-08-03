@@ -1,11 +1,6 @@
 /**
- * ---------------------------------------------------------
- * Date: 2026-08-03
- * File: wrangler.jsonc
- *
- * Configured for @cloudflare/next-on-pages
- * (output lives in .vercel/output/static)
- * ---------------------------------------------------------
+ * Cloudflare Pages + @cloudflare/next-on-pages
+ * Build output: .vercel/output/static
  */
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
