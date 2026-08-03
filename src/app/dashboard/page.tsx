@@ -13,7 +13,7 @@ import {
 
 import {
   useAlphastream,
-} from "@/hooks/useAlphastream";
+} from "@/hooks/useAlphaStream";
 
 
 import MetricCard from "@/components/cards/MetricCard";
