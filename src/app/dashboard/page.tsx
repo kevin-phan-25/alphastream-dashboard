@@ -4,10 +4,10 @@
  * File: src/app/dashboard/page.tsx
  *
  * Changes:
- * - Fixed hook import casing
- * - Removed broken component dependencies
- * - Added Phase 1 Core dashboard
- * - Displays live AlphaStream Core status
+ * - Fixed useAlphaStream return mismatch
+ * - Removed unsupported loading property
+ * - Added connected/error state display
+ * - Kept Phase 1 Core dashboard monitoring
  * ---------------------------------------------------------
  */
 
@@ -19,13 +19,15 @@ import {
 } from "@/hooks/useAlphaStream";
 
 
+
 export default function DashboardPage() {
 
 
   const {
     status,
     logs,
-    loading,
+    connected,
+    error,
     refresh,
 
   } = useAlphaStream();
@@ -39,6 +41,7 @@ export default function DashboardPage() {
 
       <div className="flex justify-between items-center mb-8">
 
+
         <div>
 
           <h1 className="text-3xl font-bold">
@@ -50,40 +53,76 @@ export default function DashboardPage() {
             Core Service Monitoring
           </p>
 
+
         </div>
+
 
 
         <button
           onClick={refresh}
-          className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700"
+          className="rounded-lg bg-blue-600 px-4 py-2 hover:bg-blue-700"
         >
           Refresh
         </button>
 
+
       </div>
+
+
+
+      <div className="mb-6">
+
+
+        <span
+          className={
+            connected
+              ? "text-green-400"
+              : "text-red-400"
+          }
+        >
+
+          {connected
+            ? "● Core Connected"
+            : "● Core Offline"
+          }
+
+        </span>
+
+
+        {error && (
+
+          <p className="mt-2 text-red-400">
+            {error}
+          </p>
+
+        )}
+
+
+      </div>
+
 
 
 
       <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
 
 
-        <Metric
+        <MetricCard
           title="Equity"
           value={
-            status?.equity ?? "0"
+            status?.equity ?? 0
           }
         />
 
 
-        <Metric
+        <MetricCard
           title="Positions"
           value={
-            status?.positions ?? "0"
+            status?.positions ?? 0
           }
         />
 
 
-        <Metric
+        <MetricCard
           title="Win Rate"
           value={
             `${status?.winRate ?? 0}%`
@@ -91,7 +130,7 @@ export default function DashboardPage() {
         />
 
 
-        <Metric
+        <MetricCard
           title="Drawdown"
           value={
             `${status?.drawdownPct ?? 0}%`
@@ -103,35 +142,41 @@ export default function DashboardPage() {
 
 
 
-      <section className="mt-8">
+
+      <section className="mt-10">
 
 
-        <h2 className="text-xl mb-4">
+        <h2 className="mb-4 text-xl font-semibold">
           System Logs
         </h2>
 
 
-        <div className="bg-zinc-900 rounded-lg p-4">
 
-          {loading && (
-            <p>
-              Loading...
+        <div className="rounded-xl bg-zinc-900 p-5">
+
+
+          {logs.length === 0 && (
+
+            <p className="text-gray-400">
+              No logs available
             </p>
+
           )}
 
 
-          {!loading &&
-            logs.map(
-              (log,index)=>(
-                <p
-                  key={index}
-                  className="text-sm text-gray-300"
-                >
-                  {log}
-                </p>
-              )
+
+          {logs.map(
+            (log,index)=>(
+
+              <p
+                key={index}
+                className="text-sm text-gray-300"
+              >
+                {log}
+              </p>
+
             )
-          }
+          )}
 
 
         </div>
@@ -148,30 +193,39 @@ export default function DashboardPage() {
 
 
 
-function Metric(
+
+
+function MetricCard(
 {
  title,
  value,
+
 }:{
  title:string;
  value:string|number;
 }
+
 ){
+
 
  return (
 
-  <div className="bg-zinc-900 rounded-xl p-5">
+  <div className="rounded-xl bg-zinc-900 p-5">
 
-    <p className="text-gray-400 text-sm">
+
+    <p className="text-sm text-gray-400">
       {title}
     </p>
 
-    <p className="text-2xl font-bold mt-2">
+
+    <p className="mt-2 text-2xl font-bold">
       {value}
     </p>
+
 
   </div>
 
  );
+
 
 }
