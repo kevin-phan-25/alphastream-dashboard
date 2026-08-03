@@ -1,32 +1,115 @@
-export interface CoreStatus {
-  ok:boolean;
+/**
+ * -----------------------------------------------------------------------------
+ * Date: 2026-08-03
+ * File: src/types/alphastream.ts
+ *
+ * Description:
+ * Shared AlphaStream dashboard TypeScript types.
+ *
+ * Changes:
+ * • Added AlphaStreamStatus interface
+ * • Added position types
+ * • Added trading state types
+ * • Added API response types
+ * • Matches Go Core service responses
+ * -----------------------------------------------------------------------------
+ */
 
-  equity:number;
 
-  peakEquity:number;
+export interface AlphaStreamStatus {
 
-  buyingPower:number;
+  status: string;
 
-  positions:number[];
+  running: boolean;
 
-  positionsCount:number;
+  equity: number;
 
-  hardFlat:boolean;
+  cash: number;
 
-  degraded:boolean;
+  buyingPower: number;
 
-  winRate:number;
+  drawdown: number;
 
-  drawdownPct:number;
+  winRate: number;
 
-  totalTrades:number;
+  positions: number;
 
-  lastMag7Sentiment:number;
+  maxPositions: number;
 
-  version:string;
+  tradesToday?: number;
+
+  lastScan?: string;
+
+  uptime?: string;
+
 }
 
 
-export interface CoreLogs {
-  logs:string[];
+
+export interface AlphaStreamPosition {
+
+  symbol: string;
+
+  qty: number;
+
+  entryPrice: number;
+
+  currentPrice: number;
+
+  pnl: number;
+
+  pnlPercent: number;
+
+}
+
+
+
+export interface AlphaStreamTrade {
+
+  id?: string;
+
+  symbol: string;
+
+  side: "BUY" | "SELL";
+
+  qty: number;
+
+  price: number;
+
+  timestamp: string;
+
+}
+
+
+
+export interface AlphaStreamLog {
+
+  timestamp: string;
+
+  level: "INFO" | "WARN" | "ERROR";
+
+  message: string;
+
+}
+
+
+
+export interface ScanResponse {
+
+  success: boolean;
+
+  message?: string;
+
+  signals?: number;
+
+}
+
+
+
+export interface ActionResponse {
+
+  success: boolean;
+
+  message: string;
+
 }
