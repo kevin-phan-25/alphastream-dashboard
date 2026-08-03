@@ -12,7 +12,7 @@ import {
 
 
 import {
-  useAlphastream,
+  useAlphaStream,
 } from "@/hooks/useAlphaStream";
 
 
