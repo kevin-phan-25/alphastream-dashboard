@@ -1,117 +1,63 @@
 /**
- * AlphaStream Dashboard Types
- *
- * Shared contracts between:
- * - alphastream-core (Go service)
- * - dashboard frontend
+ * AlphaStream shared frontend types
  */
 
 export interface AlphaStreamStatus {
-  status: string;
-
-  service?: string;
-
-  timestamp?: string;
-
-  uptime?: string;
-
-  version?: string;
-
+  ok: boolean;
 
   equity: number;
-
-  cash: number;
-
-  buyingPower: number;
-
+  peakEquity: number;
 
   drawdown: number;
 
-  winRate: number;
+  positionsCount: number;
 
+  hardFlat: boolean;
 
-  positions: number;
-
-  maxPositions: number;
-
-
-  mlExperiences: number;
-
-
-  tradingEnabled?: boolean;
-
-  marketOpen?: boolean;
-
+  tradingEnabled: boolean;
 
   lastScan?: string;
 
-  lastTrade?: string;
+  uptime?: string;
 
-
-  error?: string;
+  message?: string;
 }
 
 
-export interface AlphaStreamPosition {
+export interface AlphaStreamLog {
+  id?: string;
 
+  timestamp: string;
+
+  level: "INFO" | "WARN" | "ERROR";
+
+  message: string;
+}
+
+
+export interface Trade {
+  id?: string;
+
+  symbol: string;
+
+  side: "BUY" | "SELL";
+
+  qty: number;
+
+  price: number;
+
+  timestamp: string;
+}
+
+
+export interface Position {
   symbol: string;
 
   qty: number;
 
-  entryPrice: number;
+  avgEntryPrice: number;
 
-  currentPrice: number;
+  marketValue?: number;
 
-  pnl: number;
-
-  pnlPercent: number;
-
-  side: "LONG" | "SHORT";
-
-}
-
-
-export interface AlphaStreamDecision {
-
-  symbol: string;
-
-  action:
-    | "BUY"
-    | "SELL"
-    | "HOLD"
-    | "NONE";
-
-
-  confidence: number;
-
-
-  reason?: string;
-
-
-  timestamp?: string;
-
-}
-
-
-
-export interface AlphaStreamScanResult {
-
-  scanned: number;
-
-  signals: AlphaStreamDecision[];
-
-  timestamp?: string;
-
-}
-
-
-
-export interface AlphaStreamActionResponse {
-
-  success: boolean;
-
-  message: string;
-
-  timestamp?: string;
-
+  unrealizedPnl?: number;
 }
