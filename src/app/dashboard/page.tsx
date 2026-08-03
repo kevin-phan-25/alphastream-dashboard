@@ -1,14 +1,17 @@
+/**
+ * ---------------------------------------------------------
+ * Date: 2026-08-03
+ * File: src/app/dashboard/page.tsx
+ *
+ * Changes:
+ * - Fixed hook import casing
+ * - Removed broken component dependencies
+ * - Added Phase 1 Core dashboard
+ * - Displays live AlphaStream Core status
+ * ---------------------------------------------------------
+ */
+
 "use client";
-
-
-import {
-  Activity,
-  CheckCircle,
-  Rocket,
-  RefreshCw,
-  ShieldAlert,
-  XCircle,
-} from "lucide-react";
 
 
 import {
@@ -16,320 +19,83 @@ import {
 } from "@/hooks/useAlphaStream";
 
 
-import MetricCard from "@/components/cards/MetricCard";
-
-
-import ActionPanel from "@/components/trading/ActionPanel";
-
-
-import ActivityLogs from "@/components/trading/ActivityLogs";
-
-
-
 export default function DashboardPage() {
 
 
   const {
-
     status,
-
     logs,
-
-    connected,
-
-    error,
-
+    loading,
     refresh,
 
-  } = useAlphastream();
-
+  } = useAlphaStream();
 
 
 
   return (
 
-    <main
-      className="
-      min-h-screen
-      bg-black
-      text-white
-      px-6
-      py-8
-      md:px-10
-      "
-    >
+    <main className="min-h-screen bg-black text-white p-8">
 
 
-      {/* Header */}
-
-      <header
-        className="
-        flex
-        flex-col
-        md:flex-row
-        md:items-center
-        md:justify-between
-        gap-6
-        mb-10
-        "
-      >
-
+      <div className="flex justify-between items-center mb-8">
 
         <div>
 
-
-          <h1
-            className="
-            text-4xl
-            md:text-5xl
-            font-bold
-            flex
-            items-center
-            gap-3
-            "
-          >
-
-            <Rocket
-              className="text-emerald-400"
-              size={42}
-            />
-
-            ALPHASTREAM
-
+          <h1 className="text-3xl font-bold">
+            AlphaStream Dashboard
           </h1>
 
 
-          <p
-            className="
-            text-zinc-500
-            mt-2
-            "
-          >
-
-            Autonomous Trading Operations Dashboard
-
+          <p className="text-gray-400">
+            Core Service Monitoring
           </p>
-
 
         </div>
 
 
-
-
         <button
-
           onClick={refresh}
-
-          className="
-          flex
-          items-center
-          gap-2
-          bg-zinc-800
-          hover:bg-zinc-700
-          px-5
-          py-3
-          rounded-xl
-          "
-
+          className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700"
         >
-
-          <RefreshCw size={18}/>
-
           Refresh
-
         </button>
-
-
-
-      </header>
-
-
-
-
-
-      {/* Connection */}
-
-      <div className="mb-6">
-
-
-        {
-          connected ? (
-
-            <div
-              className="
-              inline-flex
-              items-center
-              gap-2
-              px-4
-              py-2
-              rounded-xl
-              bg-emerald-900/40
-              text-emerald-400
-              "
-            >
-
-              <CheckCircle size={18}/>
-
-              CORE ONLINE
-
-            </div>
-
-
-          ) : (
-
-
-            <div
-              className="
-              inline-flex
-              items-center
-              gap-2
-              px-4
-              py-2
-              rounded-xl
-              bg-red-900/40
-              text-red-400
-              "
-            >
-
-              <XCircle size={18}/>
-
-              CORE OFFLINE
-
-            </div>
-
-
-          )
-        }
-
 
       </div>
 
 
 
+      <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
 
 
-      {
-        error && (
-
-          <div
-            className="
-            mb-6
-            rounded-xl
-            border
-            border-red-500/30
-            bg-red-950
-            px-5
-            py-4
-            text-red-300
-            "
-          >
-
-            {error}
-
-          </div>
-
-        )
-      }
-
-
-
-
-
-      {/* Metrics */}
-
-      <section
-        className="
-        grid
-        grid-cols-1
-        sm:grid-cols-2
-        lg:grid-cols-5
-        gap-5
-        mb-8
-        "
-      >
-
-
-        <MetricCard
-
-          title="EQUITY"
-
+        <Metric
+          title="Equity"
           value={
-            status
-            ?
-            `$${status.equity.toLocaleString(
-              undefined,
-              {
-                maximumFractionDigits:2
-              }
-            )}`
-            :
-            "--"
+            status?.equity ?? "0"
           }
-
         />
 
 
-
-        <MetricCard
-
-          title="DRAWDOWN"
-
+        <Metric
+          title="Positions"
           value={
-            status
-            ?
-            `${status.drawdownPct.toFixed(2)}%`
-            :
-            "--"
+            status?.positions ?? "0"
           }
-
         />
 
 
-
-        <MetricCard
-
-          title="WIN RATE"
-
+        <Metric
+          title="Win Rate"
           value={
-            status
-            ?
-            `${status.winRate.toFixed(1)}%`
-            :
-            "--"
+            `${status?.winRate ?? 0}%`
           }
-
         />
 
 
-
-        <MetricCard
-
-          title="POSITIONS"
-
+        <Metric
+          title="Drawdown"
           value={
-            status
-            ?
-            `${status.positionsCount}/7`
-            :
-            "--"
+            `${status?.drawdownPct ?? 0}%`
           }
-
-        />
-
-
-
-        <MetricCard
-
-          title="TOTAL TRADES"
-
-          value={
-            status
-            ?
-            status.totalTrades
-            :
-            "--"
-          }
-
         />
 
 
@@ -337,130 +103,75 @@ export default function DashboardPage() {
 
 
 
+      <section className="mt-8">
 
 
-
-      {/* System Flags */}
-
-      {
-        status?.hardFlat && (
-
-          <div
-            className="
-            mb-6
-            flex
-            items-center
-            gap-2
-            rounded-xl
-            bg-red-950
-            border
-            border-red-500/30
-            px-5
-            py-3
-            text-red-300
-            "
-          >
-
-            <ShieldAlert size={18}/>
-
-            HARD FLAT ACTIVE
-
-          </div>
-
-        )
-      }
+        <h2 className="text-xl mb-4">
+          System Logs
+        </h2>
 
 
+        <div className="bg-zinc-900 rounded-lg p-4">
+
+          {loading && (
+            <p>
+              Loading...
+            </p>
+          )}
 
 
-      {
-        status?.degraded && (
+          {!loading &&
+            logs.map(
+              (log,index)=>(
+                <p
+                  key={index}
+                  className="text-sm text-gray-300"
+                >
+                  {log}
+                </p>
+              )
+            )
+          }
 
-          <div
-            className="
-            mb-6
-            rounded-xl
-            bg-yellow-950
-            border
-            border-yellow-500/30
-            px-5
-            py-3
-            text-yellow-300
-            "
-          >
-
-            SYSTEM DEGRADED
-
-          </div>
-
-        )
-      }
-
-
-
-
-
-      {/* Actions */}
-
-      <ActionPanel/>
-
-
-
-
-
-      {/* Logs */}
-
-      <section
-        className="
-        mt-8
-        "
-      >
-
-        <div
-          className="
-          flex
-          items-center
-          gap-2
-          mb-4
-          text-zinc-400
-          "
-        >
-
-          <Activity size={18}/>
-
-          LIVE CORE ACTIVITY
 
         </div>
 
 
-        <ActivityLogs
-          logs={logs}
-        />
-
-
       </section>
-
-
-
-
-
-      <footer
-        className="
-        text-center
-        text-xs
-        text-zinc-600
-        mt-10
-        "
-      >
-
-        AlphaStream Core • 2026 Go Trading Engine
-
-      </footer>
-
 
 
     </main>
 
   );
+
+}
+
+
+
+function Metric(
+{
+ title,
+ value,
+}:{
+ title:string;
+ value:string|number;
+}
+){
+
+ return (
+
+  <div className="bg-zinc-900 rounded-xl p-5">
+
+    <p className="text-gray-400 text-sm">
+      {title}
+    </p>
+
+    <p className="text-2xl font-bold mt-2">
+      {value}
+    </p>
+
+  </div>
+
+ );
 
 }
