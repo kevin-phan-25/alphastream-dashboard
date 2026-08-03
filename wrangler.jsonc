@@ -1,0 +1,38 @@
+/**
+ * ---------------------------------------------------------
+ * Date: 2026-08-03
+ * File: wrangler.jsonc
+ *
+ * Changes:
+ * - Added Cloudflare Workers deployment configuration
+ * - Connected OpenNext output
+ * - Enabled Node.js compatibility
+ * - Enabled Cloudflare asset binding
+ * ---------------------------------------------------------
+ */
+
+
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+
+  "name": "alphastream-dashboard",
+
+  "main": ".open-next/worker.js",
+
+  "compatibility_date": "2026-08-03",
+
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+
+  "observability": {
+    "enabled": true
+  }
+}

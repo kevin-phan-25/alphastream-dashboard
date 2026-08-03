@@ -1,31 +1,40 @@
+/**
+ * ---------------------------------------------------------
+ * Date: 2026-08-03
+ * File: next.config.js
+ *
+ * Changes:
+ * - Removed deprecated serverActions flag
+ * - Kept image optimization
+ * - Added Cloudflare compatible configuration
+ * ---------------------------------------------------------
+ */
+
+
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
 
-  reactStrictMode: true,
+
+  reactStrictMode:true,
 
 
-  // Image optimization
+  swcMinify:true,
+
+
   images: {
 
-    remotePatterns: [
+    remotePatterns:[
+
       {
-        protocol: "https",
-        hostname: "**",
+        protocol:"https",
+        hostname:"**",
       },
+
     ],
 
   },
 
-
-  // Development logging
-  logging: {
-
-    fetches: {
-      fullUrl: true,
-    },
-
-  },
 
 };
 
