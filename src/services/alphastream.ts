@@ -2,27 +2,27 @@ import axios from "axios";
 
 import type {
   AlphaStreamStatus,
-  AlphaStreamPosition,
-  AlphaStreamScanResult,
-  AlphaStreamActionResponse,
+  AlphaStreamLog,
+  Trade,
+  Position,
 } from "@/types/alphastream";
 
 
 const API_URL =
   process.env.NEXT_PUBLIC_ALPHASTREAM_API ||
-  "http://localhost:8080";
+  "/api";
 
 
-const api = axios.create({
+const client = axios.create({
   baseURL: API_URL,
-  timeout: 10000,
+  timeout: 5000,
 });
 
 
 
 export async function getStatus(): Promise<AlphaStreamStatus> {
 
-  const response = await api.get("/status");
+  const response = await client.get("/health");
 
   return response.data;
 
@@ -30,58 +30,46 @@ export async function getStatus(): Promise<AlphaStreamStatus> {
 
 
 
-export async function getPositions(): Promise<AlphaStreamPosition[]> {
+export async function getLogs(): Promise<AlphaStreamLog[]> {
 
-  const response = await api.get("/positions");
+  const response = await client.get("/metrics");
 
-  return response.data;
-
-}
-
-
-
-export async function getLogs(): Promise<string[]> {
-
-  try {
-
-    const response = await api.get("/logs");
-
-    return response.data.logs ?? [];
-
-  } catch {
-
-    return [];
-
-  }
+  return response.data.logs ?? [];
 
 }
 
 
 
-export async function triggerScan(): Promise<AlphaStreamScanResult> {
+export async function getPositions(): Promise<Position[]> {
 
-  const response = await api.post("/admin/scan");
+  const response = await client.get("/positions");
 
-  return response.data;
-
-}
-
-
-
-export async function triggerHardFlat(): Promise<AlphaStreamActionResponse> {
-
-  const response = await api.post("/admin/hard-flat");
-
-  return response.data;
+  return response.data.positions ?? [];
 
 }
 
 
 
-export async function clearBlacklist(): Promise<AlphaStreamActionResponse> {
+export async function getTrades(): Promise<Trade[]> {
 
-  const response = await api.post("/admin/clear-blacklist");
+  const response = await client.get("/trades");
 
-  return response.data;
+  return response.data.trades ?? [];
+
+}
+
+
+
+export async function triggerHardFlat(): Promise<void> {
+
+  await client.post("/admin/hard-flat");
+
+}
+
+
+
+export async function clearBlacklist(): Promise<void> {
+
+  await client.post("/admin/clear-blacklist");
 
 }
