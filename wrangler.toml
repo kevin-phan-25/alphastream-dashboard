@@ -1,0 +1,15 @@
+# =====================================================
+# Date: 2026-08-03
+# File: wrangler.toml
+#
+# Changes:
+# - Added Cloudflare Workers configuration
+# - Enables Next.js deployment through Cloudflare Pages
+# =====================================================
+
+name = "alphastream-dashboard"
+compatibility_date = "2026-08-03"
+
+compatibility_flags = [
+  "nodejs_compat"
+]
