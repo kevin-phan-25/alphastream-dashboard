@@ -1,68 +1,45 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+
+import { useEffect, useState } from "react";
+
+
 import {
   getStatus,
   getLogs,
 } from "@/services/alphastream";
 
 
-export interface AlphaStreamStatus {
-  ok: boolean;
-
-  equity: number;
-
-  peakEquity: number;
-
-  buyingPower: number;
-
-  positions: number;
-
-  positionsCount: number;
-
-  hardFlat: boolean;
-
-  degraded: boolean;
-
-  winRate: number;
-
-  drawdownPct: number;
-
-  totalTrades: number;
-
-  lastMag7Sentiment?: number;
-
-  version?: string;
-}
+import type {
+  AlphaStreamStatus,
+  AlphaStreamLog,
+} from "@/types/alphastream";
 
 
 
 export function useAlphaStream() {
 
-  const [status, setStatus] =
+
+  const [status,setStatus] =
     useState<AlphaStreamStatus | null>(null);
 
 
-  const [logs, setLogs] =
-    useState<string[]>([]);
+  const [logs,setLogs] =
+    useState<AlphaStreamLog[]>([]);
 
 
-  const [connected, setConnected] =
-    useState(false);
-
-
-  const [error, setError] =
-    useState<string | null>(null);
+  const [loading,setLoading] =
+    useState(true);
 
 
 
-  const refresh = useCallback(async () => {
+  async function refresh(){
 
     try {
 
       const [
         statusResponse,
-        logsResponse
+        logsResponse,
       ] = await Promise.all([
         getStatus(),
         getLogs(),
@@ -73,50 +50,30 @@ export function useAlphaStream() {
 
       setLogs(logsResponse);
 
-      setConnected(true);
 
-      setError(null);
+    } finally {
 
-
-    } catch (err: any) {
-
-      console.error(
-        "AlphaStream connection failed:",
-        err
-      );
-
-
-      setConnected(false);
-
-      setError(
-        err.message ||
-        "AlphaStream Core unavailable"
-      );
+      setLoading(false);
 
     }
 
-
-  }, []);
-
+  }
 
 
-  useEffect(() => {
+
+  useEffect(()=>{
 
     refresh();
 
 
-    const interval =
-      setInterval(
-        refresh,
-        15000
-      );
+    const timer =
+      setInterval(refresh,10000);
 
 
-    return () =>
-      clearInterval(interval);
+    return ()=>clearInterval(timer);
 
 
-  }, [refresh]);
+  },[]);
 
 
 
@@ -126,9 +83,7 @@ export function useAlphaStream() {
 
     logs,
 
-    connected,
-
-    error,
+    loading,
 
     refresh,
 
