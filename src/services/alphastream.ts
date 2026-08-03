@@ -9,45 +9,42 @@ const ADMIN_KEY =
 
 
 async function request<T>(
-
-  url:string,
-
-  options?:RequestInit
-
-):Promise<T>{
+  endpoint: string,
+  options?: RequestInit
+): Promise<T> {
 
 
   const response =
     await fetch(
-
-      url,
-
+      `${CORE_URL}${endpoint}`,
       {
 
         ...options,
 
-        headers:{
+
+        headers: {
 
           "Content-Type":
             "application/json",
 
+
           "x-admin-key":
             ADMIN_KEY,
+
 
           ...(options?.headers || {}),
 
         },
 
       }
-
     );
 
 
 
-  if(!response.ok){
+  if (!response.ok) {
 
     throw new Error(
-      `API Error ${response.status}`
+      `AlphaStream Core error: ${response.status}`
     );
 
   }
@@ -61,56 +58,52 @@ async function request<T>(
 
 
 
-export function getCoreStatus(){
+// =========================
+// CORE STATUS
+// =========================
 
+export function getStatus() {
 
   return request<any>(
-
-    `${CORE_URL}/status`
-
+    "/status"
   );
-
 
 }
 
 
 
-export async function getCoreLogs(){
+// =========================
+// CORE LOGS
+// =========================
 
+export async function getLogs() {
 
-  const data =
-    await request<any>(
-
-      `${CORE_URL}/admin/logs?limit=200`
-
+  const response =
+    await request<{
+      logs:string[]
+    }>(
+      "/admin/logs?limit=200"
     );
 
 
-
-  return Array.isArray(data.logs)
-
-    ? data.logs
-
-    : [];
+  return response.logs || [];
 
 }
 
 
 
 
-export function triggerScan(){
+// =========================
+// TRADING ACTIONS
+// =========================
 
+export function scan() {
 
   return request(
-
-    `${CORE_URL}/admin/scan`,
-
+    "/admin/scan",
     {
-
       method:"POST",
-
     }
-
   );
 
 }
@@ -118,19 +111,13 @@ export function triggerScan(){
 
 
 
-export function triggerHardFlat(){
-
+export function hardFlat() {
 
   return request(
-
-    `${CORE_URL}/admin/hard-flat`,
-
+    "/admin/hard-flat",
     {
-
       method:"POST",
-
     }
-
   );
 
 }
@@ -138,19 +125,13 @@ export function triggerHardFlat(){
 
 
 
-export function clearBlacklist(){
-
+export function clearBlacklist() {
 
   return request(
-
-    `${CORE_URL}/admin/clear-blacklist`,
-
+    "/admin/clear-blacklist",
     {
-
       method:"POST",
-
     }
-
   );
 
 }
