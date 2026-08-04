@@ -1,13 +1,23 @@
 /**
  * Cloudflare Pages + @cloudflare/next-on-pages
- * Build output: .vercel/output/static
+ *
+ * Build output:
+ * .vercel/output/static
  */
+
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
+
   "name": "alphastream-dashboard",
+
   "compatibility_date": "2026-08-03",
-  "compatibility_flags": ["nodejs_compat"],
+
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+
   "pages_build_output_dir": ".vercel/output/static",
+
   "observability": {
     "enabled": true
   }

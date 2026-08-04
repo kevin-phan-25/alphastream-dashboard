@@ -1,94 +1,192 @@
-/**
- * File: src/hooks/useAlphaStream.ts
- * AlphaStream dashboard data hook.
- */
-
 "use client";
 
-import { useEffect, useState } from "react";
 
 import {
-  getStatus,
-  getLogs,
-  getPositions,
-  getTrades,
+ useEffect,
+ useState,
+} from "react";
+
+
+import {
+
+ getHealth,
+
+ getStatus,
+
+ getMetrics,
+
+ getPositions,
+
+ getTrades,
+
+ getLogs,
+
 } from "@/services/alphastream";
 
-import type {
-  AlphaStreamStatus,
-  AlphaStreamLog,
-  Position,
-  Trade,
-} from "@/types/alphastream";
 
-export function useAlphaStream() {
-  const [status, setStatus] = useState<AlphaStreamStatus | null>(null);
-  const [logs, setLogs] = useState<AlphaStreamLog[]>([]);
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [trades, setTrades] = useState<Trade[]>([]);
 
-  const [loading, setLoading] = useState(true);
-  const [connected, setConnected] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  async function refresh() {
-    try {
-      setError(null);
+export function useAlphaStream(){
 
-      const [statusResponse, logsResponse, positionsResponse, tradesResponse] =
-        await Promise.all([
-          getStatus(),
-          getLogs(),
-          getPositions(),
-          getTrades(),
-        ]);
 
-      const normalizedStatus: AlphaStreamStatus = {
-        ok: statusResponse.ok ?? true,
-        equity: statusResponse.equity ?? 0,
-        peakEquity:
-          statusResponse.peakEquity ?? statusResponse.equity ?? 0,
-        positionsCount:
-          statusResponse.positionsCount ??
-          (statusResponse as { positions?: number }).positions ??
-          0,
-        hardFlat: statusResponse.hardFlat ?? false,
-        drawdown: statusResponse.drawdown ?? 0,
-        drawdownPct:
-          statusResponse.drawdownPct ?? statusResponse.drawdown ?? 0,
-        winRate: statusResponse.winRate ?? 0,
-        uptime: statusResponse.uptime ?? 0,
-        tradingEnabled: statusResponse.tradingEnabled ?? true,
-      };
+ const [data,setData]=useState<any>({
 
-      setStatus(normalizedStatus);
-      setLogs(logsResponse ?? []);
-      setPositions(positionsResponse ?? []);
-      setTrades(tradesResponse ?? []);
-      setConnected(true);
-    } catch (err) {
-      console.error("AlphaStream refresh failed:", err);
-      setConnected(false);
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
+  health:null,
+
+  status:null,
+
+  metrics:null,
+
+  positions:null,
+
+  trades:null,
+
+  logs:null,
+
+ });
+
+
+
+ const [error,setError]=useState<string|null>(
+  null
+ );
+
+
+
+
+ async function refresh(){
+
+
+  try{
+
+
+   const [
+
+    health,
+
+    status,
+
+    metrics,
+
+    positions,
+
+    trades,
+
+    logs,
+
+
+   ] = await Promise.all([
+
+
+    getHealth(),
+
+    getStatus(),
+
+    getMetrics(),
+
+    getPositions(),
+
+    getTrades(),
+
+    getLogs(),
+
+
+   ]);
+
+
+
+
+   setData({
+
+    health,
+
+    status,
+
+    metrics,
+
+    positions,
+
+    trades,
+
+    logs,
+
+   });
+
+
+
+   setError(null);
+
+
+
   }
 
-  useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  catch(err:any){
 
-  return {
-    status,
-    logs,
-    positions,
-    trades,
-    loading,
-    connected,
-    error,
-    refresh,
-  };
+
+   console.error(
+
+    "AlphaStream refresh failed:",
+
+    err
+
+   );
+
+
+   setError(
+
+    err?.message ??
+
+    "Unable to connect"
+
+   );
+
+
+  }
+
+
+ }
+
+
+
+
+
+ useEffect(()=>{
+
+
+  refresh();
+
+
+
+  const interval =
+    setInterval(
+
+      refresh,
+
+      30000
+
+    );
+
+
+
+  return()=>clearInterval(interval);
+
+
+
+ },[]);
+
+
+
+
+
+ return {
+
+  ...data,
+
+  error,
+
+  refresh,
+
+ };
+
+
 }
