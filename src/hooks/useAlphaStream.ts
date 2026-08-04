@@ -1,192 +1,227 @@
+/**
+ * ---
+ * File:
+ * src/hooks/useAlphaStream.ts
+ *
+ * AlphaStream dashboard data hook.
+ *
+ * Updates:
+ * - Added strict TypeScript types
+ * - Fixed logs implicit any error
+ * - Added connected state
+ * - Added refresh handling
+ * - Matches Core API response format
+ * ---
+ */
+
 "use client";
 
-
 import {
- useEffect,
- useState,
+  useEffect,
+  useState,
 } from "react";
 
-
 import {
-
- getHealth,
-
- getStatus,
-
- getMetrics,
-
- getPositions,
-
- getTrades,
-
- getLogs,
-
+  getHealth,
+  getStatus,
+  getMetrics,
+  getPositions,
+  getTrades,
+  getLogs,
 } from "@/services/alphastream";
 
 
+export type AlphaStreamLog =
+  | string
+  | {
+      id?: string | number;
+      level?: string;
+      timestamp?: string;
+      message?: string;
+    };
 
 
-export function useAlphaStream(){
+export interface AlphaStreamStatus {
+  ok?: boolean;
+
+  equity?: number;
+
+  peakEquity?: number;
+
+  buyingPower?: number;
+
+  positions?: number;
+
+  positionsCount?: number;
+
+  hardFlat?: boolean;
+
+  degraded?: boolean;
+
+  winRate?: number;
+
+  drawdownPct?: number;
+
+  drawdown?: number;
+
+  totalTrades?: number;
+
+  lastMag7Sentiment?: number;
+
+  version?: string;
+}
 
 
- const [data,setData]=useState<any>({
+interface AlphaStreamData {
 
-  health:null,
+  health: unknown;
 
-  status:null,
+  status: AlphaStreamStatus | null;
 
-  metrics:null,
+  metrics: unknown;
 
-  positions:null,
+  positions: unknown;
 
-  trades:null,
+  trades: unknown;
 
-  logs:null,
+  logs: AlphaStreamLog[];
 
- });
-
-
-
- const [error,setError]=useState<string|null>(
-  null
- );
+}
 
 
+export function useAlphaStream() {
 
 
- async function refresh(){
+  const [data, setData] =
+    useState<AlphaStreamData>({
+      health: null,
+      status: null,
+      metrics: null,
+      positions: null,
+      trades: null,
+      logs: [],
+    });
 
 
-  try{
+  const [connected,setConnected] =
+    useState(false);
 
 
-   const [
-
-    health,
-
-    status,
-
-    metrics,
-
-    positions,
-
-    trades,
-
-    logs,
-
-
-   ] = await Promise.all([
-
-
-    getHealth(),
-
-    getStatus(),
-
-    getMetrics(),
-
-    getPositions(),
-
-    getTrades(),
-
-    getLogs(),
-
-
-   ]);
-
-
-
-
-   setData({
-
-    health,
-
-    status,
-
-    metrics,
-
-    positions,
-
-    trades,
-
-    logs,
-
-   });
+  const [error,setError] =
+    useState<string | null>(null);
 
 
 
-   setError(null);
+  async function refresh() {
+
+    try {
+
+      const [
+        health,
+        status,
+        metrics,
+        positions,
+        trades,
+        logs,
+
+      ] = await Promise.all([
+
+        getHealth(),
+
+        getStatus(),
+
+        getMetrics(),
+
+        getPositions(),
+
+        getTrades(),
+
+        getLogs(),
+
+      ]);
 
 
+
+      setData({
+
+        health,
+
+        status:
+          status as AlphaStreamStatus,
+
+        metrics,
+
+        positions,
+
+        trades,
+
+        logs:
+          Array.isArray(logs)
+            ? logs as AlphaStreamLog[]
+            : [],
+
+      });
+
+
+
+      setConnected(true);
+
+      setError(null);
+
+
+    } catch(err:any) {
+
+
+      console.error(
+        "AlphaStream refresh failed:",
+        err
+      );
+
+
+      setConnected(false);
+
+
+      setError(
+        err?.message ??
+        "Unable to connect"
+      );
+
+
+    }
 
   }
 
-  catch(err:any){
 
 
-   console.error(
+  useEffect(()=>{
 
-    "AlphaStream refresh failed:",
-
-    err
-
-   );
+    refresh();
 
 
-   setError(
-
-    err?.message ??
-
-    "Unable to connect"
-
-   );
+    const interval =
+      setInterval(
+        refresh,
+        30000
+      );
 
 
-  }
+    return ()=>clearInterval(interval);
 
 
- }
+  },[]);
 
 
 
+  return {
 
+    ...data,
 
- useEffect(()=>{
+    connected,
 
+    error,
 
-  refresh();
+    refresh,
 
-
-
-  const interval =
-    setInterval(
-
-      refresh,
-
-      30000
-
-    );
-
-
-
-  return()=>clearInterval(interval);
-
-
-
- },[]);
-
-
-
-
-
- return {
-
-  ...data,
-
-  error,
-
-  refresh,
-
- };
-
+  };
 
 }
