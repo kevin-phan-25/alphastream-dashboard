@@ -5,22 +5,56 @@ const api = axios.create({
   timeout: 10000,
 });
 
-export async function getHealth() {
-  const { data } = await api.get("/health");
-  return data;
+
+/**
+ * Health / status endpoint
+ */
+export async function getStatus() {
+  const response = await api.get("/health");
+
+  return response.data;
 }
 
+
+/**
+ * Metrics endpoint
+ */
 export async function getMetrics() {
-  const { data } = await api.get("/metrics");
-  return data;
+  const response = await api.get("/metrics");
+
+  return response.data;
 }
 
+
+/**
+ * Open positions
+ */
 export async function getPositions() {
-  const { data } = await api.get("/positions");
-  return data;
+  const response = await api.get("/positions");
+
+  return response.data;
 }
 
+
+/**
+ * Trade history
+ */
 export async function getTrades() {
-  const { data } = await api.get("/trades");
-  return data;
+  const response = await api.get("/trades");
+
+  return response.data;
 }
+
+
+/**
+ * Logs placeholder
+ *
+ * Added because dashboard expects this.
+ * Replace later when backend exposes /logs.
+ */
+export async function getLogs() {
+  return [];
+}
+
+
+export default api;
