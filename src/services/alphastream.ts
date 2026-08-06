@@ -1,556 +1,183 @@
-package main
+/**
+ * -------------------------------------------------------------------
+ * File: src/services/alphastream.ts
+ *
+ * Description:
+ * AlphaStream Dashboard API Client
+ *
+ * Changes:
+ * - Cloudflare Pages compatible
+ * - Uses NEXT_PUBLIC_CORE_URL
+ * - Public endpoints call Cloud Run directly
+ * - Admin endpoints go through Next.js API routes
+ * - Strong TypeScript typing
+ * - Improved error handling
+ * -------------------------------------------------------------------
+ */
 
-import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
-
-	"github.com/gorilla/mux"
-
-	"alphastream-core/internal/alpaca"
-	"alphastream-core/internal/config"
-	"alphastream-core/internal/log"
-	"alphastream-core/internal/ml"
-	"alphastream-core/internal/persistence"
-	"alphastream-core/internal/state"
-	"alphastream-core/internal/trading"
-)
+import type {
+  AlphaStreamMetrics,
+  AlphaStreamPosition,
+  AlphaStreamStatus,
+  AlphaStreamTrades,
+  AlphaStreamLogs,
+} from "@/types/alphastream";
 
 // ======================================================
-// JSON RESPONSE HELPER
+// CORE URL
 // ======================================================
 
-func jsonResponse(
-	w http.ResponseWriter,
-	data interface{},
-) {
+const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL ?? "";
 
-	w.Header().Set(
-		"Content-Type",
-		"application/json",
-	)
-
-	_ = json.NewEncoder(w).Encode(data)
+if (!CORE_URL) {
+  console.warn(
+    "NEXT_PUBLIC_CORE_URL is not defined. Dashboard API calls will fail."
+  );
 }
 
 // ======================================================
-// CORS MIDDLEWARE
+// GENERIC FETCH
 // ======================================================
 
-func corsMiddleware(next http.Handler) http.Handler {
+async function apiFetch<T>(url: string): Promise<T> {
+  const response = await fetch(url, {
+    cache: "no-store",
+  });
 
-	return http.HandlerFunc(func(
-		w http.ResponseWriter,
-		r *http.Request,
-	) {
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
 
-		origin := r.Header.Get("Origin")
+    throw new Error(
+      `AlphaStream API ${response.status}: ${
+        body || response.statusText
+      }`
+    );
+  }
 
-		allowedOrigins := map[string]bool{
-			"https://alphastream-dashboard.vercel.app": true,
-			"https://alphastream-dashboard.pages.dev": true,
-			"http://localhost:3000":                    true,
-		}
-
-		if allowedOrigins[origin] {
-
-			w.Header().Set(
-				"Access-Control-Allow-Origin",
-				origin,
-			)
-
-		} else {
-
-			w.Header().Set(
-				"Access-Control-Allow-Origin",
-				"*",
-			)
-		}
-
-		w.Header().Set(
-			"Access-Control-Allow-Methods",
-			"GET,POST,PUT,DELETE,OPTIONS",
-		)
-
-		w.Header().Set(
-			"Access-Control-Allow-Headers",
-			"Content-Type,x-admin-key,Authorization,X-Requested-With",
-		)
-
-		w.Header().Set(
-			"Access-Control-Max-Age",
-			"86400",
-		)
-
-		if r.Method == http.MethodOptions {
-
-			w.WriteHeader(http.StatusNoContent)
-
-			return
-		}
-
-		next.ServeHTTP(w, r)
-
-	})
-}
-
-// ======================================================
-// ADMIN MIDDLEWARE
-// ======================================================
-
-func adminMiddleware(next http.Handler) http.Handler {
-
-	return http.HandlerFunc(func(
-		w http.ResponseWriter,
-		r *http.Request,
-	) {
-
-		if r.Method == http.MethodOptions {
-
-			next.ServeHTTP(w, r)
-
-			return
-		}
-
-		expectedKey := os.Getenv("ADMIN_KEY")
-
-		if expectedKey == "" {
-
-			log.Warn(
-				"ADMIN_KEY not set; rejecting admin request",
-				nil,
-			)
-
-			http.Error(
-				w,
-				"admin endpoints disabled",
-				http.StatusServiceUnavailable,
-			)
-
-			return
-		}
-
-		providedKey := r.Header.Get("x-admin-key")
-
-		if providedKey == "" || providedKey != expectedKey {
-
-			http.Error(
-				w,
-				"unauthorized",
-				http.StatusUnauthorized,
-			)
-
-			return
-		}
-
-		next.ServeHTTP(w, r)
-
-	})
+  return response.json() as Promise<T>;
 }
 
 // ======================================================
 // HEALTH
 // ======================================================
 
-func healthHandler(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-
-	jsonResponse(
-		w,
-		map[string]interface{}{
-			"status":  "ok",
-			"service": "alphastream-core",
-			"time":    time.Now(),
-		},
-	)
+export function getHealth() {
+  return apiFetch<{
+    status: string;
+    service: string;
+    time: string;
+  }>(`${CORE_URL}/health`);
 }
 
 // ======================================================
 // STATUS
 // ======================================================
 
-func statusHandler(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-
-	s := state.Get()
-
-	drawdown := 0.0
-
-	if s.PeakEquity > 0 {
-
-		drawdown =
-			((s.PeakEquity-s.Equity) /
-				s.PeakEquity) * 100
-	}
-
-	jsonResponse(
-		w,
-		map[string]interface{}{
-			"ok":                  true,
-			"equity":              s.Equity,
-			"peakEquity":          s.PeakEquity,
-			"buyingPower":         s.BuyingPower,
-			"positions":           len(s.Positions),
-			"positionsCount":      len(s.Positions),
-			"hardFlat":             s.HardFlatActive,
-			"degraded":             s.DegradedActive,
-			"winRate":              s.RecentWinRate,
-			"drawdownPct":          drawdown,
-			"totalTrades":          s.TotalTrades,
-			"lastMag7Sentiment":    s.LastMag7Sentiment,
-			"version":              "2026-go-core",
-		},
-	)
+export function getStatus() {
+  return apiFetch<AlphaStreamStatus>(
+    `${CORE_URL}/status`
+  );
 }
 
 // ======================================================
-// DASHBOARD METRICS
+// METRICS
 // ======================================================
 
-func metricsHandler(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-
-	s := state.Get()
-
-	drawdown := 0.0
-
-	if s.PeakEquity > 0 {
-
-		drawdown =
-			((s.PeakEquity-s.Equity) /
-				s.PeakEquity) * 100
-	}
-
-	jsonResponse(
-		w,
-		map[string]interface{}{
-			"equity":       s.Equity,
-			"positions":    len(s.Positions),
-			"drawdownPct":  drawdown,
-			"winRate":      s.RecentWinRate,
-			"totalTrades":  s.TotalTrades,
-		},
-	)
+export function getMetrics() {
+  return apiFetch<AlphaStreamMetrics>(
+    `${CORE_URL}/metrics`
+  );
 }
 
 // ======================================================
 // POSITIONS
 // ======================================================
 
-func positionsHandler(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-
-	s := state.Get()
-
-	jsonResponse(
-		w,
-		map[string]interface{}{
-			"positions": s.Positions,
-			"count":     len(s.Positions),
-		},
-	)
+export function getPositions() {
+  return apiFetch<{
+    positions: AlphaStreamPosition[];
+    count: number;
+  }>(`${CORE_URL}/positions`);
 }
 
 // ======================================================
 // TRADES
 // ======================================================
 
-func tradesHandler(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
+export function getTrades() {
+  return apiFetch<AlphaStreamTrades>(
+    `${CORE_URL}/trades`
+  );
+}
 
-	jsonResponse(
-		w,
-		map[string]interface{}{
-			"trades": []interface{}{},
-		},
-	)
+// ======================================================
+// LOGS
+// ======================================================
+//
+// Uses the dashboard API proxy.
+// ADMIN_KEY never reaches the browser.
+//
+
+export function getLogs() {
+  return apiFetch<AlphaStreamLogs>("/api/logs");
 }
 
 // ======================================================
 // ADMIN SCAN
 // ======================================================
 
-func scanHandler(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
+export async function startScan() {
+  const response = await fetch("/api/admin/scan", {
+    method: "POST",
+    cache: "no-store",
+  });
 
-	go trading.ScanForRockets()
+  if (!response.ok) {
+    throw new Error(
+      `Scan failed (${response.status})`
+    );
+  }
 
-	jsonResponse(
-		w,
-		map[string]string{
-			"status": "scan started",
-		},
-	)
+  return response.json();
 }
 
 // ======================================================
 // HARD FLAT
 // ======================================================
 
-func hardFlatHandler(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
+export async function triggerHardFlat() {
+  const response = await fetch("/api/admin/hard-flat", {
+    method: "POST",
+    cache: "no-store",
+  });
 
-	state.Update(
-		func(s *state.State) {
+  if (!response.ok) {
+    throw new Error(
+      `Hard Flat failed (${response.status})`
+    );
+  }
 
-			s.HardFlatActive = true
-
-		},
-	)
-
-	err := alpaca.CloseAllPositions()
-
-	jsonResponse(
-		w,
-		map[string]interface{}{
-			"status": "hard flat triggered",
-			"error":  err,
-		},
-	)
+  return response.json();
 }
 
 // ======================================================
 // CLEAR BLACKLIST
 // ======================================================
 
-func clearBlacklistHandler(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
+export async function clearBlacklist() {
+  const response = await fetch(
+    "/api/admin/clear-blacklist",
+    {
+      method: "POST",
+      cache: "no-store",
+    }
+  );
 
-	jsonResponse(
-		w,
-		map[string]string{
-			"status": "blacklists cleared",
-		},
-	)
+  if (!response.ok) {
+    throw new Error(
+      `Clear blacklist failed (${response.status})`
+    );
+  }
+
+  return response.json();
 }
-
-// ======================================================
-// LOGS
-// ======================================================
-
-func logsHandler(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-
-	jsonResponse(
-		w,
-		map[string]interface{}{
-			"logs": []string{
-				"[INFO] AlphaStream Core started",
-				"[INFO] Trading cycle active",
-				"[INFO] ML connected",
-			},
-		},
-	)
-}
-
-// ======================================================
-// MAIN
-// ======================================================
-
-func main() {
-
-	config.Load()
-
-	log.Init()
-
-	persistence.Init()
-
-	alpaca.Init()
-
-	ml.Init()
-
-	if err := persistence.LoadState(); err != nil {
-
-		log.Warn(
-			"State load failed",
-			err,
-		)
-	}
-
-	router := mux.NewRouter()
-
-	router.Use(
-		corsMiddleware,
-	)
-
-	router.HandleFunc(
-		"/health",
-		healthHandler,
-	).Methods(
-		http.MethodGet,
-		http.MethodOptions,
-	)
-
-	router.HandleFunc(
-		"/status",
-		statusHandler,
-	).Methods(
-		http.MethodGet,
-		http.MethodOptions,
-	)
-
-	router.HandleFunc(
-		"/metrics",
-		metricsHandler,
-	).Methods(
-		http.MethodGet,
-		http.MethodOptions,
-	)
-
-	router.HandleFunc(
-		"/positions",
-		positionsHandler,
-	).Methods(
-		http.MethodGet,
-		http.MethodOptions,
-	)
-
-	router.HandleFunc(
-		"/trades",
-		tradesHandler,
-	).Methods(
-		http.MethodGet,
-		http.MethodOptions,
-	)
-
-	router.HandleFunc(
-		"/",
-		func(
-			w http.ResponseWriter,
-			r *http.Request,
-		) {
-
-			fmt.Fprint(
-				w,
-				"AlphaStream Core is running",
-			)
-
-		},
-	)
-
-	router.Handle(
-		"/admin/scan",
-		adminMiddleware(
-			http.HandlerFunc(scanHandler),
-		),
-	).Methods(
-		http.MethodPost,
-		http.MethodOptions,
-	)
-
-	router.Handle(
-		"/admin/hard-flat",
-		adminMiddleware(
-			http.HandlerFunc(hardFlatHandler),
-		),
-	).Methods(
-		http.MethodPost,
-		http.MethodOptions,
-	)
-
-	router.Handle(
-		"/admin/clear-blacklist",
-		adminMiddleware(
-			http.HandlerFunc(clearBlacklistHandler),
-		),
-	).Methods(
-		http.MethodPost,
-		http.MethodOptions,
-	)
-
-	router.Handle(
-		"/admin/logs",
-		adminMiddleware(
-			http.HandlerFunc(logsHandler),
-		),
-	).Methods(
-		http.MethodGet,
-		http.MethodOptions,
-	)
-
-	go trading.CycleRunner()
-
-	server := &http.Server{
-
-		Addr: fmt.Sprintf(
-			":%d",
-			config.C.Port,
-		),
-
-		Handler: router,
-	}
-
-	go func() {
-
-		stop := make(
-			chan os.Signal,
-			1,
-		)
-
-		signal.Notify(
-			stop,
-			syscall.SIGTERM,
-			syscall.SIGINT,
-		)
-
-		<-stop
-
-		log.Info(
-			"Shutdown requested",
-		)
-
-		ctx, cancel :=
-			context.WithTimeout(
-				context.Background(),
-				15*time.Second,
-			)
-
-		defer cancel()
-
-		_ = server.Shutdown(ctx)
-
-	}()
-
-	log.Info(
-		fmt.Sprintf(
-			"AlphaStream Core running on port %d",
-			config.C.Port,
-		),
-	)
-
-	if err :=
-		server.ListenAndServe();
-
-		err != nil &&
-			err != http.ErrServerClosed {
-
-		log.Fatal(
-			"Server failed",
-			err,
-		)
-	}
-}
-
