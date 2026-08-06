@@ -18,6 +18,10 @@
 
   "pages_build_output_dir": ".vercel/output/static",
 
+  "vars": {
+    "CORE_URL": "https://alphastream-core-1017433009054.us-east1.run.app"
+  },
+
   "observability": {
     "enabled": true
   }

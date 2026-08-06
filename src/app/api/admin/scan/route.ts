@@ -1,95 +1,33 @@
 /**
- * ---
- * File:
- * src/app/api/admin/scan/route.ts
- *
- * Description:
- * Secure AlphaStream Core scan trigger proxy.
- *
- * Changes:
- * - Keeps ADMIN_KEY server-side
- * - Proxies admin scan request to Cloud Run
- * - Prevents exposing credentials in browser
- *
- * ---
+ * Date: 2026-08-06
+ * File: src/app/api/admin/scan/route.ts
  */
 
 
-import { NextResponse } from "next/server";
-
+import { coreFetch } from "@/lib/core";
 
 
 export async function POST() {
 
-  const CORE_URL =
-    process.env.CORE_URL;
 
-
-  const ADMIN_KEY =
-    process.env.ADMIN_KEY;
-
-
-
-  if (!CORE_URL || !ADMIN_KEY) {
-
-    return NextResponse.json(
+  const response =
+    await coreFetch(
+      "/admin/scan",
       {
-        error:
-          "Missing AlphaStream server configuration",
-      },
-      {
-        status:500,
-      }
-    );
-
-  }
-
-
-
-  try {
-
-    const response =
-      await fetch(
-        `${CORE_URL}/admin/scan`,
-        {
-          method:"POST",
-
-          headers:{
-            "x-admin-key":ADMIN_KEY,
-          },
-
-          cache:"no-store",
-        }
-      );
-
-
-
-    const data =
-      await response.json();
-
-
-
-    return NextResponse.json(
-      data,
-      {
-        status:
-          response.status,
+        method:"POST",
       }
     );
 
 
-  } catch(error){
+  const data =
+    await response.json();
 
-    return NextResponse.json(
-      {
-        error:
-          "Failed to connect to AlphaStream Core",
-      },
-      {
-        status:502,
-      }
-    );
 
-  }
+  return Response.json(
+    data,
+    {
+      status: response.status,
+    }
+  );
 
 }

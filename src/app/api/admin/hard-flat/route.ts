@@ -1,95 +1,33 @@
 /**
- * ---
- * File:
- * src/app/api/admin/hard-flat/route.ts
- *
- * Description:
- * Secure AlphaStream emergency flatten proxy.
- *
- * Changes:
- * - Keeps ADMIN_KEY server-side
- * - Sends hard-flat command to Core
- * - Prevents browser access to secrets
- *
- * ---
+ * Date: 2026-08-06
+ * File: src/app/api/admin/scan/route.ts
  */
 
 
-import { NextResponse } from "next/server";
-
+import { coreFetch } from "@/lib/core";
 
 
 export async function POST() {
 
-  const CORE_URL =
-    process.env.CORE_URL;
 
-
-  const ADMIN_KEY =
-    process.env.ADMIN_KEY;
-
-
-
-  if (!CORE_URL || !ADMIN_KEY) {
-
-    return NextResponse.json(
+  const response =
+    await coreFetch(
+      "/admin/scan",
       {
-        error:
-          "Missing AlphaStream server configuration",
-      },
-      {
-        status:500,
-      }
-    );
-
-  }
-
-
-
-  try {
-
-    const response =
-      await fetch(
-        `${CORE_URL}/admin/hard-flat`,
-        {
-          method:"POST",
-
-          headers:{
-            "x-admin-key":ADMIN_KEY,
-          },
-
-          cache:"no-store",
-        }
-      );
-
-
-
-    const data =
-      await response.json();
-
-
-
-    return NextResponse.json(
-      data,
-      {
-        status:
-          response.status,
+        method:"POST",
       }
     );
 
 
-  } catch(error){
+  const data =
+    await response.json();
 
-    return NextResponse.json(
-      {
-        error:
-          "Failed to connect to AlphaStream Core",
-      },
-      {
-        status:502,
-      }
-    );
 
-  }
+  return Response.json(
+    data,
+    {
+      status: response.status,
+    }
+  );
 
 }

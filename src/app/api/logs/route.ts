@@ -1,76 +1,33 @@
 /**
- * ---
- * File:
- * src/app/api/logs/route.ts
- *
- * Description:
- * Secure proxy to AlphaStream Core admin logs.
+ * Date: 2026-08-06
+ * File: src/app/api/logs/route.ts
  *
  * Changes:
- * - Keeps ADMIN_KEY server-side
- * - Proxies Cloud Run admin request
- * - Prevents exposing secrets to browser
- *
- * ---
+ * - Proxy logs request to Cloud Run
+ * - Adds x-admin-key server-side
  */
 
 
-import { NextResponse } from "next/server";
+import { coreFetch } from "@/lib/core";
 
 
 export async function GET() {
 
-  const CORE_URL =
-    process.env.CORE_URL;
-
-
-  const ADMIN_KEY =
-    process.env.ADMIN_KEY;
-
-
-
-  if (!CORE_URL || !ADMIN_KEY) {
-
-    return NextResponse.json(
-      {
-        error:
-          "Missing server configuration",
-      },
-      {
-        status:500,
-      }
-    );
-
-  }
-
-
 
   const response =
-    await fetch(
-      `${CORE_URL}/admin/logs`,
-      {
-        method:"GET",
-
-        headers:{
-          "x-admin-key": ADMIN_KEY,
-        },
-
-        cache:"no-store",
-      }
+    await coreFetch(
+      "/admin/logs"
     );
-
 
 
   const data =
     await response.json();
 
 
-
-  return NextResponse.json(
+  return Response.json(
     data,
     {
-      status:
-        response.status,
+      status: response.status,
     }
   );
 
