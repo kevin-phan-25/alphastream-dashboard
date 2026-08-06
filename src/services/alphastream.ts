@@ -1,183 +1,141 @@
 /**
- * -------------------------------------------------------------------
- * File: src/services/alphastream.ts
+ * ======================================================
+ * File:
+ * src/types/alphastream.ts
  *
  * Description:
- * AlphaStream Dashboard API Client
+ * AlphaStream Dashboard API Types
  *
  * Changes:
- * - Cloudflare Pages compatible
- * - Uses NEXT_PUBLIC_CORE_URL
- * - Public endpoints call Cloud Run directly
- * - Admin endpoints go through Next.js API routes
- * - Strong TypeScript typing
- * - Improved error handling
- * -------------------------------------------------------------------
+ * - Added missing API response types
+ * - Matches Go core JSON responses
+ * - Supports Cloudflare dashboard build
+ * ======================================================
  */
 
-import type {
-  AlphaStreamMetrics,
-  AlphaStreamPosition,
-  AlphaStreamStatus,
-  AlphaStreamTrades,
-  AlphaStreamLogs,
-} from "@/types/alphastream";
-
-// ======================================================
-// CORE URL
-// ======================================================
-
-const CORE_URL = process.env.NEXT_PUBLIC_CORE_URL ?? "";
-
-if (!CORE_URL) {
-  console.warn(
-    "NEXT_PUBLIC_CORE_URL is not defined. Dashboard API calls will fail."
-  );
-}
-
-// ======================================================
-// GENERIC FETCH
-// ======================================================
-
-async function apiFetch<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-
-    throw new Error(
-      `AlphaStream API ${response.status}: ${
-        body || response.statusText
-      }`
-    );
-  }
-
-  return response.json() as Promise<T>;
-}
 
 // ======================================================
 // HEALTH
 // ======================================================
 
-export function getHealth() {
-  return apiFetch<{
-    status: string;
-    service: string;
-    time: string;
-  }>(`${CORE_URL}/health`);
+export interface AlphaStreamHealth {
+  status: string;
+  service: string;
+  time?: string;
 }
+
 
 // ======================================================
 // STATUS
 // ======================================================
 
-export function getStatus() {
-  return apiFetch<AlphaStreamStatus>(
-    `${CORE_URL}/status`
-  );
+export interface AlphaStreamStatus {
+
+  ok: boolean;
+
+  equity: number;
+
+  peakEquity: number;
+
+  buyingPower: number;
+
+  positions: number;
+
+  positionsCount: number;
+
+  hardFlat: boolean;
+
+  degraded: boolean;
+
+  winRate: number;
+
+  drawdownPct: number;
+
+  totalTrades: number;
+
+  lastMag7Sentiment?: number;
+
+  version: string;
+
 }
+
+
 
 // ======================================================
 // METRICS
 // ======================================================
 
-export function getMetrics() {
-  return apiFetch<AlphaStreamMetrics>(
-    `${CORE_URL}/metrics`
-  );
+export interface AlphaStreamMetrics {
+
+  equity: number;
+
+  positions: number;
+
+  drawdownPct: number;
+
+  winRate: number;
+
+  totalTrades: number;
+
 }
+
+
 
 // ======================================================
 // POSITIONS
 // ======================================================
 
-export function getPositions() {
-  return apiFetch<{
-    positions: AlphaStreamPosition[];
-    count: number;
-  }>(`${CORE_URL}/positions`);
+export interface AlphaStreamPosition {
+
+  symbol: string;
+
+  qty: number;
+
+  avgEntryPrice?: number;
+
+  marketValue?: number;
+
+  unrealizedPL?: number;
+
+  unrealizedPLPercent?: number;
+
 }
+
+
 
 // ======================================================
 // TRADES
 // ======================================================
 
-export function getTrades() {
-  return apiFetch<AlphaStreamTrades>(
-    `${CORE_URL}/trades`
-  );
+export interface AlphaStreamTrade {
+
+  symbol?: string;
+
+  side?: string;
+
+  qty?: number;
+
+  price?: number;
+
+  timestamp?: string;
+
 }
+
+
+export interface AlphaStreamTrades {
+
+  trades: AlphaStreamTrade[];
+
+}
+
+
 
 // ======================================================
 // LOGS
 // ======================================================
-//
-// Uses the dashboard API proxy.
-// ADMIN_KEY never reaches the browser.
-//
 
-export function getLogs() {
-  return apiFetch<AlphaStreamLogs>("/api/logs");
-}
+export interface AlphaStreamLogs {
 
-// ======================================================
-// ADMIN SCAN
-// ======================================================
+  logs: string[];
 
-export async function startScan() {
-  const response = await fetch("/api/admin/scan", {
-    method: "POST",
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Scan failed (${response.status})`
-    );
-  }
-
-  return response.json();
-}
-
-// ======================================================
-// HARD FLAT
-// ======================================================
-
-export async function triggerHardFlat() {
-  const response = await fetch("/api/admin/hard-flat", {
-    method: "POST",
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Hard Flat failed (${response.status})`
-    );
-  }
-
-  return response.json();
-}
-
-// ======================================================
-// CLEAR BLACKLIST
-// ======================================================
-
-export async function clearBlacklist() {
-  const response = await fetch(
-    "/api/admin/clear-blacklist",
-    {
-      method: "POST",
-      cache: "no-store",
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      `Clear blacklist failed (${response.status})`
-    );
-  }
-
-  return response.json();
 }
