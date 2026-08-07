@@ -1,18 +1,6 @@
 /**
- * ======================================================
- * File:
- * src/types/alphastream.ts
- *
- * Description:
- * AlphaStream Dashboard API Types
- *
- * Changes:
- * - Added missing API response types
- * - Matches Go core JSON responses
- * - Supports Cloudflare dashboard build
- * ======================================================
+ * AlphaStream shared frontend types
  */
-
 
 // ======================================================
 // HEALTH
@@ -24,118 +12,91 @@ export interface AlphaStreamHealth {
   time?: string;
 }
 
-
 // ======================================================
 // STATUS
 // ======================================================
 
 export interface AlphaStreamStatus {
-
   ok: boolean;
 
   equity: number;
-
   peakEquity: number;
 
-  buyingPower: number;
-
-  positions: number;
+  drawdown: number;
+  drawdownPct?: number;
 
   positionsCount: number;
+  positions?: number;
 
   hardFlat: boolean;
 
-  degraded: boolean;
+  tradingEnabled?: boolean;
 
-  winRate: number;
+  winRate?: number;
 
-  drawdownPct: number;
+  lastScan?: string;
 
-  totalTrades: number;
+  uptime?: string | number;
 
-  lastMag7Sentiment?: number;
-
-  version: string;
-
+  message?: string;
 }
-
-
 
 // ======================================================
 // METRICS
 // ======================================================
 
 export interface AlphaStreamMetrics {
-
   equity: number;
-
   positions: number;
-
   drawdownPct: number;
-
   winRate: number;
-
   totalTrades: number;
-
 }
-
-
-
-// ======================================================
-// POSITIONS
-// ======================================================
-
-export interface AlphaStreamPosition {
-
-  symbol: string;
-
-  qty: number;
-
-  avgEntryPrice?: number;
-
-  marketValue?: number;
-
-  unrealizedPL?: number;
-
-  unrealizedPLPercent?: number;
-
-}
-
-
-
-// ======================================================
-// TRADES
-// ======================================================
-
-export interface AlphaStreamTrade {
-
-  symbol?: string;
-
-  side?: string;
-
-  qty?: number;
-
-  price?: number;
-
-  timestamp?: string;
-
-}
-
-
-export interface AlphaStreamTrades {
-
-  trades: AlphaStreamTrade[];
-
-}
-
-
 
 // ======================================================
 // LOGS
 // ======================================================
 
-export interface AlphaStreamLogs {
-
-  logs: string[];
-
+export interface AlphaStreamLog {
+  id?: string;
+  timestamp: string;
+  level: "INFO" | "WARN" | "ERROR";
+  message: string;
 }
+
+export interface AlphaStreamLogs {
+  logs: string[];
+}
+
+// ======================================================
+// TRADES
+// ======================================================
+
+export interface Trade {
+  id?: string;
+  symbol: string;
+  side: "BUY" | "SELL";
+  qty: number;
+  price: number;
+  timestamp: string;
+}
+
+export type AlphaStreamTrade = Trade;
+
+export interface AlphaStreamTrades {
+  trades: AlphaStreamTrade[];
+}
+
+// ======================================================
+// POSITIONS
+// ======================================================
+
+export interface Position {
+  symbol: string;
+  qty: number;
+  avgEntryPrice: number;
+  marketValue?: number;
+  unrealizedPnl?: number;
+}
+
+export type AlphaStreamPosition = Position;
