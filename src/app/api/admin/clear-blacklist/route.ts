@@ -1,95 +1,32 @@
 /**
- * ---
- * File:
- * src/app/api/admin/clear-blacklist/route.ts
- *
- * Description:
- * Secure AlphaStream blacklist reset proxy.
+ * Date: 2026-08-07
+ * File: src/app/api/admin/clear-blacklist/route.ts
  *
  * Changes:
- * - Keeps ADMIN_KEY server-side
- * - Proxies blacklist clear command
- * - Prevents exposing credentials
- *
- * ---
+ * - Proxies POST to Core /admin/clear-blacklist
+ * - Edge runtime
  */
 
+import { coreFetch } from "@/lib/core";
 
-import { NextResponse } from "next/server";
-
-
+export const runtime = "edge";
 
 export async function POST() {
-
-  const CORE_URL =
-    process.env.CORE_URL;
-
-
-  const ADMIN_KEY =
-    process.env.ADMIN_KEY;
-
-
-
-  if (!CORE_URL || !ADMIN_KEY) {
-
-    return NextResponse.json(
-      {
-        error:
-          "Missing AlphaStream server configuration",
-      },
-      {
-        status:500,
-      }
-    );
-
-  }
-
-
-
   try {
+    const response = await coreFetch("/admin/clear-blacklist", {
+      method: "POST",
+    });
 
-    const response =
-      await fetch(
-        `${CORE_URL}/admin/clear-blacklist`,
-        {
-          method:"POST",
+    const data = await response.json().catch(() => ({}));
 
-          headers:{
-            "x-admin-key":ADMIN_KEY,
-          },
-
-          cache:"no-store",
-        }
-      );
-
-
-
-    const data =
-      await response.json();
-
-
-
-    return NextResponse.json(
-      data,
-      {
-        status:
-          response.status,
-      }
+    return Response.json(data, {
+      status: response.status,
+    });
+  } catch (error) {
+    console.error("Clear-blacklist proxy error:", error);
+    return Response.json(
+      { error: "Failed to clear blacklist on Core" },
+      { status: 502 }
     );
-
-
-  } catch(error){
-
-    return NextResponse.json(
-      {
-        error:
-          "Failed to connect to AlphaStream Core",
-      },
-      {
-        status:502,
-      }
-    );
-
   }
-
 }

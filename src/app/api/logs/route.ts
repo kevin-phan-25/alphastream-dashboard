@@ -1,34 +1,30 @@
 /**
- * Date: 2026-08-06
+ * Date: 2026-08-07
  * File: src/app/api/logs/route.ts
  *
  * Changes:
- * - Proxy logs request to Cloud Run
- * - Adds x-admin-key server-side
+ * - Proxies to Core service
+ * - Edge runtime for Cloudflare Pages
+ * - Clean error handling
  */
-
 
 import { coreFetch } from "@/lib/core";
 
+export const runtime = "edge";
 
 export async function GET() {
+  try {
+    const response = await coreFetch("/admin/logs"); // change to "/logs" if your Core uses that
+    const data = await response.json();
 
-
-  const response =
-    await coreFetch(
-      "/admin/logs"
-    );
-
-
-  const data =
-    await response.json();
-
-
-  return Response.json(
-    data,
-    {
+    return Response.json(data, {
       status: response.status,
-    }
-  );
-
+    });
+  } catch (error) {
+    console.error("Logs proxy error:", error);
+    return Response.json(
+      { error: "Failed to fetch logs from Core" },
+      { status: 502 }
+    );
+  }
 }
