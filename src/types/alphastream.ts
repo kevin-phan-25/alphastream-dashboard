@@ -2,6 +2,10 @@
  * AlphaStream shared frontend types
  */
 
+// ======================================================
+// STATUS
+// ======================================================
+
 export interface AlphaStreamStatus {
   ok: boolean;
 
@@ -12,7 +16,7 @@ export interface AlphaStreamStatus {
   drawdownPct?: number;
 
   positionsCount: number;
-  /** optional compat alias */
+  /** compatibility alias */
   positions?: number;
 
   hardFlat: boolean;
@@ -28,32 +32,88 @@ export interface AlphaStreamStatus {
   message?: string;
 }
 
+// ======================================================
+// METRICS
+// ======================================================
+
+export interface AlphaStreamMetrics {
+  equity: number;
+  peakEquity?: number;
+
+  positions: number;
+
+  drawdown: number;
+  drawdownPct?: number;
+
+  winRate: number;
+
+  totalTrades: number;
+
+  buyingPower?: number;
+}
+
+// ======================================================
+// LOGS
+// ======================================================
+
 export interface AlphaStreamLog {
   id?: string;
+
   timestamp: string;
+
   level: "INFO" | "WARN" | "ERROR";
+
   message: string;
 }
 
+export interface AlphaStreamLogs {
+  logs: AlphaStreamLog[] | string[];
+}
+
+// ======================================================
+// TRADES
+// ======================================================
+
 export interface Trade {
   id?: string;
+
   symbol: string;
+
   side: "BUY" | "SELL";
+
   qty: number;
+
   price: number;
+
   timestamp: string;
 }
 
-/** Alias used by the hook */
+/** Alias used throughout dashboard */
 export type AlphaStreamTrade = Trade;
+
+export interface AlphaStreamTrades {
+  trades: AlphaStreamTrade[];
+}
+
+// ======================================================
+// POSITIONS
+// ======================================================
 
 export interface Position {
   symbol: string;
+
   qty: number;
+
   avgEntryPrice: number;
+
   marketValue?: number;
+
   unrealizedPnl?: number;
+
+  unrealizedPL?: number;
+
+  unrealizedPLPercent?: number;
 }
 
-/** Alias used by the hook */
+/** Alias used throughout dashboard */
 export type AlphaStreamPosition = Position;
