@@ -3,16 +3,18 @@
  * File: src/app/dashboard/page.tsx
  *
  * Changes:
- * - Added ML Service section
- * - Shows buffer sizes + training button
- * - Shows both Core and ML connection status
+ * - Full working dashboard with Core + ML
+ * - Hard Flat / Degraded warning + Clear button
+ * - Start Training button (real)
+ * - Positions + Trades tables
+ * - Connection status for both services
  */
 
 "use client";
 
+import { useState } from "react";
 import { useAlphaStream } from "@/hooks/useAlphaStream";
 import type { AlphaStreamLog } from "@/types/alphastream";
-import { useState } from "react";
 
 export default function DashboardPage() {
   const {
@@ -31,48 +33,122 @@ export default function DashboardPage() {
   } = useAlphaStream();
 
   const [training, setTraining] = useState(false);
+  const [clearingFlat, setClearingFlat] = useState(false);
+  const [scanLoading, setScanLoading] = useState(false);
 
   async function handleTrain() {
     setTraining(true);
     try {
       await startTraining();
-    } catch {
-      // error already logged
+    } catch (err) {
+      console.error("Training failed:", err);
     } finally {
       setTraining(false);
     }
   }
 
+  async function handleClearHardFlat() {
+    setClearingFlat(true);
+    try {
+      const res = await fetch("/api/admin/clear-hard-flat", {
+        method: "POST",
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        throw new Error("Failed to clear hard flat");
+      }
+      await refresh();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setClearingFlat(false);
+    }
+  }
+
+  async function handleScan() {
+    setScanLoading(true);
+    try {
+      await fetch("/api/admin/scan", {
+        method: "POST",
+        cache: "no-store",
+      });
+      // give it a moment then refresh
+      setTimeout(() => refresh(), 1500);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setScanLoading(false);
+    }
+  }
+
+  const hardFlat = status?.hardFlat ?? false;
+  const degraded = status?.degraded ?? false;
+
   return (
-    <main className="min-h-screen bg-black p-8 text-white">
+    <main className="min-h-screen bg-black p-6 text-white md:p-8">
       {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">AlphaStream Dashboard</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            AlphaStream Dashboard
+          </h1>
           <p className="text-gray-400">Core + ML Service Monitoring</p>
         </div>
-        <button
-          onClick={refresh}
-          className="rounded-lg bg-blue-600 px-4 py-2 hover:bg-blue-700 disabled:opacity-50"
-          disabled={loading}
-        >
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleScan}
+            disabled={scanLoading || !connected}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {scanLoading ? "Scanning…" : "Force Scan"}
+          </button>
+
+          <button
+            onClick={refresh}
+            disabled={loading}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       </div>
 
       {/* Connection Status */}
-      <div className="mb-6 flex flex-wrap gap-6">
+      <div className="mb-6 flex flex-wrap items-center gap-6 text-sm">
         <span className={connected ? "text-green-400" : "text-red-400"}>
           {connected ? "● Core Connected" : "● Core Offline"}
         </span>
         <span className={mlConnected ? "text-green-400" : "text-red-400"}>
           {mlConnected ? "● ML Connected" : "● ML Offline"}
         </span>
-        {error && <p className="text-red-400">{error}</p>}
+        {error && <span className="text-red-400">{error}</span>}
       </div>
 
+      {/* Hard Flat / Degraded Warning */}
+      {(hardFlat || degraded) && (
+        <div className="mb-6 rounded-xl border border-red-500/60 bg-red-950/50 p-5">
+          <p className="text-lg font-semibold text-red-400">
+            ⚠️ Trading Halted
+            {hardFlat && " — Hard Flat Active"}
+            {degraded && " — Degraded Mode"}
+          </p>
+          <p className="mt-1 text-sm text-red-300/90">
+            New entries are blocked. Existing positions are still managed.
+            Clear the flag to resume scanning for new trades.
+          </p>
+          <button
+            onClick={handleClearHardFlat}
+            disabled={clearingFlat}
+            className="mt-4 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+          >
+            {clearingFlat ? "Clearing…" : "Clear Hard Flat / Degraded"}
+          </button>
+        </div>
+      )}
+
       {/* Core Metrics */}
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Equity"
           value={formatCurrency(status?.equity ?? metrics?.equity ?? 0)}
@@ -89,34 +165,52 @@ export default function DashboardPage() {
         />
         <MetricCard
           title="Win Rate"
-          value={`${(status?.winRate ?? metrics?.winRate ?? 0).toFixed(1)}%`}
+          value={`${Number(status?.winRate ?? metrics?.winRate ?? 0).toFixed(1)}%`}
         />
         <MetricCard
           title="Drawdown"
-          value={`${(
+          value={`${Number(
             status?.drawdownPct ??
-            status?.drawdown ??
-            metrics?.drawdownPct ??
-            metrics?.drawdown ??
-            0
+              status?.drawdown ??
+              metrics?.drawdownPct ??
+              metrics?.drawdown ??
+              0
           ).toFixed(2)}%`}
+        />
+      </section>
+
+      {/* Extra Core Metrics */}
+      <section className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <MetricCard
+          title="Peak Equity"
+          value={formatCurrency(status?.peakEquity ?? metrics?.peakEquity ?? 0)}
+        />
+        <MetricCard
+          title="Buying Power"
+          value={formatCurrency(
+            status?.buyingPower ?? metrics?.buyingPower ?? 0
+          )}
+        />
+        <MetricCard
+          title="Total Trades"
+          value={status?.totalTrades ?? metrics?.totalTrades ?? trades.length ?? 0}
         />
       </section>
 
       {/* ML Service Section */}
       <section className="mt-10">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-xl font-semibold">ML Service</h2>
           <button
             onClick={handleTrain}
             disabled={training || !mlConnected}
-            className="rounded-lg bg-purple-600 px-4 py-2 text-sm hover:bg-purple-700 disabled:opacity-50"
+            className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
           >
-            {training ? "Starting…" : "Start Training"}
+            {training ? "Training…" : "Start Training"}
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             title="Entry Buffer"
             value={mlStatus?.entryBufferSize ?? 0}
@@ -137,15 +231,15 @@ export default function DashboardPage() {
 
         {mlStatus?.version && (
           <p className="mt-3 text-sm text-gray-400">
-            ML Version: {mlStatus.version} • Last update:{" "}
-            {mlStatus.timestamp
-              ? new Date(mlStatus.timestamp).toLocaleString()
-              : "—"}
+            Version: {mlStatus.version}
+            {mlStatus.timestamp && (
+              <> • Last update: {new Date(mlStatus.timestamp).toLocaleString()}</>
+            )}
           </p>
         )}
       </section>
 
-      {/* Positions */}
+      {/* Open Positions */}
       <section className="mt-10">
         <h2 className="mb-4 text-xl font-semibold">Open Positions</h2>
         <div className="overflow-x-auto rounded-xl bg-zinc-900">
@@ -156,6 +250,7 @@ export default function DashboardPage() {
               <thead className="border-b border-zinc-700 text-gray-400">
                 <tr>
                   <th className="p-4">Symbol</th>
+                  <th className="p-4">Side</th>
                   <th className="p-4">Qty</th>
                   <th className="p-4">Avg Entry</th>
                   <th className="p-4">Market Value</th>
@@ -163,27 +258,29 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {positions.map((pos) => (
-                  <tr key={pos.symbol} className="border-b border-zinc-800">
-                    <td className="p-4 font-medium">{pos.symbol}</td>
-                    <td className="p-4">{pos.qty}</td>
-                    <td className="p-4">{formatCurrency(pos.avgEntryPrice)}</td>
-                    <td className="p-4">
-                      {formatCurrency(pos.marketValue ?? 0)}
-                    </td>
-                    <td
-                      className={`p-4 ${
-                        (pos.unrealizedPnl ?? pos.unrealizedPL ?? 0) >= 0
-                          ? "text-green-400"
-                          : "text-red-400"
-                      }`}
-                    >
-                      {formatCurrency(
-                        pos.unrealizedPnl ?? pos.unrealizedPL ?? 0
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {positions.map((pos) => {
+                  const pnl = pos.unrealizedPnl ?? pos.unrealizedPL ?? 0;
+                  return (
+                    <tr key={pos.symbol} className="border-b border-zinc-800">
+                      <td className="p-4 font-medium">{pos.symbol}</td>
+                      <td className="p-4 capitalize">{pos.side ?? "long"}</td>
+                      <td className="p-4">{pos.qty}</td>
+                      <td className="p-4">
+                        {formatCurrency(pos.avgEntryPrice ?? pos.entry ?? 0)}
+                      </td>
+                      <td className="p-4">
+                        {formatCurrency(pos.marketValue ?? 0)}
+                      </td>
+                      <td
+                        className={`p-4 ${
+                          pnl >= 0 ? "text-green-400" : "text-red-400"
+                        }`}
+                      >
+                        {formatCurrency(pnl)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -195,7 +292,7 @@ export default function DashboardPage() {
         <h2 className="mb-4 text-xl font-semibold">Recent Trades</h2>
         <div className="overflow-x-auto rounded-xl bg-zinc-900">
           {trades.length === 0 ? (
-            <p className="p-5 text-gray-400">No trades yet</p>
+            <p className="p-5 text-gray-400">No closed trades yet</p>
           ) : (
             <table className="w-full text-left text-sm">
               <thead className="border-b border-zinc-700 text-gray-400">
@@ -203,28 +300,38 @@ export default function DashboardPage() {
                   <th className="p-4">Time</th>
                   <th className="p-4">Symbol</th>
                   <th className="p-4">Side</th>
-                  <th className="p-4">Qty</th>
-                  <th className="p-4">Price</th>
+                  <th className="p-4">P&L</th>
+                  <th className="p-4">Exit Reason</th>
                 </tr>
               </thead>
               <tbody>
-                {trades.slice(0, 20).map((t, i) => (
-                  <tr key={t.id ?? i} className="border-b border-zinc-800">
-                    <td className="p-4 text-gray-400">
-                      {new Date(t.timestamp).toLocaleString()}
-                    </td>
-                    <td className="p-4 font-medium">{t.symbol}</td>
-                    <td
-                      className={`p-4 ${
-                        t.side === "BUY" ? "text-green-400" : "text-red-400"
-                      }`}
-                    >
-                      {t.side}
-                    </td>
-                    <td className="p-4">{t.qty}</td>
-                    <td className="p-4">{formatCurrency(t.price)}</td>
-                  </tr>
-                ))}
+                {trades
+                  .slice()
+                  .reverse()
+                  .slice(0, 30)
+                  .map((t: any, i: number) => (
+                    <tr key={t.id ?? i} className="border-b border-zinc-800">
+                      <td className="p-4 text-gray-400">
+                        {t.timestamp
+                          ? new Date(t.timestamp).toLocaleString()
+                          : "—"}
+                      </td>
+                      <td className="p-4 font-medium">{t.symbol}</td>
+                      <td className="p-4 capitalize">{t.side ?? "—"}</td>
+                      <td
+                        className={`p-4 ${
+                          (t.pnl ?? t.PnL ?? 0) >= 0
+                            ? "text-green-400"
+                            : "text-red-400"
+                        }`}
+                      >
+                        {formatCurrency(t.pnl ?? t.PnL ?? 0)}
+                      </td>
+                      <td className="p-4 text-gray-400">
+                        {t.exitReason ?? t.ExitReason ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           )}
@@ -234,7 +341,7 @@ export default function DashboardPage() {
       {/* System Logs */}
       <section className="mt-10">
         <h2 className="mb-4 text-xl font-semibold">System Logs</h2>
-        <div className="max-h-96 overflow-y-auto rounded-xl bg-zinc-900 p-5 font-mono text-sm">
+        <div className="max-h-80 overflow-y-auto rounded-xl bg-zinc-900 p-5 font-mono text-sm">
           {logs.length === 0 ? (
             <p className="text-gray-400">No logs available</p>
           ) : (
@@ -261,6 +368,10 @@ export default function DashboardPage() {
   );
 }
 
+// ======================================================
+// Helpers
+// ======================================================
+
 function MetricCard({
   title,
   value,
@@ -271,7 +382,7 @@ function MetricCard({
   return (
     <div className="rounded-xl bg-zinc-900 p-5">
       <p className="text-sm text-gray-400">{title}</p>
-      <p className="mt-2 text-2xl font-bold">{value}</p>
+      <p className="mt-2 text-2xl font-bold tracking-tight">{value}</p>
     </div>
   );
 }
@@ -281,5 +392,5 @@ function formatCurrency(value: number): string {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 2,
-  }).format(value);
+  }).format(Number(value) || 0);
 }
