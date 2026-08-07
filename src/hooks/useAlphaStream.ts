@@ -1,26 +1,6 @@
-/**
- * ---
- * File:
- * src/hooks/useAlphaStream.ts
- *
- * AlphaStream dashboard data hook.
- *
- * Updates:
- * - Added strict TypeScript types
- * - Fixed logs implicit any error
- * - Added connected state
- * - Added refresh handling
- * - Matches Core API response format
- * ---
- */
-
 "use client";
 
-import {
-  useEffect,
-  useState,
-} from "react";
-
+import { useEffect, useState, useCallback } from "react";
 import {
   getHealth,
   getStatus,
@@ -29,199 +9,83 @@ import {
   getTrades,
   getLogs,
 } from "@/services/alphastream";
-
-
-export type AlphaStreamLog =
-  | string
-  | {
-      id?: string | number;
-      level?: string;
-      timestamp?: string;
-      message?: string;
-    };
-
-
-export interface AlphaStreamStatus {
-  ok?: boolean;
-
-  equity?: number;
-
-  peakEquity?: number;
-
-  buyingPower?: number;
-
-  positions?: number;
-
-  positionsCount?: number;
-
-  hardFlat?: boolean;
-
-  degraded?: boolean;
-
-  winRate?: number;
-
-  drawdownPct?: number;
-
-  drawdown?: number;
-
-  totalTrades?: number;
-
-  lastMag7Sentiment?: number;
-
-  version?: string;
-}
-
+import type {
+  AlphaStreamHealth,
+  AlphaStreamStatus,
+  AlphaStreamMetrics,
+  AlphaStreamPosition,
+  AlphaStreamTrade,
+  AlphaStreamLog,
+} from "@/types/alphastream";
 
 interface AlphaStreamData {
-
-  health: unknown;
-
+  health: AlphaStreamHealth | null;
   status: AlphaStreamStatus | null;
-
-  metrics: unknown;
-
-  positions: unknown;
-
-  trades: unknown;
-
-  logs: AlphaStreamLog[];
-
+  metrics: AlphaStreamMetrics | null;
+  positions: AlphaStreamPosition[];
+  trades: AlphaStreamTrade[];
+  logs: (AlphaStreamLog | string)[];
 }
 
+export function useAlphaStream(pollIntervalMs = 30_000) {
+  const [data, setData] = useState<AlphaStreamData>({
+    health: null,
+    status: null,
+    metrics: null,
+    positions: [],
+    trades: [],
+    logs: [],
+  });
 
-export function useAlphaStream() {
+  const [connected, setConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-
-  const [data, setData] =
-    useState<AlphaStreamData>({
-      health: null,
-      status: null,
-      metrics: null,
-      positions: null,
-      trades: null,
-      logs: [],
-    });
-
-
-  const [connected,setConnected] =
-    useState(false);
-
-
-  const [error,setError] =
-    useState<string | null>(null);
-
-
-
-  async function refresh() {
-
+  const refresh = useCallback(async () => {
     try {
+      const [health, status, metrics, positions, trades, logs] =
+        await Promise.all([
+          getHealth(),
+          getStatus(),
+          getMetrics(),
+          getPositions(),
+          getTrades(),
+          getLogs(),
+        ]);
 
-      const [
+      setData({
         health,
         status,
         metrics,
         positions,
         trades,
-        logs,
-
-      ] = await Promise.all([
-
-        getHealth(),
-
-        getStatus(),
-
-        getMetrics(),
-
-        getPositions(),
-
-        getTrades(),
-
-        getLogs(),
-
-      ]);
-
-
-
-      setData({
-
-        health,
-
-        status:
-          status as AlphaStreamStatus,
-
-        metrics,
-
-        positions,
-
-        trades,
-
-        logs:
-          Array.isArray(logs)
-            ? logs as AlphaStreamLog[]
-            : [],
-
+        logs: Array.isArray(logs) ? logs : [],
       });
 
-
-
       setConnected(true);
-
       setError(null);
-
-
-    } catch(err:any) {
-
-
-      console.error(
-        "AlphaStream refresh failed:",
-        err
-      );
-
-
+    } catch (err: unknown) {
+      console.error("AlphaStream refresh failed:", err);
       setConnected(false);
-
-
       setError(
-        err?.message ??
-        "Unable to connect"
+        err instanceof Error ? err.message : "Unable to connect to Core"
       );
-
-
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
-  }
-
-
-
-  useEffect(()=>{
-
+  useEffect(() => {
     refresh();
-
-
-    const interval =
-      setInterval(
-        refresh,
-        30000
-      );
-
-
-    return ()=>clearInterval(interval);
-
-
-  },[]);
-
-
+    const interval = setInterval(refresh, pollIntervalMs);
+    return () => clearInterval(interval);
+  }, [refresh, pollIntervalMs]);
 
   return {
-
     ...data,
-
     connected,
-
     error,
-
+    loading,
     refresh,
-
   };
-
 }

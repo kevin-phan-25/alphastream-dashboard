@@ -1,102 +1,50 @@
-/**
- * AlphaStream shared frontend types
- */
+import { coreFetch } from "@/lib/core";
+import type {
+  AlphaStreamHealth,
+  AlphaStreamStatus,
+  AlphaStreamMetrics,
+  AlphaStreamPosition,
+  AlphaStreamTrade,
+  AlphaStreamLog,
+} from "@/types/alphastream";
 
-// ======================================================
-// HEALTH
-// ======================================================
-
-export interface AlphaStreamHealth {
-  status: string;
-  service: string;
-  time?: string;
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Core API error ${res.status}: ${text || res.statusText}`);
+  }
+  return res.json() as Promise<T>;
 }
 
-// ======================================================
-// STATUS
-// ======================================================
-
-export interface AlphaStreamStatus {
-  ok: boolean;
-
-  equity: number;
-  peakEquity: number;
-
-  drawdown: number;
-  drawdownPct?: number;
-
-  positionsCount: number;
-  positions?: number;
-
-  hardFlat: boolean;
-
-  tradingEnabled?: boolean;
-
-  winRate?: number;
-
-  lastScan?: string;
-
-  uptime?: string | number;
-
-  message?: string;
+export async function getHealth(): Promise<AlphaStreamHealth> {
+  const res = await coreFetch("/health");
+  return handleResponse<AlphaStreamHealth>(res);
 }
 
-// ======================================================
-// METRICS
-// ======================================================
-
-export interface AlphaStreamMetrics {
-  equity: number;
-  positions: number;
-  drawdownPct: number;
-  winRate: number;
-  totalTrades: number;
+export async function getStatus(): Promise<AlphaStreamStatus> {
+  const res = await coreFetch("/status");
+  return handleResponse<AlphaStreamStatus>(res);
 }
 
-// ======================================================
-// LOGS
-// ======================================================
-
-export interface AlphaStreamLog {
-  id?: string;
-  timestamp: string;
-  level: "INFO" | "WARN" | "ERROR";
-  message: string;
+export async function getMetrics(): Promise<AlphaStreamMetrics> {
+  const res = await coreFetch("/metrics");
+  return handleResponse<AlphaStreamMetrics>(res);
 }
 
-export interface AlphaStreamLogs {
-  logs: string[];
+export async function getPositions(): Promise<AlphaStreamPosition[]> {
+  const res = await coreFetch("/positions");
+  const data = await handleResponse<{ positions?: AlphaStreamPosition[] } | AlphaStreamPosition[]>(res);
+  return Array.isArray(data) ? data : data.positions ?? [];
 }
 
-// ======================================================
-// TRADES
-// ======================================================
-
-export interface Trade {
-  id?: string;
-  symbol: string;
-  side: "BUY" | "SELL";
-  qty: number;
-  price: number;
-  timestamp: string;
+export async function getTrades(): Promise<AlphaStreamTrade[]> {
+  const res = await coreFetch("/trades");
+  const data = await handleResponse<{ trades?: AlphaStreamTrade[] } | AlphaStreamTrade[]>(res);
+  return Array.isArray(data) ? data : data.trades ?? [];
 }
 
-export type AlphaStreamTrade = Trade;
-
-export interface AlphaStreamTrades {
-  trades: AlphaStreamTrade[];
+export async function getLogs(): Promise<(AlphaStreamLog | string)[]> {
+  const res = await coreFetch("/logs");
+  const data = await handleResponse<{ logs?: (AlphaStreamLog | string)[] } | (AlphaStreamLog | string)[]>(res);
+  return Array.isArray(data) ? data : data.logs ?? [];
 }
-
-// ======================================================
-// POSITIONS
-// ======================================================
-
-export interface Position {
-  symbol: string;
-  qty: number;
-  avgEntryPrice: number;
-  marketValue?: number;
-  unrealizedPnl?: number;
-}
-
-export type AlphaStreamPosition = Position;
