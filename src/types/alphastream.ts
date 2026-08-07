@@ -1,6 +1,9 @@
 /**
- * AlphaStream shared frontend types
- * Single source of truth – import from here everywhere
+ * Date: 2026-08-07
+ * File: src/types/alphastream.ts
+ *
+ * Changes:
+ * - Added ML service types
  */
 
 // ======================================================
@@ -22,7 +25,6 @@ export interface AlphaStreamStatus {
   drawdown: number;
   drawdownPct?: number;
   positionsCount: number;
-  /** compatibility alias */
   positions?: number;
   hardFlat: boolean;
   tradingEnabled?: boolean;
@@ -92,7 +94,7 @@ export interface Position {
   avgEntryPrice: number;
   marketValue?: number;
   unrealizedPnl?: number;
-  unrealizedPL?: number;          // common alias
+  unrealizedPL?: number;
   unrealizedPLPercent?: number;
 }
 
@@ -100,4 +102,22 @@ export type AlphaStreamPosition = Position;
 
 export interface AlphaStreamPositions {
   positions: AlphaStreamPosition[];
+}
+
+// ======================================================
+// ML SERVICE
+// ======================================================
+export interface AlphaStreamMLStatus {
+  ok: boolean;
+  version?: string;
+  entryBufferSize: number;
+  exitBufferSize: number;
+  totalExperiences: number;
+  trainingEnabled: boolean;
+  timestamp?: string;
+}
+
+export interface AlphaStreamMLHealth {
+  status: string;
+  service: string;
 }

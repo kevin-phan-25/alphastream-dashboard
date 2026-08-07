@@ -1,7 +1,18 @@
+/**
+ * Date: 2026-08-07
+ * File: src/app/dashboard/page.tsx
+ *
+ * Changes:
+ * - Added ML Service section
+ * - Shows buffer sizes + training button
+ * - Shows both Core and ML connection status
+ */
+
 "use client";
 
 import { useAlphaStream } from "@/hooks/useAlphaStream";
 import type { AlphaStreamLog } from "@/types/alphastream";
+import { useState } from "react";
 
 export default function DashboardPage() {
   const {
@@ -10,11 +21,27 @@ export default function DashboardPage() {
     positions,
     trades,
     logs,
+    mlStatus,
     connected,
+    mlConnected,
     error,
     loading,
     refresh,
+    startTraining,
   } = useAlphaStream();
+
+  const [training, setTraining] = useState(false);
+
+  async function handleTrain() {
+    setTraining(true);
+    try {
+      await startTraining();
+    } catch {
+      // error already logged
+    } finally {
+      setTraining(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-black p-8 text-white">
@@ -22,7 +49,7 @@ export default function DashboardPage() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">AlphaStream Dashboard</h1>
-          <p className="text-gray-400">Core Service Monitoring</p>
+          <p className="text-gray-400">Core + ML Service Monitoring</p>
         </div>
         <button
           onClick={refresh}
@@ -34,14 +61,17 @@ export default function DashboardPage() {
       </div>
 
       {/* Connection Status */}
-      <div className="mb-6">
+      <div className="mb-6 flex flex-wrap gap-6">
         <span className={connected ? "text-green-400" : "text-red-400"}>
           {connected ? "● Core Connected" : "● Core Offline"}
         </span>
-        {error && <p className="mt-2 text-red-400">{error}</p>}
+        <span className={mlConnected ? "text-green-400" : "text-red-400"}>
+          {mlConnected ? "● ML Connected" : "● ML Offline"}
+        </span>
+        {error && <p className="text-red-400">{error}</p>}
       </div>
 
-      {/* Key Metrics */}
+      {/* Core Metrics */}
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Equity"
@@ -73,20 +103,46 @@ export default function DashboardPage() {
         />
       </section>
 
-      {/* Extra metrics row */}
-      <section className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-        <MetricCard
-          title="Peak Equity"
-          value={formatCurrency(status?.peakEquity ?? metrics?.peakEquity ?? 0)}
-        />
-        <MetricCard
-          title="Buying Power"
-          value={formatCurrency(status?.buyingPower ?? metrics?.buyingPower ?? 0)}
-        />
-        <MetricCard
-          title="Total Trades"
-          value={status?.totalTrades ?? metrics?.totalTrades ?? trades.length ?? 0}
-        />
+      {/* ML Service Section */}
+      <section className="mt-10">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold">ML Service</h2>
+          <button
+            onClick={handleTrain}
+            disabled={training || !mlConnected}
+            className="rounded-lg bg-purple-600 px-4 py-2 text-sm hover:bg-purple-700 disabled:opacity-50"
+          >
+            {training ? "Starting…" : "Start Training"}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            title="Entry Buffer"
+            value={mlStatus?.entryBufferSize ?? 0}
+          />
+          <MetricCard
+            title="Exit Buffer"
+            value={mlStatus?.exitBufferSize ?? 0}
+          />
+          <MetricCard
+            title="Total Experiences"
+            value={mlStatus?.totalExperiences ?? 0}
+          />
+          <MetricCard
+            title="Training Enabled"
+            value={mlStatus?.trainingEnabled ? "Yes" : "No"}
+          />
+        </div>
+
+        {mlStatus?.version && (
+          <p className="mt-3 text-sm text-gray-400">
+            ML Version: {mlStatus.version} • Last update:{" "}
+            {mlStatus.timestamp
+              ? new Date(mlStatus.timestamp).toLocaleString()
+              : "—"}
+          </p>
+        )}
       </section>
 
       {/* Positions */}

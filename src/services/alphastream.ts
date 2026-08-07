@@ -3,9 +3,8 @@
  * File: src/services/alphastream.ts
  *
  * Changes:
- * - Now calls local /api/* routes instead of coreFetch
- * - Works correctly in the browser (no CORE_URL needed on client)
- * - Edge routes handle the real proxy to Cloud Run
+ * - Calls local /api routes (safe for browser)
+ * - Added ML status + health + train
  */
 
 import type {
@@ -15,11 +14,14 @@ import type {
   AlphaStreamPosition,
   AlphaStreamTrade,
   AlphaStreamLog,
+  AlphaStreamMLStatus,
+  AlphaStreamMLHealth,
 } from "@/types/alphastream";
 
-async function apiFetch<T>(path: string): Promise<T> {
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     cache: "no-store",
+    ...options,
   });
 
   if (!res.ok) {
@@ -35,8 +37,6 @@ export async function getHealth(): Promise<AlphaStreamHealth> {
 }
 
 export async function getStatus(): Promise<AlphaStreamStatus> {
-  // Most Cores expose status under /status or /metrics
-  // Adjust if needed
   return apiFetch<AlphaStreamStatus>("/api/metrics");
 }
 
@@ -45,22 +45,38 @@ export async function getMetrics(): Promise<AlphaStreamMetrics> {
 }
 
 export async function getPositions(): Promise<AlphaStreamPosition[]> {
-  const data = await apiFetch<{ positions?: AlphaStreamPosition[] } | AlphaStreamPosition[]>(
-    "/api/positions"
-  );
+  const data = await apiFetch<
+    { positions?: AlphaStreamPosition[] } | AlphaStreamPosition[]
+  >("/api/positions");
   return Array.isArray(data) ? data : data.positions ?? [];
 }
 
 export async function getTrades(): Promise<AlphaStreamTrade[]> {
-  const data = await apiFetch<{ trades?: AlphaStreamTrade[] } | AlphaStreamTrade[]>(
-    "/api/trades"
-  );
+  const data = await apiFetch<
+    { trades?: AlphaStreamTrade[] } | AlphaStreamTrade[]
+  >("/api/trades");
   return Array.isArray(data) ? data : data.trades ?? [];
 }
 
 export async function getLogs(): Promise<(AlphaStreamLog | string)[]> {
-  const data = await apiFetch<{ logs?: (AlphaStreamLog | string)[] } | (AlphaStreamLog | string)[]>(
-    "/api/logs"
-  );
+  const data = await apiFetch<
+    { logs?: (AlphaStreamLog | string)[] } | (AlphaStreamLog | string)[]
+  >("/api/logs");
   return Array.isArray(data) ? data : data.logs ?? [];
+}
+
+// ---------- ML ----------
+export async function getMLStatus(): Promise<AlphaStreamMLStatus> {
+  return apiFetch<AlphaStreamMLStatus>("/api/ml/status");
+}
+
+export async function getMLHealth(): Promise<AlphaStreamMLHealth> {
+  return apiFetch<AlphaStreamMLHealth>("/api/ml/health");
+}
+
+export async function triggerMLTraining(): Promise<{
+  ok: boolean;
+  message: string;
+}> {
+  return apiFetch("/api/ml/train", { method: "POST" });
 }
