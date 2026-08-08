@@ -2,13 +2,9 @@
 
 * AlphaStream API service
 *
+* Browser -> Next.js API routes -> AlphaStream Core / ML
+*
 * Date: 2026-08-08
-*
-* Browser-safe API client.
-* All requests go through local Next.js /api routes.
-*
-* IMPORTANT:
-* CORE_URL, ML_URL, and ADMIN_KEY remain server-side.
   */
 
 import type {
@@ -22,64 +18,60 @@ AlphaStreamMLStatus,
 AlphaStreamMLHealth,
 } from "@/types/alphastream";
 
-type ApiError = {
-error?: string;
-message?: string;
-details?: string;
-};
-
 async function apiFetch<T>(
-path: string,
-options: RequestInit = {}
+endpoint: string,
+options?: RequestInit
 ): Promise<T> {
-const response = await fetch(path, {
+const response = await fetch(endpoint, {
 ...options,
 cache: "no-store",
 headers: {
 Accept: "application/json",
-...(options.headers || {}),
+...(options?.headers || {}),
 },
 });
 
-const text = await response.text();
+const body = await response.text();
+
+let data: unknown = null;
+
+if (body) {
+try {
+data = JSON.parse(body);
+} catch {
+data = body;
+}
+}
 
 if (!response.ok) {
-let message = text || response.statusText;
+let message = `Request failed with status ${response.status}`;
 
-try {
-  const parsed = JSON.parse(text) as ApiError;
-
-  message =
-    parsed.error ||
-    parsed.message ||
-    parsed.details ||
-    message;
-} catch {
-  // Response was not JSON.
+```
+if (typeof data === "string" && data.trim()) {
+  message = data;
+} else if (
+  data &&
+  typeof data === "object" &&
+  "error" in data &&
+  typeof data.error === "string"
+) {
+  message = data.error;
+} else if (
+  data &&
+  typeof data === "object" &&
+  "details" in data &&
+  typeof data.details === "string"
+) {
+  message = data.details;
 }
 
-throw new Error(
-  `${path} failed (${response.status}): ${message}`
-);
+throw new Error(message);
+```
 
 }
 
-if (!text) {
-return {} as T;
+return data as T;
 }
-
-try {
-return JSON.parse(text) as T;
-} catch {
-throw new Error(
-`${path} returned invalid JSON`
-);
-}
-}
-
-// ======================================================
-// Core
-// ======================================================
 
 export async function getHealth(): Promise<AlphaStreamHealth> {
 return apiFetch<AlphaStreamHealth>("/api/health");
@@ -95,8 +87,7 @@ return apiFetch<AlphaStreamMetrics>("/api/metrics");
 
 export async function getPositions(): Promise<AlphaStreamPosition[]> {
 const data = await apiFetch<
-| AlphaStreamPosition[]
-| {
+AlphaStreamPosition[] | {
 positions?: AlphaStreamPosition[];
 }
 
@@ -113,8 +104,7 @@ return Array.isArray(data.positions)
 
 export async function getTrades(): Promise<AlphaStreamTrade[]> {
 const data = await apiFetch<
-| AlphaStreamTrade[]
-| {
+AlphaStreamTrade[] | {
 trades?: AlphaStreamTrade[];
 }
 
@@ -134,8 +124,7 @@ export async function getLogs(): Promise<
 
 > {
 > const data = await apiFetch<
-> | (AlphaStreamLog | string)[]
-> | {
+> (AlphaStreamLog | string)[] | {
 > logs?: (AlphaStreamLog | string)[];
 > }
 > ("/api/logs");
@@ -149,10 +138,6 @@ return Array.isArray(data.logs)
 : [];
 }
 
-// ======================================================
-// ML
-// ======================================================
-
 export async function getMLStatus(): Promise<AlphaStreamMLStatus> {
 return apiFetch<AlphaStreamMLStatus>("/api/ml/status");
 }
@@ -161,15 +146,12 @@ export async function getMLHealth(): Promise<AlphaStreamMLHealth> {
 return apiFetch<AlphaStreamMLHealth>("/api/ml/health");
 }
 
-export async function triggerMLTraining(): Promise<{
-ok: boolean;
-message: string;
-}> {
-return apiFetch<{
-ok: boolean;
-message: string;
-}>("/api/ml/train", {
+export async function triggerMLTraining(): Promise<unknown> {
+return apiFetch<unknown>("/api/ml/train", {
 method: "POST",
+headers: {
+"Content-Type": "application/json",
+},
+body: JSON.stringify({}),
 });
 }
-
