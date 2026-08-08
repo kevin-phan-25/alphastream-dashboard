@@ -51,16 +51,16 @@ async function apiFetch<T>(
       data &&
       typeof data === "object" &&
       "error" in data &&
-      typeof data.error === "string"
+      typeof (data as { error: unknown }).error === "string"
     ) {
-      message = data.error;
+      message = (data as { error: string }).error;
     } else if (
       data &&
       typeof data === "object" &&
       "details" in data &&
-      typeof data.details === "string"
+      typeof (data as { details: unknown }).details === "string"
     ) {
-      message = data.details;
+      message = (data as { details: string }).details;
     }
 
     throw new Error(message);
@@ -83,44 +83,50 @@ export async function getMetrics(): Promise<AlphaStreamMetrics> {
 
 export async function getPositions(): Promise<AlphaStreamPosition[]> {
   const data = await apiFetch<
-    AlphaStreamPosition[] | {
-      positions?: AlphaStreamPosition[];
-    }
+    AlphaStreamPosition[] | { positions?: AlphaStreamPosition[] } | null
   >("/api/positions");
 
   if (Array.isArray(data)) {
     return data;
   }
 
-  return Array.isArray(data.positions) ? data.positions : [];
+  if (data && typeof data === "object" && Array.isArray(data.positions)) {
+    return data.positions;
+  }
+
+  return [];
 }
 
 export async function getTrades(): Promise<AlphaStreamTrade[]> {
   const data = await apiFetch<
-    AlphaStreamTrade[] | {
-      trades?: AlphaStreamTrade[];
-    }
+    AlphaStreamTrade[] | { trades?: AlphaStreamTrade[] } | null
   >("/api/trades");
 
   if (Array.isArray(data)) {
     return data;
   }
 
-  return Array.isArray(data.trades) ? data.trades : [];
+  if (data && typeof data === "object" && Array.isArray(data.trades)) {
+    return data.trades;
+  }
+
+  return [];
 }
 
 export async function getLogs(): Promise<(AlphaStreamLog | string)[]> {
   const data = await apiFetch<
-    (AlphaStreamLog | string)[] | {
-      logs?: (AlphaStreamLog | string)[];
-    }
+    (AlphaStreamLog | string)[] | { logs?: (AlphaStreamLog | string)[] } | null
   >("/api/logs");
 
   if (Array.isArray(data)) {
     return data;
   }
 
-  return Array.isArray(data.logs) ? data.logs : [];
+  if (data && typeof data === "object" && Array.isArray(data.logs)) {
+    return data.logs;
+  }
+
+  return [];
 }
 
 export async function getMLStatus(): Promise<AlphaStreamMLStatus> {
