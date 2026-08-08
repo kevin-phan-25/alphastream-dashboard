@@ -1,82 +1,177 @@
 /**
- * Date: 2026-08-07
- * File: src/services/alphastream.ts
- *
- * Changes:
- * - Calls local /api routes (safe for browser)
- * - Added ML status + health + train
- */
+
+* AlphaStream API service
+*
+* Date: 2026-08-08
+*
+* Browser-safe API client.
+* All requests go through local Next.js /api routes.
+*
+* IMPORTANT:
+* CORE_URL, ML_URL, and ADMIN_KEY remain server-side.
+  */
 
 import type {
-  AlphaStreamHealth,
-  AlphaStreamStatus,
-  AlphaStreamMetrics,
-  AlphaStreamPosition,
-  AlphaStreamTrade,
-  AlphaStreamLog,
-  AlphaStreamMLStatus,
-  AlphaStreamMLHealth,
+AlphaStreamHealth,
+AlphaStreamStatus,
+AlphaStreamMetrics,
+AlphaStreamPosition,
+AlphaStreamTrade,
+AlphaStreamLog,
+AlphaStreamMLStatus,
+AlphaStreamMLHealth,
 } from "@/types/alphastream";
 
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    cache: "no-store",
-    ...options,
-  });
+type ApiError = {
+error?: string;
+message?: string;
+details?: string;
+};
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text || res.statusText}`);
-  }
+async function apiFetch<T>(
+path: string,
+options: RequestInit = {}
+): Promise<T> {
+const response = await fetch(path, {
+...options,
+cache: "no-store",
+headers: {
+Accept: "application/json",
+...(options.headers || {}),
+},
+});
 
-  return res.json() as Promise<T>;
+const text = await response.text();
+
+if (!response.ok) {
+let message = text || response.statusText;
+
+```
+try {
+  const parsed = JSON.parse(text) as ApiError;
+
+  message =
+    parsed.error ||
+    parsed.message ||
+    parsed.details ||
+    message;
+} catch {
+  // Response was not JSON.
 }
 
+throw new Error(
+  `${path} failed (${response.status}): ${message}`
+);
+```
+
+}
+
+if (!text) {
+return {} as T;
+}
+
+try {
+return JSON.parse(text) as T;
+} catch {
+throw new Error(
+`${path} returned invalid JSON`
+);
+}
+}
+
+// ======================================================
+// Core
+// ======================================================
+
 export async function getHealth(): Promise<AlphaStreamHealth> {
-  return apiFetch<AlphaStreamHealth>("/api/health");
+return apiFetch<AlphaStreamHealth>("/api/health");
 }
 
 export async function getStatus(): Promise<AlphaStreamStatus> {
-  return apiFetch<AlphaStreamStatus>("/api/metrics");
+return apiFetch<AlphaStreamStatus>("/api/status");
 }
 
 export async function getMetrics(): Promise<AlphaStreamMetrics> {
-  return apiFetch<AlphaStreamMetrics>("/api/metrics");
+return apiFetch<AlphaStreamMetrics>("/api/metrics");
 }
 
 export async function getPositions(): Promise<AlphaStreamPosition[]> {
-  const data = await apiFetch<
-    { positions?: AlphaStreamPosition[] } | AlphaStreamPosition[]
-  >("/api/positions");
-  return Array.isArray(data) ? data : data.positions ?? [];
+const data = await apiFetch<
+| AlphaStreamPosition[]
+| {
+positions?: AlphaStreamPosition[];
+}
+
+> ("/api/positions");
+
+if (Array.isArray(data)) {
+return data;
+}
+
+return Array.isArray(data.positions)
+? data.positions
+: [];
 }
 
 export async function getTrades(): Promise<AlphaStreamTrade[]> {
-  const data = await apiFetch<
-    { trades?: AlphaStreamTrade[] } | AlphaStreamTrade[]
-  >("/api/trades");
-  return Array.isArray(data) ? data : data.trades ?? [];
+const data = await apiFetch<
+| AlphaStreamTrade[]
+| {
+trades?: AlphaStreamTrade[];
 }
 
-export async function getLogs(): Promise<(AlphaStreamLog | string)[]> {
-  const data = await apiFetch<
-    { logs?: (AlphaStreamLog | string)[] } | (AlphaStreamLog | string)[]
-  >("/api/logs");
-  return Array.isArray(data) ? data : data.logs ?? [];
+> ("/api/trades");
+
+if (Array.isArray(data)) {
+return data;
 }
 
-// ---------- ML ----------
+return Array.isArray(data.trades)
+? data.trades
+: [];
+}
+
+export async function getLogs(): Promise<
+(AlphaStreamLog | string)[]
+
+> {
+> const data = await apiFetch<
+> | (AlphaStreamLog | string)[]
+> | {
+> logs?: (AlphaStreamLog | string)[];
+> }
+> ("/api/logs");
+
+if (Array.isArray(data)) {
+return data;
+}
+
+return Array.isArray(data.logs)
+? data.logs
+: [];
+}
+
+// ======================================================
+// ML
+// ======================================================
+
 export async function getMLStatus(): Promise<AlphaStreamMLStatus> {
-  return apiFetch<AlphaStreamMLStatus>("/api/ml/status");
+return apiFetch<AlphaStreamMLStatus>("/api/ml/status");
 }
 
 export async function getMLHealth(): Promise<AlphaStreamMLHealth> {
-  return apiFetch<AlphaStreamMLHealth>("/api/ml/health");
+return apiFetch<AlphaStreamMLHealth>("/api/ml/health");
 }
 
 export async function triggerMLTraining(): Promise<{
-  ok: boolean;
-  message: string;
+ok: boolean;
+message: string;
 }> {
-  return apiFetch("/api/ml/train", { method: "POST" });
+return apiFetch<{
+ok: boolean;
+message: string;
+}>("/api/ml/train", {
+method: "POST",
+});
 }
+
