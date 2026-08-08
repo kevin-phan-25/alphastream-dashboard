@@ -1,6 +1,6 @@
 /**
- * AlphaStream Logs API
- * Proxies: Browser -> Next.js -> Core /admin/logs
+ * AlphaStream Status API
+ * Proxies: Browser -> Next.js -> Core /status (or /)
  */
 
 import { coreFetch } from "@/lib/core";
@@ -9,7 +9,8 @@ export const runtime = "edge";
 
 export async function GET() {
   try {
-    const response = await coreFetch("/admin/logs");
+    // Core often exposes status at "/" or "/status"
+    const response = await coreFetch("/status");
     const body = await response.text();
 
     return new Response(body, {
@@ -21,12 +22,12 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error("Logs proxy error:", error);
+    console.error("Status proxy error:", error);
     const message =
       error instanceof Error ? error.message : "Unknown error";
 
     return Response.json(
-      { error: "Failed to fetch logs from Core", details: message },
+      { error: "Failed to fetch status from Core", details: message },
       { status: 502, headers: { "Cache-Control": "no-store" } }
     );
   }
