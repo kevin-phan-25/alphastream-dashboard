@@ -46,7 +46,6 @@ data = body;
 if (!response.ok) {
 let message = `Request failed with status ${response.status}`;
 
-```
 if (typeof data === "string" && data.trim()) {
   message = data;
 } else if (
@@ -66,7 +65,6 @@ if (typeof data === "string" && data.trim()) {
 }
 
 throw new Error(message);
-```
 
 }
 
