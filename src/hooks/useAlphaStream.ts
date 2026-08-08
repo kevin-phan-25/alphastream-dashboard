@@ -5,11 +5,12 @@
 * Date: 2026-08-08
 *
 * Changes:
-* * Fixed status endpoint
+* * Fixed status endpoint handling
 * * Independent Core and ML polling
 * * Individual endpoint error reporting
 * * Preserves previously loaded data when one endpoint fails
 * * Prevents failed endpoints from appearing as empty data
+* * Prevents state updates after unmount
     */
 
 "use client";
@@ -96,6 +97,15 @@ if (typeof error === "string") {
 return error;
 }
 
+if (
+error &&
+typeof error === "object" &&
+"message" in error &&
+typeof error.message === "string"
+) {
+return error.message;
+}
+
 return "Unknown error";
 }
 
@@ -132,7 +142,6 @@ getMLStatus(),
 getMLHealth(),
 ]);
 
-```
 const [
   healthResult,
   statusResult,
@@ -233,7 +242,10 @@ setData((previous) => ({
 const coreIsConnected =
   healthResult.status === "fulfilled" ||
   statusResult.status === "fulfilled" ||
-  metricsResult.status === "fulfilled";
+  metricsResult.status === "fulfilled" ||
+  positionsResult.status === "fulfilled" ||
+  tradesResult.status === "fulfilled" ||
+  logsResult.status === "fulfilled";
 
 const mlIsConnected =
   mlHealthResult.status === "fulfilled" ||
@@ -243,8 +255,10 @@ setConnected(coreIsConnected);
 setMlConnected(mlIsConnected);
 
 const failedEndpoints = Object.entries(errors)
-  .filter((entry) => Boolean(entry[1]))
-  .map((entry) => `${entry[0]}: ${entry[1]}`);
+  .filter(([, message]) => Boolean(message))
+  .map(([endpoint, message]) => {
+    return `${endpoint}: ${message}`;
+  });
 
 if (failedEndpoints.length > 0) {
   const diagnosticMessage =
@@ -257,7 +271,6 @@ if (failedEndpoints.length > 0) {
 }
 
 setLoading(false);
-```
 
 }, []);
 
@@ -265,7 +278,6 @@ const startTraining = useCallback(async () => {
 try {
 const result = await triggerMLTraining();
 
-```
   await refresh();
 
   return result;
@@ -277,34 +289,37 @@ const result = await triggerMLTraining();
 
   throw err;
 }
-```
 
 }, [refresh]);
 
 useEffect(() => {
 let mounted = true;
+let refreshing = false;
 
-```
 const runRefresh = async () => {
-  if (!mounted) {
+  if (!mounted || refreshing) {
     return;
   }
 
-  await refresh();
+  refreshing = true;
+
+  try {
+    await refresh();
+  } finally {
+    refreshing = false;
+  }
 };
 
-runRefresh();
+void runRefresh();
 
-const interval = setInterval(
-  runRefresh,
-  pollIntervalMs
-);
+const interval = window.setInterval(() => {
+  void runRefresh();
+}, pollIntervalMs);
 
 return () => {
   mounted = false;
-  clearInterval(interval);
+  window.clearInterval(interval);
 };
-```
 
 }, [refresh, pollIntervalMs]);
 

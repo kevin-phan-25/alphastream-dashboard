@@ -46,7 +46,6 @@ const text = await response.text();
 if (!response.ok) {
 let message = text || response.statusText;
 
-```
 try {
   const parsed = JSON.parse(text) as ApiError;
 
@@ -62,7 +61,6 @@ try {
 throw new Error(
   `${path} failed (${response.status}): ${message}`
 );
-```
 
 }
 

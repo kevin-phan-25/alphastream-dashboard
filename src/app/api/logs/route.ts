@@ -18,7 +18,6 @@ export async function GET() {
 try {
 const response = await coreFetch("/admin/logs");
 
-```
 const body = await response.text();
 
 console.log(
@@ -37,7 +36,6 @@ return new Response(body, {
       "no-store, no-cache, must-revalidate",
   },
 });
-```
 
 } catch (error) {
 console.error(
@@ -45,7 +43,6 @@ console.error(
 error
 );
 
-```
 const message =
   error instanceof Error
     ? error.message
@@ -63,7 +60,6 @@ return Response.json(
     },
   }
 );
-```
 
 }
 }
