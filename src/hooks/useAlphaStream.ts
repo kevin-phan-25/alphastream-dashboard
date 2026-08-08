@@ -6,7 +6,7 @@
 *
 * Changes:
 * * Fixed status endpoint
-* * Independent Core + ML polling
+* * Independent Core and ML polling
 * * Individual endpoint error reporting
 * * Preserves previously loaded data when one endpoint fails
 * * Prevents failed endpoints from appearing as empty data
@@ -100,7 +100,7 @@ return "Unknown error";
 }
 
 export function useAlphaStream(
-pollIntervalMs = 30_000
+pollIntervalMs = 30000
 ) {
 const [data, setData] =
 useState<AlphaStreamData>(EMPTY_DATA);
@@ -243,17 +243,12 @@ setConnected(coreIsConnected);
 setMlConnected(mlIsConnected);
 
 const failedEndpoints = Object.entries(errors)
-  .filter(([, message]) => Boolean(message))
-  .map(
-    ([name, message]) =>
-      `${name}: ${message}`
-  );
+  .filter((entry) => Boolean(entry[1]))
+  .map((entry) => `${entry[0]}: ${entry[1]}`);
 
 if (failedEndpoints.length > 0) {
   const diagnosticMessage =
-    `AlphaStream endpoint errors: ${failedEndpoints.join(
-      " | "
-    )}`;
+    `AlphaStream endpoint errors: ${failedEndpoints.join(" | ")}`;
 
   console.error(diagnosticMessage);
   setError(diagnosticMessage);
@@ -268,8 +263,7 @@ setLoading(false);
 
 const startTraining = useCallback(async () => {
 try {
-const result =
-await triggerMLTraining();
+const result = await triggerMLTraining();
 
 ```
   await refresh();
@@ -316,20 +310,13 @@ return () => {
 
 return {
 ...data,
-
-```
 connected,
 mlConnected,
-
 error,
 endpointErrors,
-
 loading,
-
 refresh,
 startTraining,
-```
-
 };
 }
 
