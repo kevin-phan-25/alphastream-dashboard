@@ -1,32 +1,46 @@
-/**
- * Date: 2026-08-07
- * File: src/app/api/admin/hard-flat/route.ts
- *
- * Changes:
- * - Proxies POST to Core /admin/hard-flat
- * - Edge runtime
- */
-
-import { coreFetch } from "@/lib/core";
-
-export const runtime = "edge";
+import { NextResponse } from "next/server";
 
 export async function POST() {
+  const coreUrl = process.env.CORE_URL;
+  const adminKey = process.env.ADMIN_KEY;
+
+  if (!coreUrl) {
+    return NextResponse.json({ error: "CORE_URL not set" }, { status: 500 });
+  }
+
   try {
-    const response = await coreFetch("/admin/hard-flat", {
-      method: "POST",
-    });
+    const res = await fetch(
+      `${coreUrl.replace(/\/$/, "")}/admin/clear-hard-flat`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(adminKey ? { "x-admin-key": adminKey } : {}),
+        },
+        cache: "no-store",
+      }
+    );
 
-    const data = await response.json().catch(() => ({}));
+    const text = await res.text();
+    let body: unknown = text;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      /* keep text */
+    }
 
-    return Response.json(data, {
-      status: response.status,
-    });
-  } catch (error) {
-    console.error("Hard-flat proxy error:", error);
-    return Response.json(
-      { error: "Failed to execute hard-flat on Core" },
-      { status: 502 }
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: "clear hard flat failed", detail: body },
+        { status: res.status }
+      );
+    }
+
+    return NextResponse.json(body ?? { ok: true });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message ?? "proxy failed" },
+      { status: 500 }
     );
   }
 }
