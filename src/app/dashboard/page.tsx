@@ -1,20 +1,20 @@
 /**
- * Date: 2026-08-07
+ * Date: 2026-08-11
  * File: src/app/dashboard/page.tsx
  *
  * Changes:
- * - Full working dashboard with Core + ML
- * - Hard Flat / Degraded warning + Clear button
- * - Start Training button (real)
- * - Positions + Trades tables
- * - Connection status for both services
+ * - ML Training Logs / Activity panel
+ * - Shows last training results + short history
  */
-
 "use client";
 
 import { useState } from "react";
 import { useAlphaStream } from "@/hooks/useAlphaStream";
-import type { AlphaStreamLog } from "@/types/alphastream";
+import type {
+  AlphaStreamLog,
+  AlphaStreamMLStatus,
+  MLTrainingLogEntry,
+} from "@/types/alphastream";
 
 export default function DashboardPage() {
   const {
@@ -35,13 +35,46 @@ export default function DashboardPage() {
   const [training, setTraining] = useState(false);
   const [clearingFlat, setClearingFlat] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
+  const [trainingLogs, setTrainingLogs] = useState<MLTrainingLogEntry[]>([]);
 
   async function handleTrain() {
     setTraining(true);
     try {
-      await startTraining();
-    } catch (err) {
+      const result: any = await startTraining();
+
+      const entry: MLTrainingLogEntry = {
+        id: `${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        ok: Boolean(result?.ok),
+        trained: Boolean(result?.trained),
+        message:
+          result?.message ||
+          (result?.trained
+            ? `Training complete steps=${result?.steps ?? 0}`
+            : result?.reason || result?.error || "Training finished"),
+        steps: result?.steps,
+        epochs: result?.epochs,
+        avgLoss: result?.avgLoss ?? null,
+        elapsedSec: result?.elapsedSec,
+        entryBufferSize: result?.entryBufferSize,
+        exitBufferSize: result?.exitBufferSize,
+        totalExperiences: result?.totalExperiences,
+        error: result?.error,
+        reason: result?.reason,
+      };
+
+      setTrainingLogs((prev) => [entry, ...prev].slice(0, 20));
+    } catch (err: any) {
       console.error("Training failed:", err);
+      const entry: MLTrainingLogEntry = {
+        id: `${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        ok: false,
+        trained: false,
+        message: err?.message || "Training request failed",
+        error: err?.message || String(err),
+      };
+      setTrainingLogs((prev) => [entry, ...prev].slice(0, 20));
     } finally {
       setTraining(false);
     }
@@ -54,9 +87,7 @@ export default function DashboardPage() {
         method: "POST",
         cache: "no-store",
       });
-      if (!res.ok) {
-        throw new Error("Failed to clear hard flat");
-      }
+      if (!res.ok) throw new Error("Failed to clear hard flat");
       await refresh();
     } catch (err) {
       console.error(err);
@@ -72,7 +103,6 @@ export default function DashboardPage() {
         method: "POST",
         cache: "no-store",
       });
-      // give it a moment then refresh
       setTimeout(() => refresh(), 1500);
     } catch (err) {
       console.error(err);
@@ -84,6 +114,10 @@ export default function DashboardPage() {
   const hardFlat = status?.hardFlat ?? false;
   const degraded = status?.degraded ?? false;
 
+  // Prefer nested core.ml, fall back to standalone /ml/status
+  const ml: AlphaStreamMLStatus | null =
+    status?.ml && status.ml.ok !== undefined ? status.ml : mlStatus;
+
   return (
     <main className="min-h-screen bg-black p-6 text-white md:p-8">
       {/* Header */}
@@ -94,7 +128,6 @@ export default function DashboardPage() {
           </h1>
           <p className="text-gray-400">Core + ML Service Monitoring</p>
         </div>
-
         <div className="flex flex-wrap gap-3">
           <button
             onClick={handleScan}
@@ -103,7 +136,6 @@ export default function DashboardPage() {
           >
             {scanLoading ? "Scanning…" : "Force Scan"}
           </button>
-
           <button
             onClick={refresh}
             disabled={loading}
@@ -193,7 +225,9 @@ export default function DashboardPage() {
         />
         <MetricCard
           title="Total Trades"
-          value={status?.totalTrades ?? metrics?.totalTrades ?? trades.length ?? 0}
+          value={
+            status?.totalTrades ?? metrics?.totalTrades ?? trades.length ?? 0
+          }
         />
       </section>
 
@@ -211,32 +245,110 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard
-            title="Entry Buffer"
-            value={mlStatus?.entryBufferSize ?? 0}
-          />
-          <MetricCard
-            title="Exit Buffer"
-            value={mlStatus?.exitBufferSize ?? 0}
-          />
+          <MetricCard title="Entry Buffer" value={ml?.entryBufferSize ?? 0} />
+          <MetricCard title="Exit Buffer" value={ml?.exitBufferSize ?? 0} />
           <MetricCard
             title="Total Experiences"
-            value={mlStatus?.totalExperiences ?? 0}
+            value={ml?.totalExperiences ?? 0}
           />
           <MetricCard
             title="Training Enabled"
-            value={mlStatus?.trainingEnabled ? "Yes" : "No"}
+            value={ml?.trainingEnabled ? "Yes" : "No"}
           />
         </div>
 
-        {mlStatus?.version && (
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            title="Boot Complete"
+            value={ml?.bootComplete ? "Yes" : "No"}
+          />
+          <MetricCard title="Last Load" value={formatTs(ml?.lastLoad)} />
+          <MetricCard title="Last Save" value={formatTs(ml?.lastSave)} />
+          <MetricCard title="Last Train" value={formatTs(ml?.lastTrain)} />
+        </div>
+
+        {(ml?.version || ml?.timestamp) && (
           <p className="mt-3 text-sm text-gray-400">
-            Version: {mlStatus.version}
-            {mlStatus.timestamp && (
-              <> • Last update: {new Date(mlStatus.timestamp).toLocaleString()}</>
+            {ml.version && <>Version: {ml.version}</>}
+            {ml.timestamp && (
+              <>
+                {ml.version ? " • " : ""}
+                Last update: {new Date(ml.timestamp).toLocaleString()}
+              </>
             )}
           </p>
         )}
+      </section>
+
+      {/* ========== NEW: ML Training Logs ========== */}
+      <section className="mt-10">
+        <h2 className="mb-4 text-xl font-semibold">ML Training Logs</h2>
+        <div className="overflow-x-auto rounded-xl bg-zinc-900">
+          {trainingLogs.length === 0 ? (
+            <p className="p-5 text-gray-400">
+              No training runs yet. Click “Start Training” to see results here.
+            </p>
+          ) : (
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-zinc-700 text-gray-400">
+                <tr>
+                  <th className="p-4">Time</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4">Message</th>
+                  <th className="p-4">Steps</th>
+                  <th className="p-4">Avg Loss</th>
+                  <th className="p-4">Elapsed</th>
+                  <th className="p-4">Buffers (E/X)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trainingLogs.map((log) => (
+                  <tr key={log.id} className="border-b border-zinc-800">
+                    <td className="p-4 text-gray-400 whitespace-nowrap">
+                      {new Date(log.timestamp).toLocaleString()}
+                    </td>
+                    <td className="p-4">
+                      <span
+                        className={
+                          log.trained
+                            ? "text-green-400"
+                            : log.ok
+                              ? "text-yellow-400"
+                              : "text-red-400"
+                        }
+                      >
+                        {log.trained
+                          ? "Trained"
+                          : log.ok
+                            ? "Skipped"
+                            : "Failed"}
+                      </span>
+                    </td>
+                    <td className="p-4 max-w-xs truncate" title={log.message}>
+                      {log.message}
+                    </td>
+                    <td className="p-4">{log.steps ?? "—"}</td>
+                    <td className="p-4">
+                      {log.avgLoss != null
+                        ? Number(log.avgLoss).toFixed(4)
+                        : "—"}
+                    </td>
+                    <td className="p-4">
+                      {log.elapsedSec != null
+                        ? `${log.elapsedSec}s`
+                        : "—"}
+                    </td>
+                    <td className="p-4">
+                      {log.entryBufferSize != null || log.exitBufferSize != null
+                        ? `${log.entryBufferSize ?? "—"} / ${log.exitBufferSize ?? "—"}`
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </section>
 
       {/* Open Positions */}
@@ -371,7 +483,6 @@ export default function DashboardPage() {
 // ======================================================
 // Helpers
 // ======================================================
-
 function MetricCard({
   title,
   value,
@@ -393,4 +504,13 @@ function formatCurrency(value: number): string {
     currency: "USD",
     maximumFractionDigits: 2,
   }).format(Number(value) || 0);
+}
+
+function formatTs(value?: string | null): string {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
+  }
 }
