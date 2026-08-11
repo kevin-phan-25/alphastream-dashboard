@@ -3,26 +3,18 @@
  *
  * Build output:
  * .vercel/output/static
+ *
+ * CORE_URL and ML_URL are set as Cloudflare Pages Environment Variables
+ * (do not also declare them here — causes "Binding name already in use").
  */
-
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-
   "name": "alphastream-dashboard",
-
   "compatibility_date": "2026-08-03",
-
   "compatibility_flags": [
     "nodejs_compat"
   ],
-
   "pages_build_output_dir": ".vercel/output/static",
-
-  "vars": {
-    "CORE_URL": "https://alphastream-core-1017433009054.us-east1.run.app",
-    "ML_URL": "https://alphastream-ml-1017433009054.us-east1.run.app"
-  },
-
   "observability": {
     "enabled": true
   }
