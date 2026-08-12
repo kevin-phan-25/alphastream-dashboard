@@ -1,7 +1,3 @@
-/**
- * POST /api/admin/clear-hard-flat
- * Browser -> Next.js -> Core /admin/clear-hard-flat
- */
 import { coreFetch } from "@/lib/core";
 
 export const runtime = "edge";
