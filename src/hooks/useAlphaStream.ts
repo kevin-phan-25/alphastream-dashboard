@@ -1,15 +1,14 @@
 /**
  * AlphaStream dashboard hook
  *
- * Date: 2026-08-08
+ * Date: 2026-08-13
  *
  * Changes:
- * * Fixed status endpoint handling
- * * Independent Core and ML polling
- * * Individual endpoint error reporting
- * * Preserves previously loaded data when one endpoint fails
- * * Prevents failed endpoints from appearing as empty data
- * * Prevents state updates after unmount
+ * - Added autonomy telemetry polling
+ * - Preserves previous autonomy state on endpoint failure
+ * - Does not treat missing autonomy telemetry as fake autonomy
+ * - Keeps Core and ML connectivity independent
+ * - Prevents state updates after unmount
  */
 
 "use client";
@@ -24,6 +23,7 @@ import {
   getHealth,
   getStatus,
   getMetrics,
+  getAutonomyStatus,
   getPositions,
   getTrades,
   getLogs,
@@ -41,12 +41,14 @@ import type {
   AlphaStreamLog,
   AlphaStreamMLStatus,
   AlphaStreamMLHealth,
+  AlphaStreamAutonomyStatus,
 } from "@/types/alphastream";
 
 interface AlphaStreamData {
   health: AlphaStreamHealth | null;
   status: AlphaStreamStatus | null;
   metrics: AlphaStreamMetrics | null;
+  autonomy: AlphaStreamAutonomyStatus | null;
   positions: AlphaStreamPosition[];
   trades: AlphaStreamTrade[];
   logs: (AlphaStreamLog | string)[];
@@ -58,6 +60,7 @@ interface AlphaStreamErrors {
   health: string | null;
   status: string | null;
   metrics: string | null;
+  autonomy: string | null;
   positions: string | null;
   trades: string | null;
   logs: string | null;
@@ -69,6 +72,7 @@ const EMPTY_DATA: AlphaStreamData = {
   health: null,
   status: null,
   metrics: null,
+  autonomy: null,
   positions: [],
   trades: [],
   logs: [],
@@ -80,6 +84,7 @@ const EMPTY_ERRORS: AlphaStreamErrors = {
   health: null,
   status: null,
   metrics: null,
+  autonomy: null,
   positions: null,
   trades: null,
   logs: null,
@@ -114,6 +119,7 @@ export function useAlphaStream(pollIntervalMs = 30000) {
     useState<AlphaStreamErrors>(EMPTY_ERRORS);
   const [connected, setConnected] = useState(false);
   const [mlConnected, setMlConnected] = useState(false);
+  const [autonomyConnected, setAutonomyConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -122,6 +128,7 @@ export function useAlphaStream(pollIntervalMs = 30000) {
       getHealth(),
       getStatus(),
       getMetrics(),
+      getAutonomyStatus(),
       getPositions(),
       getTrades(),
       getLogs(),
@@ -133,6 +140,7 @@ export function useAlphaStream(pollIntervalMs = 30000) {
       healthResult,
       statusResult,
       metricsResult,
+      autonomyResult,
       positionsResult,
       tradesResult,
       logsResult,
@@ -152,6 +160,10 @@ export function useAlphaStream(pollIntervalMs = 30000) {
       metrics:
         metricsResult.status === "rejected"
           ? getErrorMessage(metricsResult.reason)
+          : null,
+      autonomy:
+        autonomyResult.status === "rejected"
+          ? getErrorMessage(autonomyResult.reason)
           : null,
       positions:
         positionsResult.status === "rejected"
@@ -190,6 +202,10 @@ export function useAlphaStream(pollIntervalMs = 30000) {
         metricsResult.status === "fulfilled"
           ? metricsResult.value
           : previous.metrics,
+      autonomy:
+        autonomyResult.status === "fulfilled"
+          ? autonomyResult.value
+          : previous.autonomy,
       positions:
         positionsResult.status === "fulfilled"
           ? positionsResult.value
@@ -224,15 +240,20 @@ export function useAlphaStream(pollIntervalMs = 30000) {
       mlHealthResult.status === "fulfilled" ||
       mlStatusResult.status === "fulfilled";
 
+    const autonomyIsConnected = autonomyResult.status === "fulfilled";
+
     setConnected(coreIsConnected);
     setMlConnected(mlIsConnected);
+    setAutonomyConnected(autonomyIsConnected);
 
     const failedEndpoints = Object.entries(errors)
       .filter(([, message]) => Boolean(message))
       .map(([endpoint, message]) => `${endpoint}: ${message}`);
 
     if (failedEndpoints.length > 0) {
-      const diagnosticMessage = `AlphaStream endpoint errors: ${failedEndpoints.join(" | ")}`;
+      const diagnosticMessage = `AlphaStream endpoint errors: ${failedEndpoints.join(
+        " | "
+      )}`;
       console.error(diagnosticMessage);
       setError(diagnosticMessage);
     } else {
@@ -287,6 +308,7 @@ export function useAlphaStream(pollIntervalMs = 30000) {
     ...data,
     connected,
     mlConnected,
+    autonomyConnected,
     error,
     endpointErrors,
     loading,

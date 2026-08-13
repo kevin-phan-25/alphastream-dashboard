@@ -3,7 +3,11 @@
  *
  * Browser -> Next.js API routes -> AlphaStream Core / ML
  *
- * Date: 2026-08-08
+ * Date: 2026-08-13
+ *
+ * Changes:
+ * - Added getAutonomyStatus()
+ * - Preserves existing Core + ML behavior
  */
 
 import type {
@@ -15,6 +19,7 @@ import type {
   AlphaStreamLog,
   AlphaStreamMLStatus,
   AlphaStreamMLHealth,
+  AlphaStreamAutonomyStatus,
 } from "@/types/alphastream";
 
 async function apiFetch<T>(
@@ -79,6 +84,10 @@ export async function getStatus(): Promise<AlphaStreamStatus> {
 
 export async function getMetrics(): Promise<AlphaStreamMetrics> {
   return apiFetch<AlphaStreamMetrics>("/api/metrics");
+}
+
+export async function getAutonomyStatus(): Promise<AlphaStreamAutonomyStatus> {
+  return apiFetch<AlphaStreamAutonomyStatus>("/api/autonomy/status");
 }
 
 export async function getPositions(): Promise<AlphaStreamPosition[]> {

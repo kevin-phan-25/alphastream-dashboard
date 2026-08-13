@@ -1,12 +1,12 @@
 /**
- * Date: 2026-08-11
+ * Date: 2026-08-13
  * File: src/types/alphastream.ts
  *
  * Changes:
- * - Expanded ML status (bootComplete, lastLoad/Save/Train)
- * - Core status now carries nested `ml` block
- * - Added MLTrainingLogEntry for training activity view
- * - Dashboard compatibility fields kept
+ * - Added autonomy telemetry types
+ * - Added autonomy phase / state / decision types
+ * - Nested autonomy support on Core status + metrics
+ * - Preserves existing Core + ML compatibility
  */
 
 // ======================================================
@@ -16,6 +16,114 @@ export interface AlphaStreamHealth {
   status: string;
   service: string;
   time?: string;
+}
+
+// ======================================================
+// AUTONOMY
+// ======================================================
+export type AlphaStreamAutonomyPhase =
+  | "IDLE"
+  | "OBSERVE"
+  | "ANALYZE"
+  | "DECIDE"
+  | "VALIDATE"
+  | "ACT"
+  | "MONITOR"
+  | "EVALUATE"
+  | "LEARN"
+  | "ERROR"
+  | string;
+
+export type AlphaStreamAutonomyState =
+  | "DISABLED"
+  | "IDLE"
+  | "RUNNING"
+  | "PAUSED"
+  | "DEGRADED"
+  | "ERROR"
+  | string;
+
+export type AlphaStreamAutonomyDecision =
+  | "BUY"
+  | "SELL"
+  | "EXIT"
+  | "HOLD"
+  | "SKIP"
+  | "WAIT"
+  | "NONE"
+  | string;
+
+export interface AlphaStreamAutonomyDecisionTrace {
+  id?: string;
+  timestamp?: string;
+  symbol?: string;
+  decision?: AlphaStreamAutonomyDecision;
+  confidence?: number;
+  reason?: string;
+  riskCheck?: string;
+  riskApproved?: boolean;
+  positionSize?: number;
+  quantity?: number;
+  execution?: string;
+  source?: "AUTONOMY" | "HUMAN" | "SYSTEM" | string;
+  phase?: AlphaStreamAutonomyPhase;
+}
+
+export interface AlphaStreamAutonomyPhaseStatus {
+  name: AlphaStreamAutonomyPhase;
+  status?: "PENDING" | "RUNNING" | "COMPLETE" | "FAILED" | "SKIPPED" | string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  durationMs?: number;
+  message?: string;
+}
+
+export interface AlphaStreamAutonomyStatus {
+  ok?: boolean;
+
+  enabled?: boolean;
+  autonomous?: boolean;
+
+  state?: AlphaStreamAutonomyState;
+  phase?: AlphaStreamAutonomyPhase;
+
+  cycleId?: number | string;
+  cycleCount?: number;
+  completedCycles?: number;
+
+  decisionCount?: number;
+  autonomousDecisions?: number;
+
+  executionCount?: number;
+  autonomousExecutions?: number;
+
+  interventionCount?: number;
+  humanInterventions?: number;
+
+  errorCount?: number;
+
+  lastCycleAt?: string | null;
+  nextCycleAt?: string | null;
+
+  lastDecisionAt?: string | null;
+  lastActionAt?: string | null;
+
+  lastDecision?: AlphaStreamAutonomyDecisionTrace | null;
+
+  phases?: AlphaStreamAutonomyPhaseStatus[];
+
+  currentPhaseStartedAt?: string | null;
+
+  uptime?: string | number;
+
+  mode?: string;
+  version?: string;
+
+  message?: string;
+  reason?: string;
+  error?: string;
+
+  timestamp?: string;
 }
 
 // ======================================================
@@ -86,6 +194,9 @@ export interface AlphaStreamStatus {
 
   /** Nested ML snapshot returned by Core /status */
   ml?: AlphaStreamMLStatus;
+
+  /** Nested autonomy snapshot (optional until Core exposes it) */
+  autonomy?: AlphaStreamAutonomyStatus;
 }
 
 // ======================================================
@@ -100,6 +211,8 @@ export interface AlphaStreamMetrics {
   winRate: number;
   totalTrades: number;
   buyingPower?: number;
+
+  autonomy?: AlphaStreamAutonomyStatus;
 }
 
 // ======================================================

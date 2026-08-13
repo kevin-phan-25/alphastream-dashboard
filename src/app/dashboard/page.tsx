@@ -1,31 +1,50 @@
 /**
- * Date: 2026-08-11
+ * Date: 2026-08-13
  * File: src/app/dashboard/page.tsx
  *
  * Changes:
- * - ML Training Logs / Activity panel
- * - Shows last training results + short history
+ * - Added Autonomy Control Center
+ * - Added 8-phase autonomy pipeline visualization
+ * - Added autonomy cycle / decision / execution / intervention metrics
+ * - Added last autonomous decision trace
+ * - Shows "Telemetry Unavailable" honestly when Core does not expose /autonomy/status
+ * - Preserves existing Core / ML / positions / trades / logs UI
  */
 "use client";
 
 import { useState } from "react";
 import { useAlphaStream } from "@/hooks/useAlphaStream";
 import type {
+  AlphaStreamAutonomyPhase,
+  AlphaStreamAutonomyStatus,
   AlphaStreamLog,
   AlphaStreamMLStatus,
   MLTrainingLogEntry,
 } from "@/types/alphastream";
 
+const AUTONOMY_PHASES: AlphaStreamAutonomyPhase[] = [
+  "OBSERVE",
+  "ANALYZE",
+  "DECIDE",
+  "VALIDATE",
+  "ACT",
+  "MONITOR",
+  "EVALUATE",
+  "LEARN",
+];
+
 export default function DashboardPage() {
   const {
     status,
     metrics,
+    autonomy,
     positions,
     trades,
     logs,
     mlStatus,
     connected,
     mlConnected,
+    autonomyConnected,
     error,
     loading,
     refresh,
@@ -103,7 +122,9 @@ export default function DashboardPage() {
         method: "POST",
         cache: "no-store",
       });
-      setTimeout(() => refresh(), 1500);
+      setTimeout(() => {
+        void refresh();
+      }, 1500);
     } catch (err) {
       console.error(err);
     } finally {
@@ -114,374 +135,799 @@ export default function DashboardPage() {
   const hardFlat = status?.hardFlat ?? false;
   const degraded = status?.degraded ?? false;
 
-  // Prefer nested core.ml, fall back to standalone /ml/status
   const ml: AlphaStreamMLStatus | null =
     status?.ml && status.ml.ok !== undefined ? status.ml : mlStatus;
 
+  const autonomyState =
+    autonomy?.state ?? status?.autonomy?.state ?? "UNKNOWN";
+
+  const autonomyPhase =
+    autonomy?.phase ?? status?.autonomy?.phase ?? "UNKNOWN";
+
+  const autonomyEnabled =
+    autonomy?.enabled ??
+    autonomy?.autonomous ??
+    status?.autonomy?.enabled ??
+    status?.autonomy?.autonomous ??
+    false;
+
+  const autonomyTelemetryAvailable =
+    autonomyConnected || Boolean(status?.autonomy);
+
+  const currentCycle =
+    autonomy?.cycleId ??
+    autonomy?.cycleCount ??
+    autonomy?.completedCycles ??
+    status?.autonomy?.cycleId ??
+    status?.autonomy?.cycleCount ??
+    0;
+
+  const completedCycles =
+    autonomy?.completedCycles ??
+    autonomy?.cycleCount ??
+    status?.autonomy?.completedCycles ??
+    status?.autonomy?.cycleCount ??
+    0;
+
+  const decisionCount =
+    autonomy?.autonomousDecisions ??
+    autonomy?.decisionCount ??
+    status?.autonomy?.autonomousDecisions ??
+    status?.autonomy?.decisionCount ??
+    0;
+
+  const executionCount =
+    autonomy?.autonomousExecutions ??
+    autonomy?.executionCount ??
+    status?.autonomy?.autonomousExecutions ??
+    status?.autonomy?.executionCount ??
+    0;
+
+  const interventionCount =
+    autonomy?.humanInterventions ??
+    autonomy?.interventionCount ??
+    status?.autonomy?.humanInterventions ??
+    status?.autonomy?.interventionCount ??
+    0;
+
+  const lastDecision =
+    autonomy?.lastDecision ?? status?.autonomy?.lastDecision ?? null;
+
   return (
     <main className="min-h-screen bg-black p-6 text-white md:p-8">
-      {/* Header */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            AlphaStream Dashboard
-          </h1>
-          <p className="text-gray-400">Core + ML Service Monitoring</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={handleScan}
-            disabled={scanLoading || !connected}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
-          >
-            {scanLoading ? "Scanning…" : "Force Scan"}
-          </button>
-          <button
-            onClick={refresh}
-            disabled={loading}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? "Refreshing…" : "Refresh"}
-          </button>
-        </div>
-      </div>
-
-      {/* Connection Status */}
-      <div className="mb-6 flex flex-wrap items-center gap-6 text-sm">
-        <span className={connected ? "text-green-400" : "text-red-400"}>
-          {connected ? "● Core Connected" : "● Core Offline"}
-        </span>
-        <span className={mlConnected ? "text-green-400" : "text-red-400"}>
-          {mlConnected ? "● ML Connected" : "● ML Offline"}
-        </span>
-        {error && <span className="text-red-400">{error}</span>}
-      </div>
-
-      {/* Hard Flat / Degraded Warning */}
-      {(hardFlat || degraded) && (
-        <div className="mb-6 rounded-xl border border-red-500/60 bg-red-950/50 p-5">
-          <p className="text-lg font-semibold text-red-400">
-            ⚠️ Trading Halted
-            {hardFlat && " — Hard Flat Active"}
-            {degraded && " — Degraded Mode"}
-          </p>
-          <p className="mt-1 text-sm text-red-300/90">
-            New entries are blocked. Existing positions are still managed.
-            Clear the flag to resume scanning for new trades.
-          </p>
-          <button
-            onClick={handleClearHardFlat}
-            disabled={clearingFlat}
-            className="mt-4 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium hover:bg-red-700 disabled:opacity-50"
-          >
-            {clearingFlat ? "Clearing…" : "Clear Hard Flat / Degraded"}
-          </button>
-        </div>
-      )}
-
-      {/* Core Metrics */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard
-          title="Equity"
-          value={formatCurrency(status?.equity ?? metrics?.equity ?? 0)}
-        />
-        <MetricCard
-          title="Positions"
-          value={
-            status?.positionsCount ??
-            status?.positions ??
-            metrics?.positions ??
-            positions.length ??
-            0
-          }
-        />
-        <MetricCard
-          title="Win Rate"
-          value={`${Number(status?.winRate ?? metrics?.winRate ?? 0).toFixed(1)}%`}
-        />
-        <MetricCard
-          title="Drawdown"
-          value={`${Number(
-            status?.drawdownPct ??
-              status?.drawdown ??
-              metrics?.drawdownPct ??
-              metrics?.drawdown ??
-              0
-          ).toFixed(2)}%`}
-        />
-      </section>
-
-      {/* Extra Core Metrics */}
-      <section className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <MetricCard
-          title="Peak Equity"
-          value={formatCurrency(status?.peakEquity ?? metrics?.peakEquity ?? 0)}
-        />
-        <MetricCard
-          title="Buying Power"
-          value={formatCurrency(
-            status?.buyingPower ?? metrics?.buyingPower ?? 0
-          )}
-        />
-        <MetricCard
-          title="Total Trades"
-          value={
-            status?.totalTrades ?? metrics?.totalTrades ?? trades.length ?? 0
-          }
-        />
-      </section>
-
-      {/* ML Service Section */}
-      <section className="mt-10">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-xl font-semibold">ML Service</h2>
-          <button
-            onClick={handleTrain}
-            disabled={training || !mlConnected}
-            className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
-          >
-            {training ? "Training…" : "Start Training"}
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard title="Entry Buffer" value={ml?.entryBufferSize ?? 0} />
-          <MetricCard title="Exit Buffer" value={ml?.exitBufferSize ?? 0} />
-          <MetricCard
-            title="Total Experiences"
-            value={ml?.totalExperiences ?? 0}
-          />
-          <MetricCard
-            title="Training Enabled"
-            value={ml?.trainingEnabled ? "Yes" : "No"}
-          />
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard
-            title="Boot Complete"
-            value={ml?.bootComplete ? "Yes" : "No"}
-          />
-          <MetricCard title="Last Load" value={formatTs(ml?.lastLoad)} />
-          <MetricCard title="Last Save" value={formatTs(ml?.lastSave)} />
-          <MetricCard title="Last Train" value={formatTs(ml?.lastTrain)} />
-        </div>
-
-        {(ml?.version || ml?.timestamp) && (
-          <p className="mt-3 text-sm text-gray-400">
-            {ml.version && <>Version: {ml.version}</>}
-            {ml.timestamp && (
-              <>
-                {ml.version ? " • " : ""}
-                Last update: {new Date(ml.timestamp).toLocaleString()}
-              </>
-            )}
-          </p>
-        )}
-      </section>
-
-      {/* ========== NEW: ML Training Logs ========== */}
-      <section className="mt-10">
-        <h2 className="mb-4 text-xl font-semibold">ML Training Logs</h2>
-        <div className="overflow-x-auto rounded-xl bg-zinc-900">
-          {trainingLogs.length === 0 ? (
-            <p className="p-5 text-gray-400">
-              No training runs yet. Click “Start Training” to see results here.
+      <div className="mx-auto max-w-[1800px]">
+        {/* Header */}
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              AlphaStream Dashboard
+            </h1>
+            <p className="text-gray-400">
+              Core + ML + Autonomous Trading System
             </p>
-          ) : (
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-700 text-gray-400">
-                <tr>
-                  <th className="p-4">Time</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4">Message</th>
-                  <th className="p-4">Steps</th>
-                  <th className="p-4">Avg Loss</th>
-                  <th className="p-4">Elapsed</th>
-                  <th className="p-4">Buffers (E/X)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trainingLogs.map((log) => (
-                  <tr key={log.id} className="border-b border-zinc-800">
-                    <td className="p-4 text-gray-400 whitespace-nowrap">
-                      {new Date(log.timestamp).toLocaleString()}
-                    </td>
-                    <td className="p-4">
-                      <span
-                        className={
-                          log.trained
-                            ? "text-green-400"
-                            : log.ok
-                              ? "text-yellow-400"
-                              : "text-red-400"
-                        }
-                      >
-                        {log.trained
-                          ? "Trained"
-                          : log.ok
-                            ? "Skipped"
-                            : "Failed"}
-                      </span>
-                    </td>
-                    <td className="p-4 max-w-xs truncate" title={log.message}>
-                      {log.message}
-                    </td>
-                    <td className="p-4">{log.steps ?? "—"}</td>
-                    <td className="p-4">
-                      {log.avgLoss != null
-                        ? Number(log.avgLoss).toFixed(4)
-                        : "—"}
-                    </td>
-                    <td className="p-4">
-                      {log.elapsedSec != null
-                        ? `${log.elapsedSec}s`
-                        : "—"}
-                    </td>
-                    <td className="p-4">
-                      {log.entryBufferSize != null || log.exitBufferSize != null
-                        ? `${log.entryBufferSize ?? "—"} / ${log.exitBufferSize ?? "—"}`
-                        : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleScan}
+              disabled={scanLoading || !connected}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {scanLoading ? "Scanning…" : "Force Scan"}
+            </button>
+            <button
+              onClick={() => void refresh()}
+              disabled={loading}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
         </div>
-      </section>
 
-      {/* Open Positions */}
-      <section className="mt-10">
-        <h2 className="mb-4 text-xl font-semibold">Open Positions</h2>
-        <div className="overflow-x-auto rounded-xl bg-zinc-900">
-          {positions.length === 0 ? (
-            <p className="p-5 text-gray-400">No open positions</p>
-          ) : (
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-700 text-gray-400">
-                <tr>
-                  <th className="p-4">Symbol</th>
-                  <th className="p-4">Side</th>
-                  <th className="p-4">Qty</th>
-                  <th className="p-4">Avg Entry</th>
-                  <th className="p-4">Market Value</th>
-                  <th className="p-4">Unrealized P&L</th>
-                </tr>
-              </thead>
-              <tbody>
-                {positions.map((pos) => {
-                  const pnl = pos.unrealizedPnl ?? pos.unrealizedPL ?? 0;
-                  return (
-                    <tr key={pos.symbol} className="border-b border-zinc-800">
-                      <td className="p-4 font-medium">{pos.symbol}</td>
-                      <td className="p-4 capitalize">{pos.side ?? "long"}</td>
-                      <td className="p-4">{pos.qty}</td>
-                      <td className="p-4">
-                        {formatCurrency(pos.avgEntryPrice ?? pos.entry ?? 0)}
+        {/* Connection Status */}
+        <div className="mb-6 flex flex-wrap items-center gap-6 text-sm">
+          <span className={connected ? "text-green-400" : "text-red-400"}>
+            ● Core {connected ? "Connected" : "Offline"}
+          </span>
+          <span className={mlConnected ? "text-green-400" : "text-red-400"}>
+            ● ML {mlConnected ? "Connected" : "Offline"}
+          </span>
+          <span
+            className={
+              autonomyTelemetryAvailable ? "text-green-400" : "text-yellow-400"
+            }
+          >
+            ● Autonomy{" "}
+            {autonomyTelemetryAvailable
+              ? "Telemetry Connected"
+              : "Telemetry Unavailable"}
+          </span>
+          {error && <span className="text-red-400">{error}</span>}
+        </div>
+
+        {/* Autonomy Control Center */}
+        <AutonomyControlCenter
+          autonomy={autonomy}
+          enabled={autonomyEnabled}
+          state={autonomyState}
+          phase={autonomyPhase}
+          telemetryAvailable={autonomyTelemetryAvailable}
+          cycle={currentCycle}
+          completedCycles={completedCycles}
+          decisions={decisionCount}
+          executions={executionCount}
+          interventions={interventionCount}
+          lastDecision={lastDecision}
+        />
+
+        {/* Hard Flat / Degraded Warning */}
+        {(hardFlat || degraded) && (
+          <div className="mb-6 rounded-xl border border-red-500/60 bg-red-950/50 p-5">
+            <p className="text-lg font-semibold text-red-400">
+              ⚠️ Trading Halted
+              {hardFlat && " — Hard Flat Active"}
+              {degraded && " — Degraded Mode"}
+            </p>
+            <p className="mt-1 text-sm text-red-300/90">
+              New entries are blocked. Existing positions are still managed.
+              Clear the flag to resume scanning for new trades.
+            </p>
+            <button
+              onClick={handleClearHardFlat}
+              disabled={clearingFlat}
+              className="mt-4 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+            >
+              {clearingFlat ? "Clearing…" : "Clear Hard Flat / Degraded"}
+            </button>
+          </div>
+        )}
+
+        {/* Core Metrics */}
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            title="Equity"
+            value={formatCurrency(status?.equity ?? metrics?.equity ?? 0)}
+          />
+          <MetricCard
+            title="Positions"
+            value={
+              status?.positionsCount ??
+              status?.positions ??
+              metrics?.positions ??
+              positions.length ??
+              0
+            }
+          />
+          <MetricCard
+            title="Win Rate"
+            value={`${Number(
+              status?.winRate ?? metrics?.winRate ?? 0
+            ).toFixed(1)}%`}
+          />
+          <MetricCard
+            title="Drawdown"
+            value={`${Number(
+              status?.drawdownPct ??
+                status?.drawdown ??
+                metrics?.drawdownPct ??
+                metrics?.drawdown ??
+                0
+            ).toFixed(2)}%`}
+          />
+        </section>
+
+        {/* Extra Core Metrics */}
+        <section className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <MetricCard
+            title="Peak Equity"
+            value={formatCurrency(
+              status?.peakEquity ?? metrics?.peakEquity ?? 0
+            )}
+          />
+          <MetricCard
+            title="Buying Power"
+            value={formatCurrency(
+              status?.buyingPower ?? metrics?.buyingPower ?? 0
+            )}
+          />
+          <MetricCard
+            title="Total Trades"
+            value={
+              status?.totalTrades ??
+              metrics?.totalTrades ??
+              trades.length ??
+              0
+            }
+          />
+        </section>
+
+        {/* ML Service Section */}
+        <section className="mt-10">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-xl font-semibold">ML Service</h2>
+            <button
+              onClick={handleTrain}
+              disabled={training || !mlConnected}
+              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
+            >
+              {training ? "Training…" : "Start Training"}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard title="Entry Buffer" value={ml?.entryBufferSize ?? 0} />
+            <MetricCard title="Exit Buffer" value={ml?.exitBufferSize ?? 0} />
+            <MetricCard
+              title="Total Experiences"
+              value={ml?.totalExperiences ?? 0}
+            />
+            <MetricCard
+              title="Training Enabled"
+              value={ml?.trainingEnabled ? "Yes" : "No"}
+            />
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              title="Boot Complete"
+              value={ml?.bootComplete ? "Yes" : "No"}
+            />
+            <MetricCard title="Last Load" value={formatTs(ml?.lastLoad)} />
+            <MetricCard title="Last Save" value={formatTs(ml?.lastSave)} />
+            <MetricCard title="Last Train" value={formatTs(ml?.lastTrain)} />
+          </div>
+
+          {(ml?.version || ml?.timestamp) && (
+            <p className="mt-3 text-sm text-gray-400">
+              {ml.version && <>Version: {ml.version}</>}
+              {ml.timestamp && (
+                <>
+                  {ml.version ? " • " : ""}
+                  Last update: {new Date(ml.timestamp).toLocaleString()}
+                </>
+              )}
+            </p>
+          )}
+        </section>
+
+        {/* ML Training Logs */}
+        <section className="mt-10">
+          <h2 className="mb-4 text-xl font-semibold">ML Training Logs</h2>
+          <div className="overflow-x-auto rounded-xl bg-zinc-900">
+            {trainingLogs.length === 0 ? (
+              <p className="p-5 text-gray-400">
+                No training runs yet. Click “Start Training” to see results
+                here.
+              </p>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-zinc-700 text-gray-400">
+                  <tr>
+                    <th className="p-4">Time</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4">Message</th>
+                    <th className="p-4">Steps</th>
+                    <th className="p-4">Avg Loss</th>
+                    <th className="p-4">Elapsed</th>
+                    <th className="p-4">Buffers (E/X)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trainingLogs.map((log) => (
+                    <tr key={log.id} className="border-b border-zinc-800">
+                      <td className="whitespace-nowrap p-4 text-gray-400">
+                        {new Date(log.timestamp).toLocaleString()}
                       </td>
                       <td className="p-4">
-                        {formatCurrency(pos.marketValue ?? 0)}
+                        <span
+                          className={
+                            log.trained
+                              ? "text-green-400"
+                              : log.ok
+                                ? "text-yellow-400"
+                                : "text-red-400"
+                          }
+                        >
+                          {log.trained
+                            ? "Trained"
+                            : log.ok
+                              ? "Skipped"
+                              : "Failed"}
+                        </span>
                       </td>
                       <td
-                        className={`p-4 ${
-                          pnl >= 0 ? "text-green-400" : "text-red-400"
-                        }`}
+                        className="max-w-xs truncate p-4"
+                        title={log.message}
                       >
-                        {formatCurrency(pnl)}
+                        {log.message}
                       </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </section>
-
-      {/* Recent Trades */}
-      <section className="mt-10">
-        <h2 className="mb-4 text-xl font-semibold">Recent Trades</h2>
-        <div className="overflow-x-auto rounded-xl bg-zinc-900">
-          {trades.length === 0 ? (
-            <p className="p-5 text-gray-400">No closed trades yet</p>
-          ) : (
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-700 text-gray-400">
-                <tr>
-                  <th className="p-4">Time</th>
-                  <th className="p-4">Symbol</th>
-                  <th className="p-4">Side</th>
-                  <th className="p-4">P&L</th>
-                  <th className="p-4">Exit Reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trades
-                  .slice()
-                  .reverse()
-                  .slice(0, 30)
-                  .map((t: any, i: number) => (
-                    <tr key={t.id ?? i} className="border-b border-zinc-800">
-                      <td className="p-4 text-gray-400">
-                        {t.timestamp
-                          ? new Date(t.timestamp).toLocaleString()
+                      <td className="p-4">{log.steps ?? "—"}</td>
+                      <td className="p-4">
+                        {log.avgLoss != null
+                          ? Number(log.avgLoss).toFixed(4)
                           : "—"}
                       </td>
-                      <td className="p-4 font-medium">{t.symbol}</td>
-                      <td className="p-4 capitalize">{t.side ?? "—"}</td>
-                      <td
-                        className={`p-4 ${
-                          (t.pnl ?? t.PnL ?? 0) >= 0
-                            ? "text-green-400"
-                            : "text-red-400"
-                        }`}
-                      >
-                        {formatCurrency(t.pnl ?? t.PnL ?? 0)}
+                      <td className="p-4">
+                        {log.elapsedSec != null
+                          ? `${log.elapsedSec}s`
+                          : "—"}
                       </td>
-                      <td className="p-4 text-gray-400">
-                        {t.exitReason ?? t.ExitReason ?? "—"}
+                      <td className="p-4">
+                        {log.entryBufferSize != null ||
+                        log.exitBufferSize != null
+                          ? `${log.entryBufferSize ?? "—"} / ${
+                              log.exitBufferSize ?? "—"
+                            }`
+                          : "—"}
                       </td>
                     </tr>
                   ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </section>
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
 
-      {/* System Logs */}
-      <section className="mt-10">
-        <h2 className="mb-4 text-xl font-semibold">System Logs</h2>
-        <div className="max-h-80 overflow-y-auto rounded-xl bg-zinc-900 p-5 font-mono text-sm">
-          {logs.length === 0 ? (
-            <p className="text-gray-400">No logs available</p>
-          ) : (
-            logs.map((log, index) => (
-              <p
-                key={
-                  typeof log === "string"
-                    ? index
-                    : (log as AlphaStreamLog).id ?? index
-                }
-                className="mb-1 text-gray-300"
-              >
-                {typeof log === "string"
-                  ? log
-                  : `[${(log as AlphaStreamLog).level ?? "INFO"}] ${
-                      (log as AlphaStreamLog).timestamp ?? ""
-                    } ${(log as AlphaStreamLog).message ?? ""}`.trim()}
-              </p>
-            ))
-          )}
-        </div>
-      </section>
+        {/* Open Positions */}
+        <section className="mt-10">
+          <h2 className="mb-4 text-xl font-semibold">Open Positions</h2>
+          <div className="overflow-x-auto rounded-xl bg-zinc-900">
+            {positions.length === 0 ? (
+              <p className="p-5 text-gray-400">No open positions</p>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-zinc-700 text-gray-400">
+                  <tr>
+                    <th className="p-4">Symbol</th>
+                    <th className="p-4">Side</th>
+                    <th className="p-4">Qty</th>
+                    <th className="p-4">Avg Entry</th>
+                    <th className="p-4">Market Value</th>
+                    <th className="p-4">Unrealized P&L</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {positions.map((pos) => {
+                    const pnl = pos.unrealizedPnl ?? pos.unrealizedPL ?? 0;
+                    return (
+                      <tr
+                        key={pos.symbol}
+                        className="border-b border-zinc-800"
+                      >
+                        <td className="p-4 font-medium">{pos.symbol}</td>
+                        <td className="p-4 capitalize">
+                          {pos.side ?? "long"}
+                        </td>
+                        <td className="p-4">{pos.qty}</td>
+                        <td className="p-4">
+                          {formatCurrency(
+                            pos.avgEntryPrice ?? pos.entry ?? 0
+                          )}
+                        </td>
+                        <td className="p-4">
+                          {formatCurrency(pos.marketValue ?? 0)}
+                        </td>
+                        <td
+                          className={`p-4 ${
+                            pnl >= 0 ? "text-green-400" : "text-red-400"
+                          }`}
+                        >
+                          {formatCurrency(pnl)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
+
+        {/* Recent Trades */}
+        <section className="mt-10">
+          <h2 className="mb-4 text-xl font-semibold">Recent Trades</h2>
+          <div className="overflow-x-auto rounded-xl bg-zinc-900">
+            {trades.length === 0 ? (
+              <p className="p-5 text-gray-400">No closed trades yet</p>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-zinc-700 text-gray-400">
+                  <tr>
+                    <th className="p-4">Time</th>
+                    <th className="p-4">Symbol</th>
+                    <th className="p-4">Side</th>
+                    <th className="p-4">P&L</th>
+                    <th className="p-4">Exit Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trades
+                    .slice()
+                    .reverse()
+                    .slice(0, 30)
+                    .map((t: any, i: number) => (
+                      <tr
+                        key={t.id ?? i}
+                        className="border-b border-zinc-800"
+                      >
+                        <td className="p-4 text-gray-400">
+                          {t.timestamp
+                            ? new Date(t.timestamp).toLocaleString()
+                            : "—"}
+                        </td>
+                        <td className="p-4 font-medium">{t.symbol}</td>
+                        <td className="p-4 capitalize">{t.side ?? "—"}</td>
+                        <td
+                          className={`p-4 ${
+                            (t.pnl ?? t.PnL ?? 0) >= 0
+                              ? "text-green-400"
+                              : "text-red-400"
+                          }`}
+                        >
+                          {formatCurrency(t.pnl ?? t.PnL ?? 0)}
+                        </td>
+                        <td className="p-4 text-gray-400">
+                          {t.exitReason ?? t.ExitReason ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
+
+        {/* System Logs */}
+        <section className="mt-10">
+          <h2 className="mb-4 text-xl font-semibold">System Logs</h2>
+          <div className="max-h-80 overflow-y-auto rounded-xl bg-zinc-900 p-5 font-mono text-sm">
+            {logs.length === 0 ? (
+              <p className="text-gray-400">No logs available</p>
+            ) : (
+              logs.map((log, index) => (
+                <p
+                  key={
+                    typeof log === "string"
+                      ? index
+                      : (log as AlphaStreamLog).id ?? index
+                  }
+                  className="mb-1 text-gray-300"
+                >
+                  {typeof log === "string"
+                    ? log
+                    : `[${(log as AlphaStreamLog).level ?? "INFO"}] ${
+                        (log as AlphaStreamLog).timestamp ?? ""
+                      } ${(log as AlphaStreamLog).message ?? ""}`.trim()}
+                </p>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
 
 // ======================================================
-// Helpers
+// AUTONOMY CONTROL CENTER
+// ======================================================
+function AutonomyControlCenter({
+  autonomy,
+  enabled,
+  state,
+  phase,
+  telemetryAvailable,
+  cycle,
+  completedCycles,
+  decisions,
+  executions,
+  interventions,
+  lastDecision,
+}: {
+  autonomy: AlphaStreamAutonomyStatus | null;
+  enabled: boolean;
+  state: string;
+  phase: string;
+  telemetryAvailable: boolean;
+  cycle: number | string;
+  completedCycles: number;
+  decisions: number;
+  executions: number;
+  interventions: number;
+  lastDecision: AlphaStreamAutonomyStatus["lastDecision"];
+}) {
+  const normalizedState = String(state).toUpperCase();
+  const normalizedPhase = String(phase).toUpperCase();
+
+  const isRunning = normalizedState === "RUNNING" && enabled;
+  const isError = normalizedState === "ERROR";
+  const isDegraded = normalizedState === "DEGRADED";
+
+  const stateLabel = !telemetryAvailable
+    ? "TELEMETRY UNAVAILABLE"
+    : !enabled
+      ? "DISABLED"
+      : normalizedState;
+
+  return (
+    <section className="mb-8 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex items-center gap-3">
+            <span
+              className={`h-3 w-3 rounded-full ${
+                isRunning
+                  ? "bg-green-400"
+                  : isError
+                    ? "bg-red-400"
+                    : isDegraded
+                      ? "bg-yellow-400"
+                      : "bg-zinc-500"
+              }`}
+            />
+            <h2 className="text-2xl font-bold">Autonomy Control Center</h2>
+          </div>
+          <p className="mt-1 text-sm text-gray-400">
+            Autonomous decision-loop telemetry
+          </p>
+        </div>
+
+        <div
+          className={`rounded-full border px-4 py-2 text-sm font-semibold ${
+            isRunning
+              ? "border-green-500/40 bg-green-950/40 text-green-400"
+              : isError
+                ? "border-red-500/40 bg-red-950/40 text-red-400"
+                : "border-zinc-700 bg-zinc-900 text-gray-400"
+          }`}
+        >
+          {stateLabel}
+        </div>
+      </div>
+
+      {!telemetryAvailable && (
+        <div className="mb-6 rounded-xl border border-yellow-500/30 bg-yellow-950/20 p-4">
+          <p className="font-semibold text-yellow-400">
+            Autonomy telemetry unavailable
+          </p>
+          <p className="mt-1 text-sm text-yellow-200/70">
+            The dashboard is ready for autonomy telemetry, but AlphaStream
+            Core has not returned a valid /autonomy/status response. This
+            dashboard will not claim that the system is autonomous without
+            telemetry.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <AutonomyMetric
+          title="Current Cycle"
+          value={telemetryAvailable ? cycle : "—"}
+        />
+        <AutonomyMetric
+          title="Completed Cycles"
+          value={telemetryAvailable ? completedCycles : "—"}
+        />
+        <AutonomyMetric
+          title="Autonomous Decisions"
+          value={telemetryAvailable ? decisions : "—"}
+        />
+        <AutonomyMetric
+          title="Autonomous Executions"
+          value={telemetryAvailable ? executions : "—"}
+        />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <AutonomyMetric
+          title="Human Interventions"
+          value={telemetryAvailable ? interventions : "—"}
+        />
+        <AutonomyMetric
+          title="Current Phase"
+          value={telemetryAvailable ? normalizedPhase : "—"}
+        />
+        <AutonomyMetric
+          title="Last Cycle"
+          value={
+            telemetryAvailable ? formatTs(autonomy?.lastCycleAt) : "—"
+          }
+        />
+        <AutonomyMetric
+          title="Last Action"
+          value={
+            telemetryAvailable ? formatTs(autonomy?.lastActionAt) : "—"
+          }
+        />
+      </div>
+
+      {/* 8-phase pipeline */}
+      <div className="mt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Autonomous Pipeline</h3>
+          <span className="text-xs uppercase tracking-wider text-gray-500">
+            8 phases
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
+          {AUTONOMY_PHASES.map((phaseName) => {
+            const phaseInfo = autonomy?.phases?.find(
+              (item) =>
+                String(item.name).toUpperCase() ===
+                String(phaseName).toUpperCase()
+            );
+
+            const isCurrent =
+              normalizedPhase === String(phaseName).toUpperCase();
+            const completed = phaseInfo?.status === "COMPLETE";
+
+            return (
+              <div
+                key={phaseName}
+                className={`rounded-xl border p-3 ${
+                  isCurrent
+                    ? "border-blue-500/60 bg-blue-950/40"
+                    : completed
+                      ? "border-green-500/40 bg-green-950/20"
+                      : "border-zinc-800 bg-zinc-900"
+                }`}
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <span
+                    className={`h-2.5 w-2.5 rounded-full ${
+                      isCurrent
+                        ? "bg-blue-400"
+                        : completed
+                          ? "bg-green-400"
+                          : "bg-zinc-600"
+                    }`}
+                  />
+                  {isCurrent && (
+                    <span className="text-[10px] font-bold uppercase text-blue-400">
+                      Current
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-semibold">{phaseName}</p>
+                {phaseInfo?.durationMs != null && (
+                  <p className="mt-1 text-[10px] text-gray-500">
+                    {phaseInfo.durationMs}ms
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Last Autonomous Decision */}
+      <div className="mt-6 rounded-xl border border-zinc-800 bg-black/40 p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Last Autonomous Decision</h3>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              lastDecision?.source === "HUMAN"
+                ? "bg-yellow-950 text-yellow-400"
+                : "bg-green-950 text-green-400"
+            }`}
+          >
+            {lastDecision?.source ?? "UNKNOWN"}
+          </span>
+        </div>
+
+        {!lastDecision ? (
+          <p className="text-sm text-gray-500">
+            No autonomous decision telemetry available yet.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <DecisionField
+              label="Symbol"
+              value={lastDecision.symbol ?? "—"}
+            />
+            <DecisionField
+              label="Decision"
+              value={lastDecision.decision ?? "—"}
+            />
+            <DecisionField
+              label="Confidence"
+              value={
+                lastDecision.confidence != null
+                  ? `${(
+                      Number(lastDecision.confidence) > 1
+                        ? Number(lastDecision.confidence)
+                        : Number(lastDecision.confidence) * 100
+                    ).toFixed(1)}%`
+                  : "—"
+              }
+            />
+            <DecisionField
+              label="Risk"
+              value={
+                lastDecision.riskApproved == null
+                  ? lastDecision.riskCheck ?? "—"
+                  : lastDecision.riskApproved
+                    ? "PASSED"
+                    : "BLOCKED"
+              }
+            />
+            <DecisionField
+              label="Position Size"
+              value={
+                lastDecision.positionSize != null
+                  ? formatCurrency(lastDecision.positionSize)
+                  : "—"
+              }
+            />
+            <DecisionField
+              label="Quantity"
+              value={lastDecision.quantity ?? "—"}
+            />
+            <DecisionField
+              label="Execution"
+              value={lastDecision.execution ?? "—"}
+            />
+            <DecisionField
+              label="Time"
+              value={formatTs(lastDecision.timestamp)}
+            />
+          </div>
+        )}
+
+        {lastDecision?.reason && (
+          <div className="mt-4 rounded-lg bg-zinc-900 p-4">
+            <p className="text-xs uppercase tracking-wider text-gray-500">
+              Decision Reason
+            </p>
+            <p className="mt-1 text-sm text-gray-300">{lastDecision.reason}</p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ======================================================
+// AUTONOMY METRIC
+// ======================================================
+function AutonomyMetric({
+  title,
+  value,
+}: {
+  title: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+      <p className="text-xs uppercase tracking-wider text-gray-500">{title}</p>
+      <p className="mt-2 text-xl font-bold tracking-tight">{value}</p>
+    </div>
+  );
+}
+
+// ======================================================
+// DECISION FIELD
+// ======================================================
+function DecisionField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-wider text-gray-500">{label}</p>
+      <p className="mt-1 truncate text-sm font-medium text-gray-200">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+// ======================================================
+// STANDARD METRIC
 // ======================================================
 function MetricCard({
   title,
@@ -498,6 +944,9 @@ function MetricCard({
   );
 }
 
+// ======================================================
+// HELPERS
+// ======================================================
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
