@@ -3,10 +3,9 @@
  * File: src/types/alphastream.ts
  *
  * Changes:
- * - Added autonomy telemetry types
- * - Added autonomy phase / state / decision types
+ * - Extended autonomy types to match current Core /autonomy/status shape
+ * - Kept future-rich fields (state/phase/cycles/decision trace) for when Core adds them
  * - Nested autonomy support on Core status + metrics
- * - Preserves existing Core + ML compatibility
  */
 
 // ======================================================
@@ -78,12 +77,29 @@ export interface AlphaStreamAutonomyPhaseStatus {
   message?: string;
 }
 
+/**
+ * Autonomy telemetry.
+ * Supports both:
+ * 1. Current Core shape (entry window, dailyEntries, reason, …)
+ * 2. Future rich shape (state, phase, cycles, lastDecision, phases[])
+ */
 export interface AlphaStreamAutonomyStatus {
   ok?: boolean;
 
+  // --- Current Core fields (2026-08-13) ---
   enabled?: boolean;
   autonomous?: boolean;
+  dailyEntries?: number;
+  entryWindow?: string;
+  eodFlatten?: string;
+  inEntryWindow?: boolean;
+  lastScan?: string | null;
+  manageOnlyOutside?: boolean;
+  maxTradesDay?: number;
+  reason?: string;
+  scanIntervalSec?: number;
 
+  // --- Future / rich fields ---
   state?: AlphaStreamAutonomyState;
   phase?: AlphaStreamAutonomyPhase;
 
@@ -120,14 +136,16 @@ export interface AlphaStreamAutonomyStatus {
   version?: string;
 
   message?: string;
-  reason?: string;
   error?: string;
 
   timestamp?: string;
+
+  // Allow nested form when /autonomy/status returns full status payload
+  autonomy?: AlphaStreamAutonomyStatus;
 }
 
 // ======================================================
-// ML (nested inside Core status + standalone /ml/status)
+// ML
 // ======================================================
 export interface AlphaStreamMLStatus {
   ok: boolean;
@@ -149,7 +167,6 @@ export interface AlphaStreamMLHealth {
   service: string;
 }
 
-/** Result of a single "Start Training" call (client-side history) */
 export interface MLTrainingLogEntry {
   id: string;
   timestamp: string;
@@ -177,7 +194,6 @@ export interface AlphaStreamStatus {
   drawdown: number;
   drawdownPct?: number;
   positionsCount: number;
-  /** Compatibility alias */
   positions?: number;
   hardFlat: boolean;
   tradingEnabled?: boolean;
@@ -192,10 +208,7 @@ export interface AlphaStreamStatus {
   version?: string;
   timestamp?: string;
 
-  /** Nested ML snapshot returned by Core /status */
   ml?: AlphaStreamMLStatus;
-
-  /** Nested autonomy snapshot (optional until Core exposes it) */
   autonomy?: AlphaStreamAutonomyStatus;
 }
 
@@ -211,12 +224,11 @@ export interface AlphaStreamMetrics {
   winRate: number;
   totalTrades: number;
   buyingPower?: number;
-
   autonomy?: AlphaStreamAutonomyStatus;
 }
 
 // ======================================================
-// LOGS
+// LOGS / TRADES / POSITIONS (unchanged)
 // ======================================================
 export interface AlphaStreamLog {
   id?: string | number;
@@ -229,9 +241,6 @@ export interface AlphaStreamLogs {
   logs: AlphaStreamLog[] | string[];
 }
 
-// ======================================================
-// TRADES
-// ======================================================
 export interface Trade {
   id?: string;
   symbol: string;
@@ -251,9 +260,6 @@ export interface AlphaStreamTrades {
   trades: AlphaStreamTrade[];
 }
 
-// ======================================================
-// POSITIONS
-// ======================================================
 export interface Position {
   symbol: string;
   qty: number;

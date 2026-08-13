@@ -3,11 +3,10 @@
  * File: src/app/dashboard/page.tsx
  *
  * Changes:
- * - Added Autonomy Control Center
- * - Added 8-phase autonomy pipeline visualization
- * - Added autonomy cycle / decision / execution / intervention metrics
- * - Added last autonomous decision trace
- * - Shows "Telemetry Unavailable" honestly when Core does not expose /autonomy/status
+ * - Autonomy Control Center understands current Core /autonomy/status shape
+ *   (enabled, entryWindow, inEntryWindow, reason, dailyEntries, maxTradesDay, …)
+ * - Still supports future rich fields (state, phase, cycles, lastDecision, phases[])
+ * - Correctly extracts nested `.autonomy` when Core returns a full status payload
  * - Preserves existing Core / ML / positions / trades / logs UI
  */
 "use client";
@@ -138,60 +137,58 @@ export default function DashboardPage() {
   const ml: AlphaStreamMLStatus | null =
     status?.ml && status.ml.ok !== undefined ? status.ml : mlStatus;
 
-  const autonomyState =
-    autonomy?.state ?? status?.autonomy?.state ?? "UNKNOWN";
+  // ------------------------------------------------------------------
+  // Normalize autonomy data
+  // Core /autonomy/status currently returns a full status-like payload
+  // with a nested `.autonomy` object. Future Core may return a flat object.
+  // ------------------------------------------------------------------
+  const autonomyRaw = autonomy ?? status?.autonomy ?? null;
 
-  const autonomyPhase =
-    autonomy?.phase ?? status?.autonomy?.phase ?? "UNKNOWN";
+  const autonomyInfo: AlphaStreamAutonomyStatus | null =
+    autonomyRaw &&
+    typeof autonomyRaw === "object" &&
+    autonomyRaw.autonomy &&
+    typeof autonomyRaw.autonomy === "object"
+      ? (autonomyRaw.autonomy as AlphaStreamAutonomyStatus)
+      : (autonomyRaw as AlphaStreamAutonomyStatus | null);
 
-  const autonomyEnabled =
-    autonomy?.enabled ??
-    autonomy?.autonomous ??
-    status?.autonomy?.enabled ??
-    status?.autonomy?.autonomous ??
-    false;
+  const autonomyEnabled = Boolean(
+    autonomyInfo?.enabled ?? autonomyInfo?.autonomous ?? false
+  );
 
   const autonomyTelemetryAvailable =
-    autonomyConnected || Boolean(status?.autonomy);
+    autonomyConnected || Boolean(autonomyInfo);
+
+  // Prefer rich future fields when present; otherwise derive a useful state
+  const autonomyState =
+    autonomyInfo?.state ??
+    (autonomyEnabled
+      ? autonomyInfo?.inEntryWindow
+        ? "RUNNING"
+        : "IDLE"
+      : "DISABLED");
+
+  const autonomyPhase = autonomyInfo?.phase ?? "UNKNOWN";
 
   const currentCycle =
-    autonomy?.cycleId ??
-    autonomy?.cycleCount ??
-    autonomy?.completedCycles ??
-    status?.autonomy?.cycleId ??
-    status?.autonomy?.cycleCount ??
+    autonomyInfo?.cycleId ??
+    autonomyInfo?.cycleCount ??
+    autonomyInfo?.completedCycles ??
     0;
 
   const completedCycles =
-    autonomy?.completedCycles ??
-    autonomy?.cycleCount ??
-    status?.autonomy?.completedCycles ??
-    status?.autonomy?.cycleCount ??
-    0;
+    autonomyInfo?.completedCycles ?? autonomyInfo?.cycleCount ?? 0;
 
   const decisionCount =
-    autonomy?.autonomousDecisions ??
-    autonomy?.decisionCount ??
-    status?.autonomy?.autonomousDecisions ??
-    status?.autonomy?.decisionCount ??
-    0;
+    autonomyInfo?.autonomousDecisions ?? autonomyInfo?.decisionCount ?? 0;
 
   const executionCount =
-    autonomy?.autonomousExecutions ??
-    autonomy?.executionCount ??
-    status?.autonomy?.autonomousExecutions ??
-    status?.autonomy?.executionCount ??
-    0;
+    autonomyInfo?.autonomousExecutions ?? autonomyInfo?.executionCount ?? 0;
 
   const interventionCount =
-    autonomy?.humanInterventions ??
-    autonomy?.interventionCount ??
-    status?.autonomy?.humanInterventions ??
-    status?.autonomy?.interventionCount ??
-    0;
+    autonomyInfo?.humanInterventions ?? autonomyInfo?.interventionCount ?? 0;
 
-  const lastDecision =
-    autonomy?.lastDecision ?? status?.autonomy?.lastDecision ?? null;
+  const lastDecision = autonomyInfo?.lastDecision ?? null;
 
   return (
     <main className="min-h-screen bg-black p-6 text-white md:p-8">
@@ -247,10 +244,10 @@ export default function DashboardPage() {
 
         {/* Autonomy Control Center */}
         <AutonomyControlCenter
-          autonomy={autonomy}
+          autonomy={autonomyInfo}
           enabled={autonomyEnabled}
-          state={autonomyState}
-          phase={autonomyPhase}
+          state={String(autonomyState)}
+          phase={String(autonomyPhase)}
           telemetryAvailable={autonomyTelemetryAvailable}
           cycle={currentCycle}
           completedCycles={completedCycles}
@@ -639,7 +636,9 @@ function AutonomyControlCenter({
   const normalizedState = String(state).toUpperCase();
   const normalizedPhase = String(phase).toUpperCase();
 
-  const isRunning = normalizedState === "RUNNING" && enabled;
+  const isRunning =
+    (normalizedState === "RUNNING" || Boolean(autonomy?.inEntryWindow)) &&
+    enabled;
   const isError = normalizedState === "ERROR";
   const isDegraded = normalizedState === "DEGRADED";
 
@@ -647,7 +646,11 @@ function AutonomyControlCenter({
     ? "TELEMETRY UNAVAILABLE"
     : !enabled
       ? "DISABLED"
-      : normalizedState;
+      : autonomy?.inEntryWindow
+        ? "IN ENTRY WINDOW"
+        : autonomy?.reason
+          ? String(autonomy.reason).replace(/_/g, " ").toUpperCase()
+          : normalizedState;
 
   return (
     <section className="mb-8 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
@@ -662,7 +665,9 @@ function AutonomyControlCenter({
                     ? "bg-red-400"
                     : isDegraded
                       ? "bg-yellow-400"
-                      : "bg-zinc-500"
+                      : enabled
+                        ? "bg-blue-400"
+                        : "bg-zinc-500"
               }`}
             />
             <h2 className="text-2xl font-bold">Autonomy Control Center</h2>
@@ -678,7 +683,9 @@ function AutonomyControlCenter({
               ? "border-green-500/40 bg-green-950/40 text-green-400"
               : isError
                 ? "border-red-500/40 bg-red-950/40 text-red-400"
-                : "border-zinc-700 bg-zinc-900 text-gray-400"
+                : enabled
+                  ? "border-blue-500/40 bg-blue-950/40 text-blue-400"
+                  : "border-zinc-700 bg-zinc-900 text-gray-400"
           }`}
         >
           {stateLabel}
@@ -699,49 +706,121 @@ function AutonomyControlCenter({
         </div>
       )}
 
+      {/* Current Core operational metrics */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <AutonomyMetric
-          title="Current Cycle"
-          value={telemetryAvailable ? cycle : "—"}
+          title="Enabled"
+          value={telemetryAvailable ? (enabled ? "Yes" : "No") : "—"}
         />
         <AutonomyMetric
-          title="Completed Cycles"
-          value={telemetryAvailable ? completedCycles : "—"}
+          title="In Entry Window"
+          value={
+            telemetryAvailable
+              ? autonomy?.inEntryWindow
+                ? "Yes"
+                : "No"
+              : "—"
+          }
         />
         <AutonomyMetric
-          title="Autonomous Decisions"
-          value={telemetryAvailable ? decisions : "—"}
+          title="Daily Entries"
+          value={
+            telemetryAvailable ? (autonomy?.dailyEntries ?? 0) : "—"
+          }
         />
         <AutonomyMetric
-          title="Autonomous Executions"
-          value={telemetryAvailable ? executions : "—"}
+          title="Max Trades / Day"
+          value={
+            telemetryAvailable ? (autonomy?.maxTradesDay ?? "—") : "—"
+          }
         />
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <AutonomyMetric
-          title="Human Interventions"
-          value={telemetryAvailable ? interventions : "—"}
-        />
-        <AutonomyMetric
-          title="Current Phase"
-          value={telemetryAvailable ? normalizedPhase : "—"}
-        />
-        <AutonomyMetric
-          title="Last Cycle"
+          title="Entry Window"
           value={
-            telemetryAvailable ? formatTs(autonomy?.lastCycleAt) : "—"
+            telemetryAvailable ? autonomy?.entryWindow ?? "—" : "—"
           }
         />
         <AutonomyMetric
-          title="Last Action"
+          title="EOD Flatten"
           value={
-            telemetryAvailable ? formatTs(autonomy?.lastActionAt) : "—"
+            telemetryAvailable ? autonomy?.eodFlatten ?? "—" : "—"
+          }
+        />
+        <AutonomyMetric
+          title="Scan Interval"
+          value={
+            telemetryAvailable && autonomy?.scanIntervalSec != null
+              ? `${autonomy.scanIntervalSec}s`
+              : "—"
+          }
+        />
+        <AutonomyMetric
+          title="Manage Only Outside"
+          value={
+            telemetryAvailable
+              ? autonomy?.manageOnlyOutside
+                ? "Yes"
+                : "No"
+              : "—"
           }
         />
       </div>
 
-      {/* 8-phase pipeline */}
+      {autonomy?.reason && (
+        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+          <p className="text-xs uppercase tracking-wider text-gray-500">
+            Current Reason
+          </p>
+          <p className="mt-1 text-sm font-medium text-gray-200">
+            {String(autonomy.reason).replace(/_/g, " ")}
+          </p>
+        </div>
+      )}
+
+      {/* Future-rich metrics (appear when Core starts sending them) */}
+      {(Number(cycle) !== 0 ||
+        completedCycles !== 0 ||
+        decisions !== 0 ||
+        executions !== 0 ||
+        normalizedPhase !== "UNKNOWN") && (
+        <>
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <AutonomyMetric title="Current Cycle" value={cycle} />
+            <AutonomyMetric
+              title="Completed Cycles"
+              value={completedCycles}
+            />
+            <AutonomyMetric
+              title="Autonomous Decisions"
+              value={decisions}
+            />
+            <AutonomyMetric
+              title="Autonomous Executions"
+              value={executions}
+            />
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <AutonomyMetric
+              title="Human Interventions"
+              value={interventions}
+            />
+            <AutonomyMetric title="Current Phase" value={normalizedPhase} />
+            <AutonomyMetric
+              title="Last Cycle"
+              value={formatTs(autonomy?.lastCycleAt)}
+            />
+            <AutonomyMetric
+              title="Last Action"
+              value={formatTs(autonomy?.lastActionAt)}
+            />
+          </div>
+        </>
+      )}
+
+      {/* 8-phase pipeline (ready for future Core data) */}
       <div className="mt-6">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Autonomous Pipeline</h3>
