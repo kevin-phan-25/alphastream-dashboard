@@ -114,18 +114,40 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleScan() {
+    async function handleScan() {
     setScanLoading(true);
     try {
-      await fetch("/api/admin/scan", {
+      const res = await fetch("/api/admin/scan", {
         method: "POST",
         cache: "no-store",
       });
+      const data = await res.json().catch(() => ({} as Record<string, unknown>));
+
+      if (!res.ok) {
+        console.error("Force scan failed", res.status, data);
+        const errMsg =
+          (typeof data === "object" && data && "error" in data
+            ? String((data as { error?: unknown }).error)
+            : null) ||
+          (typeof data === "object" && data && "message" in data
+            ? String((data as { message?: unknown }).message)
+            : null) ||
+          "unknown";
+
+        alert(
+          res.status === 401
+            ? "Force Scan unauthorized (401). Set ADMIN_KEY in Cloudflare Pages to match Core, then redeploy the dashboard."
+            : `Force Scan failed (${res.status}): ${errMsg}`
+        );
+        return;
+      }
+
       setTimeout(() => {
         void refresh();
       }, 1500);
     } catch (err) {
       console.error(err);
+      alert("Force Scan request failed — see console");
     } finally {
       setScanLoading(false);
     }
