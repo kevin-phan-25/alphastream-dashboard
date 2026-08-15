@@ -1,42 +1,27 @@
 /**
  * ---------------------------------------------------------
- * Date: 2026-08-03
+ * Date: 2026-08-15
  * File: next.config.js
  *
  * Changes:
  * - Removed deprecated serverActions flag
- * - Kept image optimization
- * - Added Cloudflare compatible configuration
+ * - Removed swcMinify (invalid / no-op on Next 15; caused build warning)
+ * - Kept image optimization + Cloudflare-compatible config
  * ---------------------------------------------------------
  */
 
-
 /** @type {import('next').NextConfig} */
-
 const nextConfig = {
-
-
-  reactStrictMode:true,
-
-
-  swcMinify:true,
-
+  reactStrictMode: true,
 
   images: {
-
-    remotePatterns:[
-
+    remotePatterns: [
       {
-        protocol:"https",
-        hostname:"**",
+        protocol: "https",
+        hostname: "**",
       },
-
     ],
-
   },
-
-
 };
-
 
 module.exports = nextConfig;

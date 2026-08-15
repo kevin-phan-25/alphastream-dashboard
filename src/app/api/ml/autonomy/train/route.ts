@@ -3,6 +3,9 @@
  * File: src/app/api/ml/autonomy/train/route.ts
  *
  * POST → ML /autonomy/train (force challenger cycle)
+ *
+ * Changes:
+ * - Removed unused @ts-expect-error (AbortSignal.timeout is typed on current TS/DOM)
  */
 
 import { mlFetch } from "@/lib/core";
@@ -13,7 +16,6 @@ export async function POST() {
   try {
     const res = await mlFetch("/autonomy/train", {
       method: "POST",
-      // @ts-expect-error edge AbortSignal.timeout
       signal: AbortSignal.timeout(180_000),
     });
 

@@ -4,9 +4,11 @@
  *
  * Changes:
  * - Autonomy Control Center: Core /autonomy/status (entry window, daily entries, …)
- * - ML Service: GLOBAL / long-only / canTrain / pending / strategy floor
+ * - ML Service: GLOBAL / long+short / canTrain / pending / strategy floor
  * - Force train → startTraining() (ML /autonomy/train via hook)
  * - Polls mlAutonomy from useAlphaStream
+ * - longOnly shows "—" when ML does not report it (no default true)
+ * - Subtitle: GLOBAL · long+short · challenger autonomy train
  */
 "use client";
 
@@ -181,7 +183,7 @@ export default function DashboardPage() {
       : undefined);
   const modelScope =
     ml?.modelScope ?? mlAutonomy?.modelScope ?? "GLOBAL";
-  const longOnly = ml?.longOnly ?? true;
+  const longOnly = ml?.longOnly; // undefined → show "—" until ML reports it
 
   // ------------------------------------------------------------------
   // Normalize Core autonomy data
@@ -377,7 +379,7 @@ export default function DashboardPage() {
             <div>
               <h2 className="text-xl font-semibold">ML Service</h2>
               <p className="mt-1 text-xs text-gray-500">
-                GLOBAL models · long-only · challenger autonomy train
+                GLOBAL · long+short · challenger autonomy train
               </p>
             </div>
             <button
@@ -404,7 +406,12 @@ export default function DashboardPage() {
 
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard title="Model Scope" value={modelScope} />
-            <MetricCard title="Long Only" value={longOnly ? "Yes" : "No"} />
+            <MetricCard
+              title="Long Only"
+              value={
+                longOnly == null ? "—" : longOnly ? "Yes" : "No"
+              }
+            />
             <MetricCard
               title="Can Train"
               value={

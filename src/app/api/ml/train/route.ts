@@ -4,6 +4,9 @@
  *
  * POST /api/ml/train → ML POST /train (plain GLOBAL train)
  * Admin key via mlFetch (ADMIN_KEY / ML_ADMIN_KEY)
+ *
+ * Changes:
+ * - Removed unused @ts-expect-error (AbortSignal.timeout is typed on current TS/DOM)
  */
 
 import { mlFetch } from "@/lib/core";
@@ -14,7 +17,6 @@ export async function POST() {
   try {
     const res = await mlFetch("/train", {
       method: "POST",
-      // @ts-expect-error edge AbortSignal.timeout
       signal: AbortSignal.timeout(120_000),
     });
 
