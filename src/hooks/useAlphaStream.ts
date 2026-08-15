@@ -1,35 +1,31 @@
 /**
  * AlphaStream dashboard hook
  *
- * Date: 2026-08-13
+ * Date: 2026-08-15
  *
  * Changes:
- * - Added autonomy telemetry polling
- * - Preserves previous autonomy state on endpoint failure
- * - Does not treat missing autonomy telemetry as fake autonomy
- * - Keeps Core and ML connectivity independent
- * - Prevents state updates after unmount
+ * - startTraining → autonomy challenger train (preferred)
+ * - startPlainTrain → plain /train
+ * - Optional mlAutonomy poll (full ML /autonomy/status)
  */
 
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   getHealth,
   getStatus,
   getMetrics,
   getAutonomyStatus,
+  getMLAutonomyStatus,
   getPositions,
   getTrades,
   getLogs,
   getMLStatus,
   getMLHealth,
   triggerMLTraining,
+  triggerAutonomyTrain,
 } from "@/services/alphastream";
 
 import type {
@@ -42,6 +38,7 @@ import type {
   AlphaStreamMLStatus,
   AlphaStreamMLHealth,
   AlphaStreamAutonomyStatus,
+  AlphaStreamMLAutonomyStatus,
 } from "@/types/alphastream";
 
 interface AlphaStreamData {
@@ -49,6 +46,7 @@ interface AlphaStreamData {
   status: AlphaStreamStatus | null;
   metrics: AlphaStreamMetrics | null;
   autonomy: AlphaStreamAutonomyStatus | null;
+  mlAutonomy: AlphaStreamMLAutonomyStatus | null;
   positions: AlphaStreamPosition[];
   trades: AlphaStreamTrade[];
   logs: (AlphaStreamLog | string)[];
@@ -61,6 +59,7 @@ interface AlphaStreamErrors {
   status: string | null;
   metrics: string | null;
   autonomy: string | null;
+  mlAutonomy: string | null;
   positions: string | null;
   trades: string | null;
   logs: string | null;
@@ -73,6 +72,7 @@ const EMPTY_DATA: AlphaStreamData = {
   status: null,
   metrics: null,
   autonomy: null,
+  mlAutonomy: null,
   positions: [],
   trades: [],
   logs: [],
@@ -85,6 +85,7 @@ const EMPTY_ERRORS: AlphaStreamErrors = {
   status: null,
   metrics: null,
   autonomy: null,
+  mlAutonomy: null,
   positions: null,
   trades: null,
   logs: null,
@@ -96,20 +97,17 @@ function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
-
   if (typeof error === "string") {
     return error;
   }
-
   if (
     error &&
     typeof error === "object" &&
     "message" in error &&
-    typeof error.message === "string"
+    typeof (error as { message: unknown }).message === "string"
   ) {
-    return error.message;
+    return (error as { message: string }).message;
   }
-
   return "Unknown error";
 }
 
@@ -129,6 +127,7 @@ export function useAlphaStream(pollIntervalMs = 30000) {
       getStatus(),
       getMetrics(),
       getAutonomyStatus(),
+      getMLAutonomyStatus(),
       getPositions(),
       getTrades(),
       getLogs(),
@@ -141,6 +140,7 @@ export function useAlphaStream(pollIntervalMs = 30000) {
       statusResult,
       metricsResult,
       autonomyResult,
+      mlAutonomyResult,
       positionsResult,
       tradesResult,
       logsResult,
@@ -164,6 +164,10 @@ export function useAlphaStream(pollIntervalMs = 30000) {
       autonomy:
         autonomyResult.status === "rejected"
           ? getErrorMessage(autonomyResult.reason)
+          : null,
+      mlAutonomy:
+        mlAutonomyResult.status === "rejected"
+          ? getErrorMessage(mlAutonomyResult.reason)
           : null,
       positions:
         positionsResult.status === "rejected"
@@ -206,6 +210,10 @@ export function useAlphaStream(pollIntervalMs = 30000) {
         autonomyResult.status === "fulfilled"
           ? autonomyResult.value
           : previous.autonomy,
+      mlAutonomy:
+        mlAutonomyResult.status === "fulfilled"
+          ? mlAutonomyResult.value
+          : previous.mlAutonomy,
       positions:
         positionsResult.status === "fulfilled"
           ? positionsResult.value
@@ -215,9 +223,7 @@ export function useAlphaStream(pollIntervalMs = 30000) {
           ? tradesResult.value
           : previous.trades,
       logs:
-        logsResult.status === "fulfilled"
-          ? logsResult.value
-          : previous.logs,
+        logsResult.status === "fulfilled" ? logsResult.value : previous.logs,
       mlStatus:
         mlStatusResult.status === "fulfilled"
           ? mlStatusResult.value
@@ -238,7 +244,8 @@ export function useAlphaStream(pollIntervalMs = 30000) {
 
     const mlIsConnected =
       mlHealthResult.status === "fulfilled" ||
-      mlStatusResult.status === "fulfilled";
+      mlStatusResult.status === "fulfilled" ||
+      mlAutonomyResult.status === "fulfilled";
 
     const autonomyIsConnected = autonomyResult.status === "fulfilled";
 
@@ -263,13 +270,26 @@ export function useAlphaStream(pollIntervalMs = 30000) {
     setLoading(false);
   }, []);
 
+  /** Preferred: challenger autonomy train */
   const startTraining = useCallback(async () => {
+    try {
+      const result = await triggerAutonomyTrain();
+      await refresh();
+      return result;
+    } catch (err) {
+      console.error("Failed to start autonomy train:", err);
+      throw err;
+    }
+  }, [refresh]);
+
+  /** Fallback: plain GLOBAL /train */
+  const startPlainTrain = useCallback(async () => {
     try {
       const result = await triggerMLTraining();
       await refresh();
       return result;
     } catch (err) {
-      console.error("Failed to start ML training:", err);
+      console.error("Failed to start plain ML train:", err);
       throw err;
     }
   }, [refresh]);
@@ -314,5 +334,6 @@ export function useAlphaStream(pollIntervalMs = 30000) {
     loading,
     refresh,
     startTraining,
+    startPlainTrain,
   };
 }

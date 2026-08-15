@@ -1,13 +1,12 @@
 /**
- * Date: 2026-08-13
+ * Date: 2026-08-15
  * File: src/app/dashboard/page.tsx
  *
  * Changes:
- * - Autonomy Control Center understands current Core /autonomy/status shape
- *   (enabled, entryWindow, inEntryWindow, reason, dailyEntries, maxTradesDay, …)
- * - Still supports future rich fields (state, phase, cycles, lastDecision, phases[])
- * - Correctly extracts nested `.autonomy` when Core returns a full status payload
- * - Preserves existing Core / ML / positions / trades / logs UI
+ * - Autonomy Control Center: Core /autonomy/status (entry window, daily entries, …)
+ * - ML Service: GLOBAL / long-only / canTrain / pending / strategy floor
+ * - Force train → startTraining() (ML /autonomy/train via hook)
+ * - Polls mlAutonomy from useAlphaStream
  */
 "use client";
 
@@ -37,6 +36,7 @@ export default function DashboardPage() {
     status,
     metrics,
     autonomy,
+    mlAutonomy,
     positions,
     trades,
     logs,
@@ -59,17 +59,18 @@ export default function DashboardPage() {
     setTraining(true);
     try {
       const result: any = await startTraining();
-
       const entry: MLTrainingLogEntry = {
         id: `${Date.now()}`,
         timestamp: new Date().toISOString(),
-        ok: Boolean(result?.ok),
+        ok: Boolean(result?.ok ?? true),
         trained: Boolean(result?.trained),
+        promoted: Boolean(result?.promoted),
         message:
           result?.message ||
+          result?.reason ||
           (result?.trained
-            ? `Training complete steps=${result?.steps ?? 0}`
-            : result?.reason || result?.error || "Training finished"),
+            ? `Autonomy train complete steps=${result?.steps ?? 0}`
+            : result?.error || "Autonomy train finished"),
         steps: result?.steps,
         epochs: result?.epochs,
         avgLoss: result?.avgLoss ?? null,
@@ -79,8 +80,8 @@ export default function DashboardPage() {
         totalExperiences: result?.totalExperiences,
         error: result?.error,
         reason: result?.reason,
+        modelScope: result?.modelScope || "GLOBAL",
       };
-
       setTrainingLogs((prev) => [entry, ...prev].slice(0, 20));
     } catch (err: any) {
       console.error("Training failed:", err);
@@ -114,7 +115,7 @@ export default function DashboardPage() {
     }
   }
 
-    async function handleScan() {
+  async function handleScan() {
     setScanLoading(true);
     try {
       const res = await fetch("/api/admin/scan", {
@@ -122,7 +123,6 @@ export default function DashboardPage() {
         cache: "no-store",
       });
       const data = await res.json().catch(() => ({} as Record<string, unknown>));
-
       if (!res.ok) {
         console.error("Force scan failed", res.status, data);
         const errMsg =
@@ -133,7 +133,6 @@ export default function DashboardPage() {
             ? String((data as { message?: unknown }).message)
             : null) ||
           "unknown";
-
         alert(
           res.status === 401
             ? "Force Scan unauthorized (401). Set ADMIN_KEY in Cloudflare Pages to match Core, then redeploy the dashboard."
@@ -141,7 +140,6 @@ export default function DashboardPage() {
         );
         return;
       }
-
       setTimeout(() => {
         void refresh();
       }, 1500);
@@ -159,13 +157,36 @@ export default function DashboardPage() {
   const ml: AlphaStreamMLStatus | null =
     status?.ml && status.ml.ok !== undefined ? status.ml : mlStatus;
 
+  const canTrain =
+    mlAutonomy?.canTrain ?? ml?.autonomy?.canTrain ?? null;
+  const lastSkipReason =
+    mlAutonomy?.lastSkipReason ||
+    ml?.autonomy?.lastSkipReason ||
+    ml?.autonomy?.reason ||
+    null;
+  const trainsToday =
+    mlAutonomy?.trainsToday ?? ml?.autonomy?.trainsToday ?? null;
+  const maxTrains =
+    mlAutonomy?.maxTrainsPerDay ?? ml?.autonomy?.maxTrainsPerDay ?? null;
+  const pendingEntries =
+    ml?.lifecycle?.pending ??
+    ml?.autonomy?.lifecycle?.pending ??
+    null;
+  const confidenceFloor =
+    ml?.autonomy?.strategy?.confidenceFloor ??
+    (typeof mlAutonomy?.strategy === "object" &&
+    mlAutonomy?.strategy &&
+    "confidenceFloor" in (mlAutonomy.strategy as object)
+      ? (mlAutonomy.strategy as { confidenceFloor?: number }).confidenceFloor
+      : undefined);
+  const modelScope =
+    ml?.modelScope ?? mlAutonomy?.modelScope ?? "GLOBAL";
+  const longOnly = ml?.longOnly ?? true;
+
   // ------------------------------------------------------------------
-  // Normalize autonomy data
-  // Core /autonomy/status currently returns a full status-like payload
-  // with a nested `.autonomy` object. Future Core may return a flat object.
+  // Normalize Core autonomy data
   // ------------------------------------------------------------------
   const autonomyRaw = autonomy ?? status?.autonomy ?? null;
-
   const autonomyInfo: AlphaStreamAutonomyStatus | null =
     autonomyRaw &&
     typeof autonomyRaw === "object" &&
@@ -177,11 +198,9 @@ export default function DashboardPage() {
   const autonomyEnabled = Boolean(
     autonomyInfo?.enabled ?? autonomyInfo?.autonomous ?? false
   );
-
   const autonomyTelemetryAvailable =
     autonomyConnected || Boolean(autonomyInfo);
 
-  // Prefer rich future fields when present; otherwise derive a useful state
   const autonomyState =
     autonomyInfo?.state ??
     (autonomyEnabled
@@ -189,27 +208,20 @@ export default function DashboardPage() {
         ? "RUNNING"
         : "IDLE"
       : "DISABLED");
-
   const autonomyPhase = autonomyInfo?.phase ?? "UNKNOWN";
-
   const currentCycle =
     autonomyInfo?.cycleId ??
     autonomyInfo?.cycleCount ??
     autonomyInfo?.completedCycles ??
     0;
-
   const completedCycles =
     autonomyInfo?.completedCycles ?? autonomyInfo?.cycleCount ?? 0;
-
   const decisionCount =
     autonomyInfo?.autonomousDecisions ?? autonomyInfo?.decisionCount ?? 0;
-
   const executionCount =
     autonomyInfo?.autonomousExecutions ?? autonomyInfo?.executionCount ?? 0;
-
   const interventionCount =
     autonomyInfo?.humanInterventions ?? autonomyInfo?.interventionCount ?? 0;
-
   const lastDecision = autonomyInfo?.lastDecision ?? null;
 
   return (
@@ -264,7 +276,7 @@ export default function DashboardPage() {
           {error && <span className="text-red-400">{error}</span>}
         </div>
 
-        {/* Autonomy Control Center */}
+        {/* Autonomy Control Center (Core) */}
         <AutonomyControlCenter
           autonomy={autonomyInfo}
           enabled={autonomyEnabled}
@@ -335,7 +347,6 @@ export default function DashboardPage() {
           />
         </section>
 
-        {/* Extra Core Metrics */}
         <section className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <MetricCard
             title="Peak Equity"
@@ -363,13 +374,18 @@ export default function DashboardPage() {
         {/* ML Service Section */}
         <section className="mt-10">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-xl font-semibold">ML Service</h2>
+            <div>
+              <h2 className="text-xl font-semibold">ML Service</h2>
+              <p className="mt-1 text-xs text-gray-500">
+                GLOBAL models · long-only · challenger autonomy train
+              </p>
+            </div>
             <button
               onClick={handleTrain}
               disabled={training || !mlConnected}
               className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
             >
-              {training ? "Training…" : "Start Training"}
+              {training ? "Training…" : "Force Autonomy Train"}
             </button>
           </div>
 
@@ -387,19 +403,85 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard title="Model Scope" value={modelScope} />
+            <MetricCard title="Long Only" value={longOnly ? "Yes" : "No"} />
+            <MetricCard
+              title="Can Train"
+              value={
+                canTrain == null ? "—" : canTrain ? "Yes" : "No"
+              }
+            />
+            <MetricCard
+              title="Trains Today"
+              value={
+                trainsToday != null
+                  ? `${trainsToday}/${maxTrains ?? "—"}`
+                  : "—"
+              }
+            />
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              title="Pending Entries"
+              value={pendingEntries ?? "—"}
+            />
+            <MetricCard
+              title="Confidence Floor"
+              value={confidenceFloor ?? "—"}
+            />
             <MetricCard
               title="Boot Complete"
               value={ml?.bootComplete ? "Yes" : "No"}
             />
+            <MetricCard
+              title="Last Train"
+              value={formatTs(
+                mlAutonomy?.lastTrain ?? ml?.autonomy?.lastTrain ?? ml?.lastTrain
+              )}
+            />
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard title="Last Load" value={formatTs(ml?.lastLoad)} />
             <MetricCard title="Last Save" value={formatTs(ml?.lastSave)} />
-            <MetricCard title="Last Train" value={formatTs(ml?.lastTrain)} />
+            <MetricCard
+              title="Challenger Mode"
+              value={
+                (mlAutonomy?.challengerMode ?? ml?.autonomy?.challengerMode) ==
+                null
+                  ? "—"
+                  : (mlAutonomy?.challengerMode ??
+                      ml?.autonomy?.challengerMode)
+                    ? "Yes"
+                    : "No"
+              }
+            />
+            <MetricCard
+              title="Train Kinds"
+              value={
+                (mlAutonomy?.trainKinds ?? ml?.autonomy?.trainKinds)?.join(
+                  ", "
+                ) ?? "entry"
+              }
+            />
           </div>
+
+          {lastSkipReason && (
+            <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+              <p className="text-xs uppercase tracking-wider text-gray-500">
+                Autonomy Skip / Last Reason
+              </p>
+              <p className="mt-1 text-sm font-medium text-gray-200">
+                {String(lastSkipReason)}
+              </p>
+            </div>
+          )}
 
           {(ml?.version || ml?.timestamp) && (
             <p className="mt-3 text-sm text-gray-400">
-              {ml.version && <>Version: {ml.version}</>}
-              {ml.timestamp && (
+              {ml?.version && <>Version: {ml.version}</>}
+              {ml?.timestamp && (
                 <>
                   {ml.version ? " • " : ""}
                   Last update: {new Date(ml.timestamp).toLocaleString()}
@@ -415,8 +497,8 @@ export default function DashboardPage() {
           <div className="overflow-x-auto rounded-xl bg-zinc-900">
             {trainingLogs.length === 0 ? (
               <p className="p-5 text-gray-400">
-                No training runs yet. Click “Start Training” to see results
-                here.
+                No training runs yet. Click “Force Autonomy Train” to see
+                results here.
               </p>
             ) : (
               <table className="w-full text-left text-sm">
@@ -448,7 +530,9 @@ export default function DashboardPage() {
                           }
                         >
                           {log.trained
-                            ? "Trained"
+                            ? log.promoted
+                              ? "Trained+Promoted"
+                              : "Trained"
                             : log.ok
                               ? "Skipped"
                               : "Failed"}
@@ -657,7 +741,6 @@ function AutonomyControlCenter({
 }) {
   const normalizedState = String(state).toUpperCase();
   const normalizedPhase = String(phase).toUpperCase();
-
   const isRunning =
     (normalizedState === "RUNNING" || Boolean(autonomy?.inEntryWindow)) &&
     enabled;
@@ -698,7 +781,6 @@ function AutonomyControlCenter({
             Autonomous decision-loop telemetry
           </p>
         </div>
-
         <div
           className={`rounded-full border px-4 py-2 text-sm font-semibold ${
             isRunning
@@ -721,14 +803,11 @@ function AutonomyControlCenter({
           </p>
           <p className="mt-1 text-sm text-yellow-200/70">
             The dashboard is ready for autonomy telemetry, but AlphaStream
-            Core has not returned a valid /autonomy/status response. This
-            dashboard will not claim that the system is autonomous without
-            telemetry.
+            Core has not returned a valid /autonomy/status response.
           </p>
         </div>
       )}
 
-      {/* Current Core operational metrics */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <AutonomyMetric
           title="Enabled"
@@ -746,30 +825,22 @@ function AutonomyControlCenter({
         />
         <AutonomyMetric
           title="Daily Entries"
-          value={
-            telemetryAvailable ? (autonomy?.dailyEntries ?? 0) : "—"
-          }
+          value={telemetryAvailable ? (autonomy?.dailyEntries ?? 0) : "—"}
         />
         <AutonomyMetric
           title="Max Trades / Day"
-          value={
-            telemetryAvailable ? (autonomy?.maxTradesDay ?? "—") : "—"
-          }
+          value={telemetryAvailable ? (autonomy?.maxTradesDay ?? "—") : "—"}
         />
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <AutonomyMetric
           title="Entry Window"
-          value={
-            telemetryAvailable ? autonomy?.entryWindow ?? "—" : "—"
-          }
+          value={telemetryAvailable ? autonomy?.entryWindow ?? "—" : "—"}
         />
         <AutonomyMetric
           title="EOD Flatten"
-          value={
-            telemetryAvailable ? autonomy?.eodFlatten ?? "—" : "—"
-          }
+          value={telemetryAvailable ? autonomy?.eodFlatten ?? "—" : "—"}
         />
         <AutonomyMetric
           title="Scan Interval"
@@ -802,7 +873,6 @@ function AutonomyControlCenter({
         </div>
       )}
 
-      {/* Future-rich metrics (appear when Core starts sending them) */}
       {(Number(cycle) !== 0 ||
         completedCycles !== 0 ||
         decisions !== 0 ||
@@ -811,18 +881,9 @@ function AutonomyControlCenter({
         <>
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <AutonomyMetric title="Current Cycle" value={cycle} />
-            <AutonomyMetric
-              title="Completed Cycles"
-              value={completedCycles}
-            />
-            <AutonomyMetric
-              title="Autonomous Decisions"
-              value={decisions}
-            />
-            <AutonomyMetric
-              title="Autonomous Executions"
-              value={executions}
-            />
+            <AutonomyMetric title="Completed Cycles" value={completedCycles} />
+            <AutonomyMetric title="Autonomous Decisions" value={decisions} />
+            <AutonomyMetric title="Autonomous Executions" value={executions} />
           </div>
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <AutonomyMetric
@@ -842,7 +903,6 @@ function AutonomyControlCenter({
         </>
       )}
 
-      {/* 8-phase pipeline (ready for future Core data) */}
       <div className="mt-6">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Autonomous Pipeline</h3>
@@ -850,7 +910,6 @@ function AutonomyControlCenter({
             8 phases
           </span>
         </div>
-
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
           {AUTONOMY_PHASES.map((phaseName) => {
             const phaseInfo = autonomy?.phases?.find(
@@ -858,11 +917,9 @@ function AutonomyControlCenter({
                 String(item.name).toUpperCase() ===
                 String(phaseName).toUpperCase()
             );
-
             const isCurrent =
               normalizedPhase === String(phaseName).toUpperCase();
             const completed = phaseInfo?.status === "COMPLETE";
-
             return (
               <div
                 key={phaseName}
@@ -902,7 +959,6 @@ function AutonomyControlCenter({
         </div>
       </div>
 
-      {/* Last Autonomous Decision */}
       <div className="mt-6 rounded-xl border border-zinc-800 bg-black/40 p-5">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Last Autonomous Decision</h3>
@@ -916,17 +972,13 @@ function AutonomyControlCenter({
             {lastDecision?.source ?? "UNKNOWN"}
           </span>
         </div>
-
         {!lastDecision ? (
           <p className="text-sm text-gray-500">
             No autonomous decision telemetry available yet.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <DecisionField
-              label="Symbol"
-              value={lastDecision.symbol ?? "—"}
-            />
+            <DecisionField label="Symbol" value={lastDecision.symbol ?? "—"} />
             <DecisionField
               label="Decision"
               value={lastDecision.decision ?? "—"}
@@ -975,7 +1027,6 @@ function AutonomyControlCenter({
             />
           </div>
         )}
-
         {lastDecision?.reason && (
           <div className="mt-4 rounded-lg bg-zinc-900 p-4">
             <p className="text-xs uppercase tracking-wider text-gray-500">
@@ -989,9 +1040,6 @@ function AutonomyControlCenter({
   );
 }
 
-// ======================================================
-// AUTONOMY METRIC
-// ======================================================
 function AutonomyMetric({
   title,
   value,
@@ -1007,9 +1055,6 @@ function AutonomyMetric({
   );
 }
 
-// ======================================================
-// DECISION FIELD
-// ======================================================
 function DecisionField({
   label,
   value,
@@ -1027,9 +1072,6 @@ function DecisionField({
   );
 }
 
-// ======================================================
-// STANDARD METRIC
-// ======================================================
 function MetricCard({
   title,
   value,
@@ -1045,9 +1087,6 @@ function MetricCard({
   );
 }
 
-// ======================================================
-// HELPERS
-// ======================================================
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",

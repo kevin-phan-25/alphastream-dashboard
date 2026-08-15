@@ -1,9 +1,8 @@
 /**
  * Date: 2026-08-15
- * File: src/app/api/ml/train/route.ts
+ * File: src/app/api/ml/autonomy/train/route.ts
  *
- * POST /api/ml/train → ML POST /train (plain GLOBAL train)
- * Admin key via mlFetch (ADMIN_KEY / ML_ADMIN_KEY)
+ * POST → ML /autonomy/train (force challenger cycle)
  */
 
 import { mlFetch } from "@/lib/core";
@@ -12,10 +11,10 @@ export const runtime = "edge";
 
 export async function POST() {
   try {
-    const res = await mlFetch("/train", {
+    const res = await mlFetch("/autonomy/train", {
       method: "POST",
       // @ts-expect-error edge AbortSignal.timeout
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(180_000),
     });
 
     const text = await res.text();
@@ -27,10 +26,10 @@ export async function POST() {
     }
 
     if (!res.ok) {
-      console.error("ML /train failed", res.status, body);
+      console.error("ML /autonomy/train failed", res.status, body);
       return Response.json(
         {
-          error: "ML training failed",
+          error: "ML autonomy train failed",
           status: res.status,
           detail: body,
         },
@@ -41,7 +40,7 @@ export async function POST() {
     return Response.json(body ?? { ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("ML /train proxy error", err);
+    console.error("ML /autonomy/train proxy error", err);
     return Response.json(
       { error: "Failed to reach ML service", detail: message },
       { status: 500 }

@@ -1,13 +1,12 @@
 /**
- * Date: 2026-08-10
+ * Date: 2026-08-15
  * File: src/lib/core.ts
  *
  * Browser -> Next.js API routes -> AlphaStream Core / ML
  *
- * Changes:
- * - Hard fallbacks for CORE_URL / ML_URL (Cloudflare Pages edge)
- * - Never throw "CORE_URL is missing" when vars are unset at runtime
- * - Forwards x-admin-key when ADMIN_KEY is present
+ * - CORE_URL / ML_URL hard fallbacks for Cloudflare Pages edge
+ * - Single admin secret: ADMIN_KEY (ML_ADMIN_KEY optional override, defaults to ADMIN_KEY)
+ * - Forwards x-admin-key on Core and ML admin calls
  */
 
 const CORE_URL =
@@ -18,7 +17,14 @@ const ML_URL =
   process.env.ML_URL ||
   "https://alphastream-ml-1017433009054.us-east1.run.app";
 
-const ADMIN_KEY = process.env.ADMIN_KEY;
+/** Core admin key. Set in Cloudflare Pages → Environment variables. */
+const ADMIN_KEY = process.env.ADMIN_KEY || "";
+
+/**
+ * ML admin key. Prefer ML_ADMIN_KEY if set; otherwise same as ADMIN_KEY.
+ * Use one secret for both services when Core and ML share the same key value.
+ */
+const ML_ADMIN_KEY = process.env.ML_ADMIN_KEY || process.env.ADMIN_KEY || "";
 
 export async function coreFetch(
   path: string,
@@ -31,7 +37,9 @@ export async function coreFetch(
     headers.set("x-admin-key", ADMIN_KEY);
   }
 
-  const url = `${CORE_URL.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+  const url = `${CORE_URL.replace(/\/$/, "")}${
+    path.startsWith("/") ? path : `/${path}`
+  }`;
 
   return fetch(url, {
     ...options,
@@ -47,11 +55,13 @@ export async function mlFetch(
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
 
-  if (ADMIN_KEY) {
-    headers.set("x-admin-key", ADMIN_KEY);
+  if (ML_ADMIN_KEY) {
+    headers.set("x-admin-key", ML_ADMIN_KEY);
   }
 
-  const url = `${ML_URL.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+  const url = `${ML_URL.replace(/\/$/, "")}${
+    path.startsWith("/") ? path : `/${path}`
+  }`;
 
   return fetch(url, {
     ...options,

@@ -1,11 +1,11 @@
 /**
- * Date: 2026-08-13
+ * Date: 2026-08-15
  * File: src/types/alphastream.ts
  *
  * Changes:
- * - Extended autonomy types to match current Core /autonomy/status shape
- * - Kept future-rich fields (state/phase/cycles/decision trace) for when Core adds them
- * - Nested autonomy support on Core status + metrics
+ * - Extended autonomy types for Core /autonomy/status
+ * - Extended ML status for GLOBAL, lifecycle, nested autonomy (Phases 1–5)
+ * - Added AlphaStreamMLAutonomyStatus for ML /autonomy/status
  */
 
 // ======================================================
@@ -18,7 +18,7 @@ export interface AlphaStreamHealth {
 }
 
 // ======================================================
-// AUTONOMY
+// AUTONOMY (Core)
 // ======================================================
 export type AlphaStreamAutonomyPhase =
   | "IDLE"
@@ -77,16 +77,9 @@ export interface AlphaStreamAutonomyPhaseStatus {
   message?: string;
 }
 
-/**
- * Autonomy telemetry.
- * Supports both:
- * 1. Current Core shape (entry window, dailyEntries, reason, …)
- * 2. Future rich shape (state, phase, cycles, lastDecision, phases[])
- */
 export interface AlphaStreamAutonomyStatus {
   ok?: boolean;
 
-  // --- Current Core fields (2026-08-13) ---
   enabled?: boolean;
   autonomous?: boolean;
   dailyEntries?: number;
@@ -99,7 +92,6 @@ export interface AlphaStreamAutonomyStatus {
   reason?: string;
   scanIntervalSec?: number;
 
-  // --- Future / rich fields ---
   state?: AlphaStreamAutonomyState;
   phase?: AlphaStreamAutonomyPhase;
 
@@ -140,13 +132,50 @@ export interface AlphaStreamAutonomyStatus {
 
   timestamp?: string;
 
-  // Allow nested form when /autonomy/status returns full status payload
   autonomy?: AlphaStreamAutonomyStatus;
 }
 
 // ======================================================
 // ML
 // ======================================================
+export interface AlphaStreamMLLifecycle {
+  pending?: number;
+  registered?: number;
+  finalized?: number;
+  orphanExits?: number;
+  expiredDropped?: number;
+  persistEnabled?: boolean;
+}
+
+export interface AlphaStreamMLAutonomySummary {
+  enabled?: boolean;
+  challengerMode?: boolean;
+  running?: boolean;
+  canTrain?: boolean;
+  reason?: string;
+  lastSkipReason?: string;
+  lastTrain?: string | null;
+  trainsToday?: number;
+  maxTrainsPerDay?: number;
+  trainKinds?: string[];
+  lastPromotion?: unknown;
+  watchdog?: {
+    enabled?: boolean;
+    lastAction?: string;
+    lastReason?: string;
+    lastRollback?: string | null;
+    rollbacksToday?: number;
+  };
+  strategy?: {
+    enabled?: boolean;
+    lastUpdate?: string | null;
+    updatesToday?: number;
+    profileSource?: string;
+    confidenceFloor?: number;
+  };
+  lifecycle?: { pending?: number };
+}
+
 export interface AlphaStreamMLStatus {
   ok: boolean;
   version?: string;
@@ -154,17 +183,59 @@ export interface AlphaStreamMLStatus {
   exitBufferSize: number;
   totalExperiences: number;
   trainingEnabled: boolean;
+  batchSize?: number;
+  modelScope?: string;
+  longOnly?: boolean;
+  phase?: number;
   bootComplete?: boolean;
   lastLoad?: string | null;
   lastSave?: string | null;
   lastTrain?: string | null;
+  lifecycle?: AlphaStreamMLLifecycle;
+  autonomy?: AlphaStreamMLAutonomySummary;
+  timestamp?: string;
+  error?: string;
+}
+
+/** Full ML GET /autonomy/status */
+export interface AlphaStreamMLAutonomyStatus {
+  ok?: boolean;
+  enabled?: boolean;
+  challengerMode?: boolean;
+  running?: boolean;
+  canTrain?: boolean;
+  reason?: string;
+  lastSkipReason?: string;
+  lastTrain?: string | null;
+  trainsToday?: number;
+  maxTrainsPerDay?: number;
+  cooldownSec?: number;
+  minTotal?: number;
+  minNew?: number;
+  epochs?: number;
+  trainKinds?: string[];
+  entryBufferSize?: number;
+  exitBufferSize?: number;
+  totalExperiences?: number;
+  experiencesAtLastTrain?: number;
+  lastResult?: Record<string, unknown>;
+  lastPromotion?: unknown;
+  champion?: Record<string, unknown>;
+  candidate?: Record<string, unknown>;
+  archives?: unknown[];
+  watchdog?: Record<string, unknown>;
+  strategy?: Record<string, unknown>;
+  modelScope?: string;
+  version?: string;
   timestamp?: string;
   error?: string;
 }
 
 export interface AlphaStreamMLHealth {
-  status: string;
-  service: string;
+  status?: string;
+  ok?: boolean;
+  service?: string;
+  version?: string;
 }
 
 export interface MLTrainingLogEntry {
@@ -182,6 +253,8 @@ export interface MLTrainingLogEntry {
   totalExperiences?: number;
   error?: string;
   reason?: string;
+  promoted?: boolean;
+  modelScope?: string;
 }
 
 // ======================================================
@@ -228,7 +301,7 @@ export interface AlphaStreamMetrics {
 }
 
 // ======================================================
-// LOGS / TRADES / POSITIONS (unchanged)
+// LOGS / TRADES / POSITIONS
 // ======================================================
 export interface AlphaStreamLog {
   id?: string | number;

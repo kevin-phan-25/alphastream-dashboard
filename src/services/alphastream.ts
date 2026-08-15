@@ -3,11 +3,11 @@
  *
  * Browser -> Next.js API routes -> AlphaStream Core / ML
  *
- * Date: 2026-08-13
+ * Date: 2026-08-15
  *
  * Changes:
- * - Added getAutonomyStatus()
- * - Preserves existing Core + ML behavior
+ * - getMLAutonomyStatus, triggerAutonomyTrain (challenger path)
+ * - triggerMLTraining still hits plain /train
  */
 
 import type {
@@ -20,6 +20,7 @@ import type {
   AlphaStreamMLStatus,
   AlphaStreamMLHealth,
   AlphaStreamAutonomyStatus,
+  AlphaStreamMLAutonomyStatus,
 } from "@/types/alphastream";
 
 async function apiFetch<T>(
@@ -86,8 +87,14 @@ export async function getMetrics(): Promise<AlphaStreamMetrics> {
   return apiFetch<AlphaStreamMetrics>("/api/metrics");
 }
 
+/** Core autonomy (entry window, daily entries, scan reason) */
 export async function getAutonomyStatus(): Promise<AlphaStreamAutonomyStatus> {
   return apiFetch<AlphaStreamAutonomyStatus>("/api/autonomy/status");
+}
+
+/** ML autonomy (canTrain, challenger, lifecycle, strategy, watchdog) */
+export async function getMLAutonomyStatus(): Promise<AlphaStreamMLAutonomyStatus> {
+  return apiFetch<AlphaStreamMLAutonomyStatus>("/api/ml/autonomy/status");
 }
 
 export async function getPositions(): Promise<AlphaStreamPosition[]> {
@@ -146,8 +153,20 @@ export async function getMLHealth(): Promise<AlphaStreamMLHealth> {
   return apiFetch<AlphaStreamMLHealth>("/api/ml/health");
 }
 
+/** Plain GLOBAL train → POST /api/ml/train → ML /train */
 export async function triggerMLTraining(): Promise<unknown> {
   return apiFetch<unknown>("/api/ml/train", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
+  });
+}
+
+/** Challenger cycle → POST /api/ml/autonomy/train → ML /autonomy/train */
+export async function triggerAutonomyTrain(): Promise<unknown> {
+  return apiFetch<unknown>("/api/ml/autonomy/train", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
