@@ -14,25 +14,20 @@ const FALLBACK_CORE =
 const FALLBACK_ML =
   "https://alphastream-ml-1017433009054.us-east1.run.app";
 
-function runtimeEnv(name: string): string {
+function cfEnv(name: string): string {
   try {
-    const env = getRequestContext().env as Record<string, string | undefined>;
+    const env = getRequestContext().env as Record<string, unknown>;
     const v = env?.[name];
-    if (v != null && String(v).trim() !== "") return String(v).trim();
+    if (typeof v === "string" && v.trim()) return v.trim();
   } catch {
-    // local dev / non-CF context
+    /* local */
   }
   const v = process.env[name];
-  if (v != null && String(v).trim() !== "") return String(v).trim();
-  return "";
+  return typeof v === "string" && v.trim() ? v.trim() : "";
 }
 
-function coreBase(): string {
-  return (runtimeEnv("CORE_URL") || FALLBACK_CORE).replace(/\/$/, "");
-}
-
-function mlBase(): string {
-  return (runtimeEnv("ML_URL") || FALLBACK_ML).replace(/\/$/, "");
+export function hasAdminKey(): boolean {
+  return cfEnv("ADMIN_KEY").length > 0;
 }
 
 export async function coreFetch(
@@ -41,18 +36,14 @@ export async function coreFetch(
 ): Promise<Response> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
-
-  const adminKey = runtimeEnv("ADMIN_KEY");
-  if (adminKey) {
-    headers.set("x-admin-key", adminKey);
+  const key = cfEnv("ADMIN_KEY");
+  if (key) {
+    headers.set("x-admin-key", key);
+    headers.set("Authorization", `Bearer ${key}`);
   }
-
-  const url = `${coreBase()}${path.startsWith("/") ? path : `/${path}`}`;
-  return fetch(url, {
-    ...options,
-    headers,
-    cache: "no-store",
-  });
+  const base = (cfEnv("CORE_URL") || FALLBACK_CORE).replace(/\/$/, "");
+  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
+  return fetch(url, { ...options, headers, cache: "no-store" });
 }
 
 export async function mlFetch(
@@ -61,16 +52,12 @@ export async function mlFetch(
 ): Promise<Response> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
-
-  const adminKey = runtimeEnv("ML_ADMIN_KEY") || runtimeEnv("ADMIN_KEY");
-  if (adminKey) {
-    headers.set("x-admin-key", adminKey);
+  const key = cfEnv("ML_ADMIN_KEY") || cfEnv("ADMIN_KEY");
+  if (key) {
+    headers.set("x-admin-key", key);
+    headers.set("Authorization", `Bearer ${key}`);
   }
-
-  const url = `${mlBase()}${path.startsWith("/") ? path : `/${path}`}`;
-  return fetch(url, {
-    ...options,
-    headers,
-    cache: "no-store",
-  });
+  const base = (cfEnv("ML_URL") || FALLBACK_ML).replace(/\/$/, "");
+  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
+  return fetch(url, { ...options, headers, cache: "no-store" });
 }
