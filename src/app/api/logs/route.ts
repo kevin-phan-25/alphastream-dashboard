@@ -7,30 +7,25 @@ try {
 const ctx = getRequestContext();
 const env = ctx.env as Record<string, unknown>;
 
-```
+
+const adminKey =
+  typeof env.ADMIN_KEY === "string"
+    ? env.ADMIN_KEY
+    : "";
+
+const coreUrl =
+  typeof env.CORE_URL === "string"
+    ? env.CORE_URL
+    : "";
+
 return Response.json({
   ok: true,
-
   envKeys: Object.keys(env || {}),
-
-  adminKey: {
-    exists: typeof env.ADMIN_KEY === "string",
-    type: typeof env.ADMIN_KEY,
-    length:
-      typeof env.ADMIN_KEY === "string"
-        ? env.ADMIN_KEY.length
-        : 0,
-  },
-
-  coreUrl: {
-    exists: typeof env.CORE_URL === "string",
-    value:
-      typeof env.CORE_URL === "string"
-        ? env.CORE_URL
-        : null,
-  },
+  adminKeyExists: adminKey.length > 0,
+  adminKeyLength: adminKey.length,
+  coreUrlExists: coreUrl.length > 0,
+  coreUrl: coreUrl || null,
 });
-```
 
 } catch (error) {
 return Response.json(
