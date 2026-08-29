@@ -1,63 +1,125 @@
 /**
- * Date: 2026-08-29
- * File: src/lib/core.ts
+ * AlphaStream Dashboard
+ * Cloudflare Pages runtime configuration
  *
- * Browser -> Next.js API routes -> AlphaStream Core / ML
+ * Browser
+ *   -> Next.js API route
+ *   -> Cloudflare runtime env
+ *   -> AlphaStream Core / ML
  *
- * Reads ADMIN_KEY / CORE_URL / ML_URL at request time via Cloudflare
- * getRequestContext so next-on-pages does not bake an empty key at build.
+ * IMPORTANT:
+ * ADMIN_KEY is NEVER exposed to the browser.
+ * It is read only from the Cloudflare request context.
  */
+
 import { getRequestContext } from "@cloudflare/next-on-pages";
 
 const FALLBACK_CORE =
   "https://alphastream-core-1017433009054.us-east1.run.app";
+
 const FALLBACK_ML =
   "https://alphastream-ml-1017433009054.us-east1.run.app";
 
-function cfEnv(name: string): string {
-  try {
-    const env = getRequestContext().env as Record<string, unknown>;
-    const v = env?.[name];
-    if (typeof v === "string" && v.trim()) return v.trim();
-  } catch {
-    /* local */
+type CloudflareEnv = {
+  ADMIN_KEY?: string;
+  ML_ADMIN_KEY?: string;
+  CORE_URL?: string;
+  ML_URL?: string;
+};
+
+function getCloudflareEnv(): CloudflareEnv {
+  const { env } = getRequestContext();
+
+  return env as CloudflareEnv;
+}
+
+function getEnvValue(
+  env: CloudflareEnv,
+  name: keyof CloudflareEnv
+): string {
+  const value = env[name];
+
+  if (typeof value !== "string") {
+    return "";
   }
-  const v = process.env[name];
-  return typeof v === "string" && v.trim() ? v.trim() : "";
+
+  return value.trim();
+}
+
+export function getRuntimeConfig() {
+  const env = getCloudflareEnv();
+
+  const adminKey = getEnvValue(env, "ADMIN_KEY");
+
+  const mlAdminKey =
+    getEnvValue(env, "ML_ADMIN_KEY") || adminKey;
+
+  const coreUrl =
+    getEnvValue(env, "CORE_URL") || FALLBACK_CORE;
+
+  const mlUrl =
+    getEnvValue(env, "ML_URL") || FALLBACK_ML;
+
+  return {
+    adminKey,
+    mlAdminKey,
+    coreUrl: coreUrl.replace(/\/$/, ""),
+    mlUrl: mlUrl.replace(/\/$/, ""),
+  };
 }
 
 export function hasAdminKey(): boolean {
-  return cfEnv("ADMIN_KEY").length > 0;
+  return getRuntimeConfig().adminKey.length > 0;
 }
 
 export async function coreFetch(
   path: string,
   options: RequestInit = {}
 ): Promise<Response> {
+  const config = getRuntimeConfig();
+
   const headers = new Headers(options.headers);
+
   headers.set("Content-Type", "application/json");
-  const key = cfEnv("ADMIN_KEY");
-  if (key) {
-    headers.set("x-admin-key", key);
-    headers.set("Authorization", `Bearer ${key}`);
+
+  if (config.adminKey) {
+    headers.set("x-admin-key", config.adminKey);
+    headers.set("Authorization", `Bearer ${config.adminKey}`);
   }
-  const base = (cfEnv("CORE_URL") || FALLBACK_CORE).replace(/\/$/, "");
-  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
-  return fetch(url, { ...options, headers, cache: "no-store" });
+
+  const url = `${config.coreUrl}${
+    path.startsWith("/") ? path : `/${path}`
+  }`;
+
+  return fetch(url, {
+    ...options,
+    headers,
+    cache: "no-store",
+  });
 }
 
 export async function mlFetch(
   path: string,
   options: RequestInit = {}
 ): Promise<Response> {
+  const config = getRuntimeConfig();
+
   const headers = new Headers(options.headers);
+
   headers.set("Content-Type", "application/json");
-  const key = cfEnv("ML_ADMIN_KEY") || cfEnv("ADMIN_KEY");
-  if (key) {
-    headers.set("x-admin-key", key);
-    headers.set("Authorization", `Bearer ${key}`);
+
+  if (config.mlAdminKey) {
+    headers.set("x-admin-key", config.mlAdminKey);
+    headers.set("Authorization", `Bearer ${config.mlAdminKey}`);
   }
-  const base = (cfEnv("ML_URL") || FALLBACK_ML).replace(/\/$/, "");
-  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
-  return fetch(url, { ...options, headers, cache: "no-store" });
+
+  const url = `${config.mlUrl}${
+    path.startsWith("/") ? path : `/${path}`
+  }`;
+
+  return fetch(url, {
+    ...options,
+    headers,
+    cache: "no-store",
+  });
 }

@@ -2,35 +2,40 @@ name: Deploy Dashboard to Cloudflare Pages
 
 on:
   push:
-    branches: [main, master]
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
       deployments: write
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
 
-      - name: Install
-        run: npm ci || npm install
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Build for Pages
+      - name: Build for Cloudflare Pages
         run: npm run pages:build
-        env:
-          # Optional: only if build needs them; prefer Pages dashboard env for runtime
-          CORE_URL: ${{ secrets.CORE_URL }}
-          ML_URL: ${{ secrets.ML_URL }}
-          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
 
       - name: Deploy to Cloudflare Pages
-        run: npx wrangler pages deploy .vercel/output/static --project-name=alphastream-dashboard
+        run: >
+          npx wrangler pages deploy
+          .vercel/output/static
+          --project-name=alphastream-dashboard
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

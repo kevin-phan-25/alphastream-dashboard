@@ -1,11 +1,3 @@
-/**
- * Cloudflare Pages + @cloudflare/next-on-pages
- *
- * Build output: .vercel/output/static
- *
- * CORE_URL / ML_URL / ADMIN_KEY → Cloudflare Pages Environment Variables
- * (do not declare them here — binding name conflicts).
- */
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "alphastream-dashboard",
