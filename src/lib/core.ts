@@ -1,30 +1,39 @@
 /**
- * Date: 2026-08-15
+ * Date: 2026-08-29
  * File: src/lib/core.ts
  *
  * Browser -> Next.js API routes -> AlphaStream Core / ML
- *
- * - CORE_URL / ML_URL hard fallbacks for Cloudflare Pages edge
- * - Single admin secret: ADMIN_KEY (ML_ADMIN_KEY optional override, defaults to ADMIN_KEY)
- * - Forwards x-admin-key on Core and ML admin calls
+ * Reads secrets at request time (Cloudflare Pages + next-on-pages).
  */
+import { getRequestContext } from "@cloudflare/next-on-pages";
 
-const CORE_URL =
-  process.env.CORE_URL ||
+const FALLBACK_CORE =
   "https://alphastream-core-1017433009054.us-east1.run.app";
-
-const ML_URL =
-  process.env.ML_URL ||
+const FALLBACK_ML =
   "https://alphastream-ml-1017433009054.us-east1.run.app";
 
-/** Core admin key. Set in Cloudflare Pages → Environment variables. */
-const ADMIN_KEY = process.env.ADMIN_KEY || "";
+function runtimeEnv(name: string): string {
+  // 1) Cloudflare request context (runtime bindings)
+  try {
+    const env = getRequestContext().env as Record<string, string | undefined>;
+    const v = env?.[name];
+    if (v != null && String(v).trim() !== "") return String(v).trim();
+  } catch {
+    // not in a CF request context (local)
+  }
+  // 2) process.env (build-injected or Node)
+  const v = process.env[name];
+  if (v != null && String(v).trim() !== "") return String(v).trim();
+  return "";
+}
 
-/**
- * ML admin key. Prefer ML_ADMIN_KEY if set; otherwise same as ADMIN_KEY.
- * Use one secret for both services when Core and ML share the same key value.
- */
-const ML_ADMIN_KEY = process.env.ML_ADMIN_KEY || process.env.ADMIN_KEY || "";
+function coreBase(): string {
+  return (runtimeEnv("CORE_URL") || FALLBACK_CORE).replace(/\/$/, "");
+}
+
+function mlBase(): string {
+  return (runtimeEnv("ML_URL") || FALLBACK_ML).replace(/\/$/, "");
+}
 
 export async function coreFetch(
   path: string,
@@ -33,14 +42,12 @@ export async function coreFetch(
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
 
-  if (ADMIN_KEY) {
-    headers.set("x-admin-key", ADMIN_KEY);
+  const adminKey = runtimeEnv("ADMIN_KEY");
+  if (adminKey) {
+    headers.set("x-admin-key", adminKey);
   }
 
-  const url = `${CORE_URL.replace(/\/$/, "")}${
-    path.startsWith("/") ? path : `/${path}`
-  }`;
-
+  const url = `${coreBase()}${path.startsWith("/") ? path : `/${path}`}`;
   return fetch(url, {
     ...options,
     headers,
@@ -55,14 +62,13 @@ export async function mlFetch(
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
 
-  if (ML_ADMIN_KEY) {
-    headers.set("x-admin-key", ML_ADMIN_KEY);
+  const adminKey =
+    runtimeEnv("ML_ADMIN_KEY") || runtimeEnv("ADMIN_KEY");
+  if (adminKey) {
+    headers.set("x-admin-key", adminKey);
   }
 
-  const url = `${ML_URL.replace(/\/$/, "")}${
-    path.startsWith("/") ? path : `/${path}`
-  }`;
-
+  const url = `${mlBase()}${path.startsWith("/") ? path : `/${path}`}`;
   return fetch(url, {
     ...options,
     headers,
