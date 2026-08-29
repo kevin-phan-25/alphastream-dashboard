@@ -1,14 +1,16 @@
 /**
- * Date: 2026-08-15
+ * Date: 2026-08-29
  * File: src/app/dashboard/page.tsx
  *
  * Changes:
- * - Autonomy Control Center: Core /autonomy/status (entry window, daily entries, …)
+ * - Autonomy Control Center: Core /autonomy/status
  * - ML Service: GLOBAL / long+short / canTrain / pending / strategy floor
  * - Force train → startTraining() (ML /autonomy/train via hook)
  * - Polls mlAutonomy from useAlphaStream
- * - longOnly shows "—" when ML does not report it (no default true)
- * - Subtitle: GLOBAL · long+short · challenger autonomy train
+ * - longOnly shows "—" when ML does not report it
+ * - Trade Performance: realized R:R, expectancy, exit-reason breakdown
+ * - Dynamic ML subtitle (live vs challenger train)
+ * - Open unrealized total; clearer error banner
  */
 "use client";
 
@@ -32,6 +34,72 @@ const AUTONOMY_PHASES: AlphaStreamAutonomyPhase[] = [
   "EVALUATE",
   "LEARN",
 ];
+
+type ExitStats = {
+  n: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  avgWin: number;
+  avgLoss: number;
+  realizedRR: number | null;
+  expectancy: number;
+  byReason: Record<string, { count: number; pnl: number }>;
+  netPnl: number;
+};
+
+function summarizeTrades(
+  trades: {
+    pnl?: number;
+    PnL?: number;
+    exitReason?: string;
+    ExitReason?: string;
+  }[]
+): ExitStats {
+  const byReason: Record<string, { count: number; pnl: number }> = {};
+  let wins = 0;
+  let losses = 0;
+  let sumWin = 0;
+  let sumLoss = 0;
+  let netPnl = 0;
+
+  for (const t of trades) {
+    const pnl = Number(t.pnl ?? t.PnL ?? 0);
+    const raw = String(t.exitReason ?? t.ExitReason ?? "unknown");
+    const reason = raw.split(" ")[0] || "unknown";
+    netPnl += pnl;
+    if (!byReason[reason]) byReason[reason] = { count: 0, pnl: 0 };
+    byReason[reason].count += 1;
+    byReason[reason].pnl += pnl;
+    if (pnl > 0) {
+      wins += 1;
+      sumWin += pnl;
+    } else if (pnl < 0) {
+      losses += 1;
+      sumLoss += Math.abs(pnl);
+    }
+  }
+
+  const n = trades.length;
+  const avgWin = wins ? sumWin / wins : 0;
+  const avgLoss = losses ? sumLoss / losses : 0;
+  const realizedRR = avgLoss > 0 ? avgWin / avgLoss : null;
+  const winRate = n ? (wins / n) * 100 : 0;
+  const expectancy = n ? netPnl / n : 0;
+
+  return {
+    n,
+    wins,
+    losses,
+    winRate,
+    avgWin,
+    avgLoss,
+    realizedRR,
+    expectancy,
+    byReason,
+    netPnl,
+  };
+}
 
 export default function DashboardPage() {
   const {
@@ -183,11 +251,23 @@ export default function DashboardPage() {
       : undefined);
   const modelScope =
     ml?.modelScope ?? mlAutonomy?.modelScope ?? "GLOBAL";
-  const longOnly = ml?.longOnly; // undefined → show "—" until ML reports it
+  const longOnly = ml?.longOnly;
 
-  // ------------------------------------------------------------------
-  // Normalize Core autonomy data
-  // ------------------------------------------------------------------
+  const tradeStats = summarizeTrades(trades);
+  const openUnrealized = positions.reduce(
+    (s, p) => s + Number(p.unrealizedPnl ?? p.unrealizedPL ?? 0),
+    0
+  );
+  const challengerMode =
+    mlAutonomy?.challengerMode ?? ml?.autonomy?.challengerMode;
+  const mlSubtitle = `${modelScope} · ${
+    longOnly === true
+      ? "long-only"
+      : longOnly === false
+        ? "long+short"
+        : "long/short"
+  } · ${challengerMode ? "challenger train" : "live train"}`;
+
   const autonomyRaw = autonomy ?? status?.autonomy ?? null;
   const autonomyInfo: AlphaStreamAutonomyStatus | null =
     autonomyRaw &&
@@ -229,7 +309,6 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-black p-6 text-white md:p-8">
       <div className="mx-auto max-w-[1800px]">
-        {/* Header */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
@@ -257,7 +336,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Connection Status */}
         <div className="mb-6 flex flex-wrap items-center gap-6 text-sm">
           <span className={connected ? "text-green-400" : "text-red-400"}>
             ● Core {connected ? "Connected" : "Offline"}
@@ -275,10 +353,15 @@ export default function DashboardPage() {
               ? "Telemetry Connected"
               : "Telemetry Unavailable"}
           </span>
-          {error && <span className="text-red-400">{error}</span>}
         </div>
 
-        {/* Autonomy Control Center (Core) */}
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-300">
+            <p className="font-semibold text-red-400">Some endpoints failed</p>
+            <p className="mt-1 break-words text-red-200/80">{error}</p>
+          </div>
+        )}
+
         <AutonomyControlCenter
           autonomy={autonomyInfo}
           enabled={autonomyEnabled}
@@ -293,7 +376,6 @@ export default function DashboardPage() {
           lastDecision={lastDecision}
         />
 
-        {/* Hard Flat / Degraded Warning */}
         {(hardFlat || degraded) && (
           <div className="mb-6 rounded-xl border border-red-500/60 bg-red-950/50 p-5">
             <p className="text-lg font-semibold text-red-400">
@@ -315,7 +397,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Core Metrics */}
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             title="Equity"
@@ -373,14 +454,93 @@ export default function DashboardPage() {
           />
         </section>
 
-        {/* ML Service Section */}
+        {/* Trade Performance */}
+        <section className="mt-10">
+          <h2 className="mb-4 text-xl font-semibold">Trade Performance</h2>
+          <p className="mb-4 text-xs text-gray-500">
+            Computed from closed trades returned by Core (not account equity
+            curve).
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard title="Sample (closed)" value={tradeStats.n} />
+            <MetricCard
+              title="Realized R:R"
+              value={
+                tradeStats.realizedRR != null
+                  ? `${tradeStats.realizedRR.toFixed(2)} : 1`
+                  : "—"
+              }
+            />
+            <MetricCard
+              title="Expectancy / trade"
+              value={formatCurrency(tradeStats.expectancy)}
+            />
+            <MetricCard
+              title="Net closed PnL"
+              value={formatCurrency(tradeStats.netPnl)}
+            />
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              title="Win rate (trades)"
+              value={`${tradeStats.winRate.toFixed(1)}%`}
+            />
+            <MetricCard
+              title="Avg win"
+              value={formatCurrency(tradeStats.avgWin)}
+            />
+            <MetricCard
+              title="Avg loss"
+              value={formatCurrency(tradeStats.avgLoss)}
+            />
+            <MetricCard
+              title="Open unrealized"
+              value={formatCurrency(openUnrealized)}
+            />
+          </div>
+          <div className="mt-4 overflow-x-auto rounded-xl bg-zinc-900">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-zinc-700 text-gray-400">
+                <tr>
+                  <th className="p-4">Exit reason</th>
+                  <th className="p-4">Count</th>
+                  <th className="p-4">Net PnL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(tradeStats.byReason)
+                  .sort((a, b) => b[1].count - a[1].count)
+                  .map(([reason, v]) => (
+                    <tr key={reason} className="border-b border-zinc-800">
+                      <td className="p-4 font-medium">{reason}</td>
+                      <td className="p-4">{v.count}</td>
+                      <td
+                        className={`p-4 ${
+                          v.pnl >= 0 ? "text-green-400" : "text-red-400"
+                        }`}
+                      >
+                        {formatCurrency(v.pnl)}
+                      </td>
+                    </tr>
+                  ))}
+                {tradeStats.n === 0 && (
+                  <tr>
+                    <td className="p-4 text-gray-400" colSpan={3}>
+                      No trades to summarize
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* ML Service */}
         <section className="mt-10">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold">ML Service</h2>
-              <p className="mt-1 text-xs text-gray-500">
-                GLOBAL · long+short · challenger autonomy train
-              </p>
+              <p className="mt-1 text-xs text-gray-500">{mlSubtitle}</p>
             </div>
             <button
               onClick={handleTrain}
@@ -408,15 +568,11 @@ export default function DashboardPage() {
             <MetricCard title="Model Scope" value={modelScope} />
             <MetricCard
               title="Long Only"
-              value={
-                longOnly == null ? "—" : longOnly ? "Yes" : "No"
-              }
+              value={longOnly == null ? "—" : longOnly ? "Yes" : "No"}
             />
             <MetricCard
               title="Can Train"
-              value={
-                canTrain == null ? "—" : canTrain ? "Yes" : "No"
-              }
+              value={canTrain == null ? "—" : canTrain ? "Yes" : "No"}
             />
             <MetricCard
               title="Trains Today"
@@ -455,13 +611,7 @@ export default function DashboardPage() {
             <MetricCard
               title="Challenger Mode"
               value={
-                (mlAutonomy?.challengerMode ?? ml?.autonomy?.challengerMode) ==
-                null
-                  ? "—"
-                  : (mlAutonomy?.challengerMode ??
-                      ml?.autonomy?.challengerMode)
-                    ? "Yes"
-                    : "No"
+                challengerMode == null ? "—" : challengerMode ? "Yes" : "No"
               }
             />
             <MetricCard
@@ -498,7 +648,6 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* ML Training Logs */}
         <section className="mt-10">
           <h2 className="mb-4 text-xl font-semibold">ML Training Logs</h2>
           <div className="overflow-x-auto rounded-xl bg-zinc-900">
@@ -578,7 +727,6 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Open Positions */}
         <section className="mt-10">
           <h2 className="mb-4 text-xl font-semibold">Open Positions</h2>
           <div className="overflow-x-auto rounded-xl bg-zinc-900">
@@ -633,7 +781,6 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Recent Trades */}
         <section className="mt-10">
           <h2 className="mb-4 text-xl font-semibold">Recent Trades</h2>
           <div className="overflow-x-auto rounded-xl bg-zinc-900">
@@ -687,7 +834,6 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* System Logs */}
         <section className="mt-10">
           <h2 className="mb-4 text-xl font-semibold">System Logs</h2>
           <div className="max-h-80 overflow-y-auto rounded-xl bg-zinc-900 p-5 font-mono text-sm">
@@ -718,9 +864,6 @@ export default function DashboardPage() {
   );
 }
 
-// ======================================================
-// AUTONOMY CONTROL CENTER
-// ======================================================
 function AutonomyControlCenter({
   autonomy,
   enabled,
@@ -1012,22 +1155,28 @@ function AutonomyControlCenter({
                     : "BLOCKED"
               }
             />
-            <DecisionField
-              label="Position Size"
-              value={
-                lastDecision.positionSize != null
-                  ? formatCurrency(lastDecision.positionSize)
-                  : "—"
-              }
-            />
-            <DecisionField
-              label="Quantity"
-              value={lastDecision.quantity ?? "—"}
-            />
-            <DecisionField
-              label="Execution"
-              value={lastDecision.execution ?? "—"}
-            />
+            {(lastDecision.positionSize != null ||
+              lastDecision.quantity != null ||
+              lastDecision.execution) && (
+              <>
+                <DecisionField
+                  label="Position Size"
+                  value={
+                    lastDecision.positionSize != null
+                      ? formatCurrency(lastDecision.positionSize)
+                      : "—"
+                  }
+                />
+                <DecisionField
+                  label="Quantity"
+                  value={lastDecision.quantity ?? "—"}
+                />
+                <DecisionField
+                  label="Execution"
+                  value={lastDecision.execution ?? "—"}
+                />
+              </>
+            )}
             <DecisionField
               label="Time"
               value={formatTs(lastDecision.timestamp)}
