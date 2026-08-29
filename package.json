@@ -9,7 +9,8 @@
     "lint": "next lint",
     "pages:build": "npx @cloudflare/next-on-pages",
     "preview": "npx wrangler pages dev .vercel/output/static",
-    "deploy": "npx wrangler pages deploy .vercel/output/static --project-name=alphastream-dashboard"
+    "deploy": "npx wrangler pages deploy .vercel/output/static --project-name=alphastream-dashboard",
+    "pages:deploy": "npm run pages:build && npm run deploy"
   },
   "dependencies": {
     "axios": "^1.19.0",

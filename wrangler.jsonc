@@ -1,11 +1,10 @@
 /**
  * Cloudflare Pages + @cloudflare/next-on-pages
  *
- * Build output:
- * .vercel/output/static
+ * Build output: .vercel/output/static
  *
- * CORE_URL and ML_URL are set as Cloudflare Pages Environment Variables
- * (do not also declare them here — causes "Binding name already in use").
+ * CORE_URL / ML_URL / ADMIN_KEY → Cloudflare Pages Environment Variables
+ * (do not declare them here — binding name conflicts).
  */
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
