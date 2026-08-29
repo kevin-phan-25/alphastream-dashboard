@@ -3,17 +3,11 @@
  * File: src/components/charts/TradePerformanceCharts.tsx
  *
  * Trade performance charts + cumulative PnL equity curve.
- * Interactive CSS tooltips; no chart library.
+ * Interactive tooltips; no extra chart library required.
  */
 "use client";
 
 import { useMemo, useState } from "react";
-
-export type ReasonStat = {
-  reason: string;
-  count: number;
-  pnl: number;
-};
 
 export type TradeLike = {
   pnl?: number;
@@ -30,13 +24,12 @@ type Props = {
   losses: number;
   netPnl: number;
   trades?: TradeLike[];
-  /** Optional starting equity for labeling the curve (display only). */
   startEquity?: number;
 };
 
 function sortedReasons(
   byReason: Record<string, { count: number; pnl: number }>
-): ReasonStat[] {
+) {
   return Object.entries(byReason)
     .map(([reason, v]) => ({ reason, count: v.count, pnl: v.pnl }))
     .sort((a, b) => b.count - a.count)
@@ -65,7 +58,6 @@ function TooltipBubble({
     <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-zinc-600 bg-zinc-950 px-3 py-2 text-xs text-gray-100 shadow-lg">
       <p className="font-medium text-white">{label}</p>
       {sub && <p className="mt-0.5 text-gray-400">{sub}</p>}
-      <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-4 border-transparent border-t-zinc-600" />
     </div>
   );
 }
@@ -89,30 +81,20 @@ function EquityCurve({
       );
 
     let cum = 0;
-    const pts: {
-      i: number;
-      cum: number;
-      equity: number;
-      pnl: number;
-      ts: string;
-      symbol: string;
-      reason: string;
-    }[] = [];
-
-    sorted.forEach((t, i) => {
+    return sorted.map((t, i) => {
       const pnl = Number(t.pnl ?? t.PnL ?? 0);
       cum += pnl;
-      pts.push({
+      return {
         i,
         cum,
         equity: startEquity > 0 ? startEquity + cum : cum,
         pnl,
         ts: t.timestamp || "",
         symbol: t.symbol || "?",
-        reason: String(t.exitReason ?? t.ExitReason ?? "").split(" ")[0] || "—",
-      });
+        reason:
+          String(t.exitReason ?? t.ExitReason ?? "").split(" ")[0] || "—",
+      };
     });
-    return pts;
   }, [trades, startEquity]);
 
   if (points.length < 2) {
@@ -161,7 +143,6 @@ function EquityCurve({
         className="h-auto w-full"
         preserveAspectRatio="none"
       >
-        {/* grid */}
         {[0, 0.25, 0.5, 0.75, 1].map((t) => {
           const y = pad.t + innerH * (1 - t);
           return (
@@ -185,7 +166,6 @@ function EquityCurve({
           strokeLinejoin="round"
           strokeLinecap="round"
         />
-        {/* y labels */}
         <text
           x={4}
           y={pad.t + 4}
@@ -202,7 +182,6 @@ function EquityCurve({
         >
           {formatUsd(yMin)}
         </text>
-        {/* interactive points */}
         {xy.map((p, idx) => (
           <g key={idx}>
             <circle
@@ -212,15 +191,11 @@ function EquityCurve({
               fill={p.pnl >= 0 ? "#22c55e" : "#ef4444"}
               stroke="#09090b"
               strokeWidth={1}
-              className="cursor-pointer"
-              onMouseEnter={() => setHover(idx)}
-              onMouseLeave={() => setHover(null)}
             />
-            {/* larger hit area */}
             <circle
               cx={p.x}
               cy={p.y}
-              r={10}
+              r={12}
               fill="transparent"
               className="cursor-pointer"
               onMouseEnter={() => setHover(idx)}
@@ -269,7 +244,7 @@ function EquityCurve({
       <p className="mt-2 text-center text-[11px] text-gray-500">
         Cumulative closed-trade PnL
         {startEquity > 0
-          ? ` (anchored at ${formatUsd(startEquity)} start estimate)`
+          ? ` (anchored near ${formatUsd(startEquity)})`
           : " from zero"}
         . Hover points for details.
       </p>
@@ -308,20 +283,17 @@ export function TradePerformanceCharts({
 
   return (
     <div className="space-y-4">
-      {/* Equity / cumulative PnL curve */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
         <h3 className="mb-1 text-sm font-semibold text-gray-200">
           Equity curve (from trades)
         </h3>
         <p className="mb-4 text-xs text-gray-500">
-          Running sum of closed-trade PnL over time — not a broker equity
-          snapshot series.
+          Running sum of closed-trade PnL — not a broker snapshot stream.
         </p>
         <EquityCurve trades={trades} startEquity={startEquity} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Counts */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
           <h3 className="mb-1 text-sm font-semibold text-gray-200">
             Exits by reason (count)
@@ -354,7 +326,7 @@ export function TradePerformanceCharts({
                 </div>
                 <div className="h-2.5 overflow-hidden rounded-full bg-zinc-800">
                   <div
-                    className="h-full rounded-full bg-blue-500 transition-all"
+                    className="h-full rounded-full bg-blue-500"
                     style={{ width: `${(r.count / maxCount) * 100}%` }}
                   />
                 </div>
@@ -363,7 +335,6 @@ export function TradePerformanceCharts({
           </div>
         </div>
 
-        {/* PnL by reason */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
           <h3 className="mb-1 text-sm font-semibold text-gray-200">
             Net PnL by exit reason
@@ -371,7 +342,7 @@ export function TradePerformanceCharts({
           <p className="mb-4 text-xs text-gray-500">Hover a bar for details</p>
           <div className="space-y-3">
             {rows.map((r) => {
-              const w = (Math.abs(r.pnl) / maxAbsPnl) * 100;
+              const width = (Math.abs(r.pnl) / maxAbsPnl) * 100;
               const positive = r.pnl >= 0;
               return (
                 <div
@@ -404,10 +375,10 @@ export function TradePerformanceCharts({
                   </div>
                   <div className="h-2.5 overflow-hidden rounded-full bg-zinc-800">
                     <div
-                      className={`h-full rounded-full transition-all ${
+                      className={`h-full rounded-full ${
                         positive ? "bg-green-500" : "bg-red-500"
                       }`}
-                      style={{ width: `${w}%` }}
+                      style={{ width: `${width}%` }}
                     />
                   </div>
                 </div>
@@ -416,9 +387,8 @@ export function TradePerformanceCharts({
           </div>
         </div>
 
-        {/* Win / loss */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-2">
-          <div className="relative mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold text-gray-200">
                 Win / loss split
@@ -440,37 +410,16 @@ export function TradePerformanceCharts({
           </div>
           <div className="flex h-4 overflow-hidden rounded-full bg-zinc-800">
             <div
-              className="relative h-full bg-green-500 transition-all"
+              className="h-full bg-green-500"
               style={{ width: `${winPct}%` }}
-              onMouseEnter={() =>
-                setTip({
-                  key: "wins",
-                  label: `${wins} wins`,
-                  sub: `${winPct.toFixed(1)}% of decided trades`,
-                })
-              }
-              onMouseLeave={() => setTip(null)}
               title={`${wins} wins`}
             />
             <div
-              className="h-full bg-red-500 transition-all"
+              className="h-full bg-red-500"
               style={{ width: `${lossPct}%` }}
-              onMouseEnter={() =>
-                setTip({
-                  key: "losses",
-                  label: `${losses} losses`,
-                  sub: `${lossPct.toFixed(1)}% of decided trades`,
-                })
-              }
-              onMouseLeave={() => setTip(null)}
               title={`${losses} losses`}
             />
           </div>
-          {tip && (tip.key === "wins" || tip.key === "losses") && (
-            <p className="mt-2 text-xs text-gray-400">
-              {tip.label} — {tip.sub}
-            </p>
-          )}
         </div>
       </div>
     </div>

@@ -2,7 +2,12 @@
  * Date: 2026-08-29
  * File: src/app/dashboard/page.tsx
  *
- * Trade Performance metrics + charts (R:R, exit mix, equity curve tooltips).
+ * Features:
+ * - Autonomy Control Center + last decision
+ * - Core metrics, hard-flat controls
+ * - Trade Performance: R:R, expectancy, exit mix, charts, equity curve
+ * - ML status with live vs challenger subtitle
+ * - Force Scan / Force Autonomy Train / Refresh
  */
 "use client";
 
@@ -58,8 +63,9 @@ function summarizeTrades(
 
   for (const t of trades) {
     const pnl = Number(t.pnl ?? t.PnL ?? 0);
-    const raw = String(t.exitReason ?? t.ExitReason ?? "unknown");
-    const reason = raw.split(" ")[0] || "unknown";
+    const reason =
+      String(t.exitReason ?? t.ExitReason ?? "unknown").split(" ")[0] ||
+      "unknown";
     netPnl += pnl;
     if (!byReason[reason]) byReason[reason] = { count: 0, pnl: 0 };
     byReason[reason].count += 1;
@@ -76,19 +82,16 @@ function summarizeTrades(
   const n = trades.length;
   const avgWin = wins ? sumWin / wins : 0;
   const avgLoss = losses ? sumLoss / losses : 0;
-  const realizedRR = avgLoss > 0 ? avgWin / avgLoss : null;
-  const winRate = n ? (wins / n) * 100 : 0;
-  const expectancy = n ? netPnl / n : 0;
 
   return {
     n,
     wins,
     losses,
-    winRate,
+    winRate: n ? (wins / n) * 100 : 0,
     avgWin,
     avgLoss,
-    realizedRR,
-    expectancy,
+    realizedRR: avgLoss > 0 ? avgWin / avgLoss : null,
+    expectancy: n ? netPnl / n : 0,
     byReason,
     netPnl,
   };
@@ -122,41 +125,48 @@ export default function DashboardPage() {
     setTraining(true);
     try {
       const result: any = await startTraining();
-      const entry: MLTrainingLogEntry = {
-        id: `${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        ok: Boolean(result?.ok ?? true),
-        trained: Boolean(result?.trained),
-        promoted: Boolean(result?.promoted),
-        message:
-          result?.message ||
-          result?.reason ||
-          (result?.trained
-            ? `Autonomy train complete steps=${result?.steps ?? 0}`
-            : result?.error || "Autonomy train finished"),
-        steps: result?.steps,
-        epochs: result?.epochs,
-        avgLoss: result?.avgLoss ?? null,
-        elapsedSec: result?.elapsedSec,
-        entryBufferSize: result?.entryBufferSize,
-        exitBufferSize: result?.exitBufferSize,
-        totalExperiences: result?.totalExperiences,
-        error: result?.error,
-        reason: result?.reason,
-        modelScope: result?.modelScope || "GLOBAL",
-      };
-      setTrainingLogs((prev) => [entry, ...prev].slice(0, 20));
+      setTrainingLogs((prev) =>
+        [
+          {
+            id: `${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            ok: Boolean(result?.ok ?? true),
+            trained: Boolean(result?.trained),
+            promoted: Boolean(result?.promoted),
+            message:
+              result?.message ||
+              result?.reason ||
+              (result?.trained
+                ? `Autonomy train complete steps=${result?.steps ?? 0}`
+                : result?.error || "Autonomy train finished"),
+            steps: result?.steps,
+            epochs: result?.epochs,
+            avgLoss: result?.avgLoss ?? null,
+            elapsedSec: result?.elapsedSec,
+            entryBufferSize: result?.entryBufferSize,
+            exitBufferSize: result?.exitBufferSize,
+            totalExperiences: result?.totalExperiences,
+            error: result?.error,
+            reason: result?.reason,
+            modelScope: result?.modelScope || "GLOBAL",
+          } as MLTrainingLogEntry,
+          ...prev,
+        ].slice(0, 20)
+      );
     } catch (err: any) {
-      console.error("Training failed:", err);
-      const entry: MLTrainingLogEntry = {
-        id: `${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        ok: false,
-        trained: false,
-        message: err?.message || "Training request failed",
-        error: err?.message || String(err),
-      };
-      setTrainingLogs((prev) => [entry, ...prev].slice(0, 20));
+      setTrainingLogs((prev) =>
+        [
+          {
+            id: `${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            ok: false,
+            trained: false,
+            message: err?.message || "Training request failed",
+            error: err?.message || String(err),
+          } as MLTrainingLogEntry,
+          ...prev,
+        ].slice(0, 20)
+      );
     } finally {
       setTraining(false);
     }
@@ -171,8 +181,8 @@ export default function DashboardPage() {
       });
       if (!res.ok) throw new Error("Failed to clear hard flat");
       await refresh();
-    } catch (err) {
-      console.error(err);
+    } catch (e) {
+      console.error(e);
     } finally {
       setClearingFlat(false);
     }
@@ -185,29 +195,20 @@ export default function DashboardPage() {
         method: "POST",
         cache: "no-store",
       });
-      const data = await res.json().catch(() => ({} as Record<string, unknown>));
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        console.error("Force scan failed", res.status, data);
         const errMsg =
-          (typeof data === "object" && data && "error" in data
-            ? String((data as { error?: unknown }).error)
-            : null) ||
-          (typeof data === "object" && data && "message" in data
-            ? String((data as { message?: unknown }).message)
-            : null) ||
-          "unknown";
+          (data as any)?.error || (data as any)?.message || "unknown";
         alert(
           res.status === 401
-            ? "Force Scan unauthorized (401). Set ADMIN_KEY in Cloudflare Pages to match Core, then redeploy the dashboard."
+            ? "Force Scan unauthorized (401). Set ADMIN_KEY in Cloudflare Pages to match Core."
             : `Force Scan failed (${res.status}): ${errMsg}`
         );
         return;
       }
-      setTimeout(() => {
-        void refresh();
-      }, 1500);
-    } catch (err) {
-      console.error(err);
+      setTimeout(() => void refresh(), 1500);
+    } catch (e) {
+      console.error(e);
       alert("Force Scan request failed — see console");
     } finally {
       setScanLoading(false);
@@ -216,7 +217,6 @@ export default function DashboardPage() {
 
   const hardFlat = status?.hardFlat ?? false;
   const degraded = status?.degraded ?? false;
-
   const ml: AlphaStreamMLStatus | null =
     status?.ml && status.ml.ok !== undefined ? status.ml : mlStatus;
 
@@ -241,6 +241,8 @@ export default function DashboardPage() {
       : undefined);
   const modelScope = ml?.modelScope ?? mlAutonomy?.modelScope ?? "GLOBAL";
   const longOnly = ml?.longOnly;
+  const challengerMode =
+    mlAutonomy?.challengerMode ?? ml?.autonomy?.challengerMode;
 
   const tradeStats = summarizeTrades(trades);
   const openUnrealized = positions.reduce(
@@ -251,8 +253,6 @@ export default function DashboardPage() {
     0,
     Number(status?.equity ?? metrics?.equity ?? 0) - tradeStats.netPnl
   );
-  const challengerMode =
-    mlAutonomy?.challengerMode ?? ml?.autonomy?.challengerMode;
   const mlSubtitle = `${modelScope} · ${
     longOnly === true
       ? "long-only"
@@ -265,9 +265,9 @@ export default function DashboardPage() {
   const autonomyInfo: AlphaStreamAutonomyStatus | null =
     autonomyRaw &&
     typeof autonomyRaw === "object" &&
-    autonomyRaw.autonomy &&
-    typeof autonomyRaw.autonomy === "object"
-      ? (autonomyRaw.autonomy as AlphaStreamAutonomyStatus)
+    (autonomyRaw as any).autonomy &&
+    typeof (autonomyRaw as any).autonomy === "object"
+      ? ((autonomyRaw as any).autonomy as AlphaStreamAutonomyStatus)
       : (autonomyRaw as AlphaStreamAutonomyStatus | null);
 
   const autonomyEnabled = Boolean(
@@ -275,28 +275,6 @@ export default function DashboardPage() {
   );
   const autonomyTelemetryAvailable =
     autonomyConnected || Boolean(autonomyInfo);
-
-  const autonomyState =
-    autonomyInfo?.state ??
-    (autonomyEnabled
-      ? autonomyInfo?.inEntryWindow
-        ? "RUNNING"
-        : "IDLE"
-      : "DISABLED");
-  const autonomyPhase = autonomyInfo?.phase ?? "UNKNOWN";
-  const currentCycle =
-    autonomyInfo?.cycleId ??
-    autonomyInfo?.cycleCount ??
-    autonomyInfo?.completedCycles ??
-    0;
-  const completedCycles =
-    autonomyInfo?.completedCycles ?? autonomyInfo?.cycleCount ?? 0;
-  const decisionCount =
-    autonomyInfo?.autonomousDecisions ?? autonomyInfo?.decisionCount ?? 0;
-  const executionCount =
-    autonomyInfo?.autonomousExecutions ?? autonomyInfo?.executionCount ?? 0;
-  const interventionCount =
-    autonomyInfo?.humanInterventions ?? autonomyInfo?.interventionCount ?? 0;
   const lastDecision = autonomyInfo?.lastDecision ?? null;
 
   return (
@@ -355,29 +333,99 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <AutonomyControlCenter
-          autonomy={autonomyInfo}
-          enabled={autonomyEnabled}
-          state={String(autonomyState)}
-          phase={String(autonomyPhase)}
-          telemetryAvailable={autonomyTelemetryAvailable}
-          cycle={currentCycle}
-          completedCycles={completedCycles}
-          decisions={decisionCount}
-          executions={executionCount}
-          interventions={interventionCount}
-          lastDecision={lastDecision}
-        />
+        {/* Autonomy strip */}
+        <section className="mb-8 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+          <h2 className="mb-4 text-2xl font-bold">Autonomy Control Center</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              title="Enabled"
+              value={autonomyEnabled ? "Yes" : "No"}
+            />
+            <MetricCard
+              title="In Entry Window"
+              value={autonomyInfo?.inEntryWindow ? "Yes" : "No"}
+            />
+            <MetricCard
+              title="Daily Entries"
+              value={autonomyInfo?.dailyEntries ?? 0}
+            />
+            <MetricCard
+              title="Max Trades / Day"
+              value={autonomyInfo?.maxTradesDay ?? "—"}
+            />
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              title="Entry Window"
+              value={autonomyInfo?.entryWindow ?? "—"}
+            />
+            <MetricCard
+              title="EOD Flatten"
+              value={autonomyInfo?.eodFlatten ?? "—"}
+            />
+            <MetricCard
+              title="Scan Interval"
+              value={
+                autonomyInfo?.scanIntervalSec != null
+                  ? `${autonomyInfo.scanIntervalSec}s`
+                  : "—"
+              }
+            />
+            <MetricCard
+              title="Current Reason"
+              value={
+                autonomyInfo?.reason
+                  ? String(autonomyInfo.reason).replace(/_/g, " ")
+                  : "—"
+              }
+            />
+          </div>
+          <div className="mt-6 rounded-xl border border-zinc-800 bg-black/40 p-5">
+            <h3 className="mb-3 text-lg font-semibold">
+              Last Autonomous Decision{" "}
+              <span className="text-xs text-green-400">
+                {lastDecision?.source ?? "UNKNOWN"}
+              </span>
+            </h3>
+            {!lastDecision ? (
+              <p className="text-sm text-gray-500">
+                No autonomous decision telemetry available yet.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                <MetricCard title="Symbol" value={lastDecision.symbol ?? "—"} />
+                <MetricCard
+                  title="Decision"
+                  value={lastDecision.decision ?? "—"}
+                />
+                <MetricCard
+                  title="Confidence"
+                  value={
+                    lastDecision.confidence != null
+                      ? `${Number(lastDecision.confidence).toFixed(1)}%`
+                      : "—"
+                  }
+                />
+                <MetricCard
+                  title="Time"
+                  value={formatTs(lastDecision.timestamp)}
+                />
+              </div>
+            )}
+            {lastDecision?.reason && (
+              <p className="mt-3 text-sm text-gray-300">
+                Reason: {lastDecision.reason}
+              </p>
+            )}
+          </div>
+        </section>
 
         {(hardFlat || degraded) && (
           <div className="mb-6 rounded-xl border border-red-500/60 bg-red-950/50 p-5">
             <p className="text-lg font-semibold text-red-400">
-              ⚠️ Trading Halted
-              {hardFlat && " — Hard Flat Active"}
-              {degraded && " — Degraded Mode"}
-            </p>
-            <p className="mt-1 text-sm text-red-300/90">
-              New entries are blocked. Existing positions are still managed.
+              Trading Halted
+              {hardFlat && " — Hard Flat"}
+              {degraded && " — Degraded"}
             </p>
             <button
               onClick={handleClearHardFlat}
@@ -423,7 +471,9 @@ export default function DashboardPage() {
         <section className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <MetricCard
             title="Peak Equity"
-            value={formatCurrency(status?.peakEquity ?? metrics?.peakEquity ?? 0)}
+            value={formatCurrency(
+              status?.peakEquity ?? metrics?.peakEquity ?? 0
+            )}
           />
           <MetricCard
             title="Buying Power"
@@ -439,12 +489,11 @@ export default function DashboardPage() {
           />
         </section>
 
+        {/* Trade Performance */}
         <section className="mt-10">
           <h2 className="mb-4 text-xl font-semibold">Trade Performance</h2>
           <p className="mb-4 text-xs text-gray-500">
-            From closed trades on Core. Equity curve = cumulative trade PnL
-            (anchored so the last point aligns with current equity when the
-            sample is complete).
+            From closed trades on Core. Equity curve = cumulative trade PnL.
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard title="Sample (closed)" value={tradeStats.n} />
@@ -470,7 +519,10 @@ export default function DashboardPage() {
               title="Win rate (trades)"
               value={`${tradeStats.winRate.toFixed(1)}%`}
             />
-            <MetricCard title="Avg win" value={formatCurrency(tradeStats.avgWin)} />
+            <MetricCard
+              title="Avg win"
+              value={formatCurrency(tradeStats.avgWin)}
+            />
             <MetricCard
               title="Avg loss"
               value={formatCurrency(tradeStats.avgLoss)}
@@ -519,7 +571,7 @@ export default function DashboardPage() {
                   ))}
                 {tradeStats.n === 0 && (
                   <tr>
-                    <td className="p-4 text-gray-400" colSpan={3}>
+                    <td colSpan={3} className="p-4 text-gray-400">
                       No trades to summarize
                     </td>
                   </tr>
@@ -529,6 +581,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        {/* ML */}
         <section className="mt-10">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -554,8 +607,6 @@ export default function DashboardPage() {
               title="Training Enabled"
               value={ml?.trainingEnabled ? "Yes" : "No"}
             />
-          </div>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard title="Model Scope" value={modelScope} />
             <MetricCard
               title="Long Only"
@@ -571,16 +622,16 @@ export default function DashboardPage() {
                 trainsToday != null ? `${trainsToday}/${maxTrains ?? "—"}` : "—"
               }
             />
-          </div>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard title="Pending Entries" value={pendingEntries ?? "—"} />
             <MetricCard
               title="Confidence Floor"
               value={confidenceFloor ?? "—"}
             />
             <MetricCard
-              title="Boot Complete"
-              value={ml?.bootComplete ? "Yes" : "No"}
+              title="Challenger Mode"
+              value={
+                challengerMode == null ? "—" : challengerMode ? "Yes" : "No"
+              }
             />
             <MetricCard
               title="Last Train"
@@ -589,121 +640,41 @@ export default function DashboardPage() {
               )}
             />
           </div>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <MetricCard title="Last Load" value={formatTs(ml?.lastLoad)} />
-            <MetricCard title="Last Save" value={formatTs(ml?.lastSave)} />
-            <MetricCard
-              title="Challenger Mode"
-              value={
-                challengerMode == null ? "—" : challengerMode ? "Yes" : "No"
-              }
-            />
-            <MetricCard
-              title="Train Kinds"
-              value={
-                (mlAutonomy?.trainKinds ?? ml?.autonomy?.trainKinds)?.join(
-                  ", "
-                ) ?? "entry"
-              }
-            />
-          </div>
           {lastSkipReason && (
             <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
               <p className="text-xs uppercase tracking-wider text-gray-500">
                 Autonomy Skip / Last Reason
               </p>
-              <p className="mt-1 text-sm font-medium text-gray-200">
+              <p className="mt-1 text-sm text-gray-200">
                 {String(lastSkipReason)}
               </p>
             </div>
           )}
-          {(ml?.version || ml?.timestamp) && (
-            <p className="mt-3 text-sm text-gray-400">
-              {ml?.version && <>Version: {ml.version}</>}
-              {ml?.timestamp && (
-                <>
-                  {ml.version ? " • " : ""}
-                  Last update: {new Date(ml.timestamp).toLocaleString()}
-                </>
-              )}
-            </p>
-          )}
         </section>
 
+        {/* Training logs */}
         <section className="mt-10">
           <h2 className="mb-4 text-xl font-semibold">ML Training Logs</h2>
-          <div className="overflow-x-auto rounded-xl bg-zinc-900">
+          <div className="overflow-x-auto rounded-xl bg-zinc-900 p-5">
             {trainingLogs.length === 0 ? (
-              <p className="p-5 text-gray-400">
-                No training runs yet. Click “Force Autonomy Train” to see
-                results here.
+              <p className="text-gray-400">
+                No training runs yet this session.
               </p>
             ) : (
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-zinc-700 text-gray-400">
-                  <tr>
-                    <th className="p-4">Time</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4">Message</th>
-                    <th className="p-4">Steps</th>
-                    <th className="p-4">Avg Loss</th>
-                    <th className="p-4">Elapsed</th>
-                    <th className="p-4">Buffers (E/X)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {trainingLogs.map((log) => (
-                    <tr key={log.id} className="border-b border-zinc-800">
-                      <td className="whitespace-nowrap p-4 text-gray-400">
-                        {new Date(log.timestamp).toLocaleString()}
-                      </td>
-                      <td className="p-4">
-                        <span
-                          className={
-                            log.trained
-                              ? "text-green-400"
-                              : log.ok
-                                ? "text-yellow-400"
-                                : "text-red-400"
-                          }
-                        >
-                          {log.trained
-                            ? log.promoted
-                              ? "Trained+Promoted"
-                              : "Trained"
-                            : log.ok
-                              ? "Skipped"
-                              : "Failed"}
-                        </span>
-                      </td>
-                      <td className="max-w-xs truncate p-4" title={log.message}>
-                        {log.message}
-                      </td>
-                      <td className="p-4">{log.steps ?? "—"}</td>
-                      <td className="p-4">
-                        {log.avgLoss != null
-                          ? Number(log.avgLoss).toFixed(4)
-                          : "—"}
-                      </td>
-                      <td className="p-4">
-                        {log.elapsedSec != null ? `${log.elapsedSec}s` : "—"}
-                      </td>
-                      <td className="p-4">
-                        {log.entryBufferSize != null ||
-                        log.exitBufferSize != null
-                          ? `${log.entryBufferSize ?? "—"} / ${
-                              log.exitBufferSize ?? "—"
-                            }`
-                          : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <ul className="space-y-2 text-sm">
+                {trainingLogs.map((log) => (
+                  <li key={log.id} className="text-gray-300">
+                    {new Date(log.timestamp).toLocaleString()} —{" "}
+                    {log.trained ? "Trained" : log.ok ? "Skipped" : "Failed"} —{" "}
+                    {log.message}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </section>
 
+        {/* Positions */}
         <section className="mt-10">
           <h2 className="mb-4 text-xl font-semibold">Open Positions</h2>
           <div className="overflow-x-auto rounded-xl bg-zinc-900">
@@ -751,6 +722,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        {/* Trades */}
         <section className="mt-10">
           <h2 className="mb-4 text-xl font-semibold">Recent Trades</h2>
           <div className="overflow-x-auto rounded-xl bg-zinc-900">
@@ -801,6 +773,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        {/* Logs */}
         <section className="mt-10">
           <h2 className="mb-4 text-xl font-semibold">System Logs</h2>
           <div className="max-h-80 overflow-y-auto rounded-xl bg-zinc-900 p-5 font-mono text-sm">
@@ -808,14 +781,7 @@ export default function DashboardPage() {
               <p className="text-gray-400">No logs available</p>
             ) : (
               logs.map((log, index) => (
-                <p
-                  key={
-                    typeof log === "string"
-                      ? index
-                      : (log as AlphaStreamLog).id ?? index
-                  }
-                  className="mb-1 text-gray-300"
-                >
+                <p key={index} className="mb-1 text-gray-300">
                   {typeof log === "string"
                     ? log
                     : `[${(log as AlphaStreamLog).level ?? "INFO"}] ${
@@ -828,267 +794,6 @@ export default function DashboardPage() {
         </section>
       </div>
     </main>
-  );
-}
-
-function AutonomyControlCenter({
-  autonomy,
-  enabled,
-  state,
-  phase,
-  telemetryAvailable,
-  cycle,
-  completedCycles,
-  decisions,
-  executions,
-  interventions,
-  lastDecision,
-}: {
-  autonomy: AlphaStreamAutonomyStatus | null;
-  enabled: boolean;
-  state: string;
-  phase: string;
-  telemetryAvailable: boolean;
-  cycle: number | string;
-  completedCycles: number;
-  decisions: number;
-  executions: number;
-  interventions: number;
-  lastDecision: AlphaStreamAutonomyStatus["lastDecision"];
-}) {
-  const normalizedState = String(state).toUpperCase();
-  const normalizedPhase = String(phase).toUpperCase();
-  const isRunning =
-    (normalizedState === "RUNNING" || Boolean(autonomy?.inEntryWindow)) &&
-    enabled;
-  const isError = normalizedState === "ERROR";
-  const isDegraded = normalizedState === "DEGRADED";
-
-  const stateLabel = !telemetryAvailable
-    ? "TELEMETRY UNAVAILABLE"
-    : !enabled
-      ? "DISABLED"
-      : autonomy?.inEntryWindow
-        ? "IN ENTRY WINDOW"
-        : autonomy?.reason
-          ? String(autonomy.reason).replace(/_/g, " ").toUpperCase()
-          : normalizedState;
-
-  return (
-    <section className="mb-8 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <span
-              className={`h-3 w-3 rounded-full ${
-                isRunning
-                  ? "bg-green-400"
-                  : isError
-                    ? "bg-red-400"
-                    : isDegraded
-                      ? "bg-yellow-400"
-                      : enabled
-                        ? "bg-blue-400"
-                        : "bg-zinc-500"
-              }`}
-            />
-            <h2 className="text-2xl font-bold">Autonomy Control Center</h2>
-          </div>
-          <p className="mt-1 text-sm text-gray-400">
-            Autonomous decision-loop telemetry
-          </p>
-        </div>
-        <div
-          className={`rounded-full border px-4 py-2 text-sm font-semibold ${
-            isRunning
-              ? "border-green-500/40 bg-green-950/40 text-green-400"
-              : isError
-                ? "border-red-500/40 bg-red-950/40 text-red-400"
-                : enabled
-                  ? "border-blue-500/40 bg-blue-950/40 text-blue-400"
-                  : "border-zinc-700 bg-zinc-900 text-gray-400"
-          }`}
-        >
-          {stateLabel}
-        </div>
-      </div>
-
-      {!telemetryAvailable && (
-        <div className="mb-6 rounded-xl border border-yellow-500/30 bg-yellow-950/20 p-4">
-          <p className="font-semibold text-yellow-400">
-            Autonomy telemetry unavailable
-          </p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <AutonomyMetric
-          title="Enabled"
-          value={telemetryAvailable ? (enabled ? "Yes" : "No") : "—"}
-        />
-        <AutonomyMetric
-          title="In Entry Window"
-          value={
-            telemetryAvailable
-              ? autonomy?.inEntryWindow
-                ? "Yes"
-                : "No"
-              : "—"
-          }
-        />
-        <AutonomyMetric
-          title="Daily Entries"
-          value={telemetryAvailable ? (autonomy?.dailyEntries ?? 0) : "—"}
-        />
-        <AutonomyMetric
-          title="Max Trades / Day"
-          value={telemetryAvailable ? (autonomy?.maxTradesDay ?? "—") : "—"}
-        />
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <AutonomyMetric
-          title="Entry Window"
-          value={telemetryAvailable ? autonomy?.entryWindow ?? "—" : "—"}
-        />
-        <AutonomyMetric
-          title="EOD Flatten"
-          value={telemetryAvailable ? autonomy?.eodFlatten ?? "—" : "—"}
-        />
-        <AutonomyMetric
-          title="Scan Interval"
-          value={
-            telemetryAvailable && autonomy?.scanIntervalSec != null
-              ? `${autonomy.scanIntervalSec}s`
-              : "—"
-          }
-        />
-        <AutonomyMetric
-          title="Manage Only Outside"
-          value={
-            telemetryAvailable
-              ? autonomy?.manageOnlyOutside
-                ? "Yes"
-                : "No"
-              : "—"
-          }
-        />
-      </div>
-
-      {autonomy?.reason && (
-        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-          <p className="text-xs uppercase tracking-wider text-gray-500">
-            Current Reason
-          </p>
-          <p className="mt-1 text-sm font-medium text-gray-200">
-            {String(autonomy.reason).replace(/_/g, " ")}
-          </p>
-        </div>
-      )}
-
-      <div className="mt-6">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Autonomous Pipeline</h3>
-          <span className="text-xs uppercase tracking-wider text-gray-500">
-            8 phases
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
-          {AUTONOMY_PHASES.map((phaseName) => {
-            const isCurrent =
-              normalizedPhase === String(phaseName).toUpperCase();
-            return (
-              <div
-                key={phaseName}
-                className={`rounded-xl border p-3 ${
-                  isCurrent
-                    ? "border-blue-500/60 bg-blue-950/40"
-                    : "border-zinc-800 bg-zinc-900"
-                }`}
-              >
-                <p className="text-xs font-semibold">{phaseName}</p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="mt-6 rounded-xl border border-zinc-800 bg-black/40 p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Last Autonomous Decision</h3>
-          <span className="rounded-full bg-green-950 px-3 py-1 text-xs font-semibold text-green-400">
-            {lastDecision?.source ?? "UNKNOWN"}
-          </span>
-        </div>
-        {!lastDecision ? (
-          <p className="text-sm text-gray-500">
-            No autonomous decision telemetry available yet.
-          </p>
-        ) : (
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <DecisionField label="Symbol" value={lastDecision.symbol ?? "—"} />
-            <DecisionField
-              label="Decision"
-              value={lastDecision.decision ?? "—"}
-            />
-            <DecisionField
-              label="Confidence"
-              value={
-                lastDecision.confidence != null
-                  ? `${(
-                      Number(lastDecision.confidence) > 1
-                        ? Number(lastDecision.confidence)
-                        : Number(lastDecision.confidence) * 100
-                    ).toFixed(1)}%`
-                  : "—"
-              }
-            />
-            <DecisionField
-              label="Time"
-              value={formatTs(lastDecision.timestamp)}
-            />
-          </div>
-        )}
-        {lastDecision?.reason && (
-          <div className="mt-4 rounded-lg bg-zinc-900 p-4">
-            <p className="text-xs uppercase tracking-wider text-gray-500">
-              Decision Reason
-            </p>
-            <p className="mt-1 text-sm text-gray-300">{lastDecision.reason}</p>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function AutonomyMetric({
-  title,
-  value,
-}: {
-  title: string;
-  value: string | number;
-}) {
-  return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-      <p className="text-xs uppercase tracking-wider text-gray-500">{title}</p>
-      <p className="mt-2 text-xl font-bold tracking-tight">{value}</p>
-    </div>
-  );
-}
-
-function DecisionField({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
-  return (
-    <div>
-      <p className="text-xs uppercase tracking-wider text-gray-500">{label}</p>
-      <p className="mt-1 truncate text-sm font-medium text-gray-200">{value}</p>
-    </div>
   );
 }
 
