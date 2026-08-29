@@ -1,4 +1,4 @@
-import { getRuntimeConfig, coreFetch } from "@/lib/core";
+import { getRequestContext } from "@cloudflare/next-on-pages";
 
 /**
 
@@ -6,19 +6,31 @@ import { getRuntimeConfig, coreFetch } from "@/lib/core";
 *
 * Browser
 * -> Next.js /api/logs
-* -> Cloudflare runtime env
+* -> Cloudflare Pages runtime
 * -> AlphaStream Core /admin/logs
 *
-* ADMIN_KEY remains server-side.
+* ADMIN_KEY is read ONLY at runtime from Cloudflare.
+* It is never exposed to the browser.
   */
 
 export const runtime = "edge";
 
 export async function GET() {
 try {
-const config = getRuntimeConfig();
+const ctx = getRequestContext();
+const env = ctx.env as Record<string, unknown>;
 
-if (!config.adminKey) {
+const adminKey =
+  typeof env.ADMIN_KEY === "string"
+    ? env.ADMIN_KEY
+    : "";
+
+const coreUrl =
+  typeof env.CORE_URL === "string"
+    ? env.CORE_URL
+    : "";
+
+if (!adminKey) {
   console.error(
     "AlphaStream /api/logs: ADMIN_KEY is missing from Cloudflare runtime environment"
   );
@@ -27,8 +39,6 @@ if (!config.adminKey) {
     {
       ok: false,
       error: "ADMIN_KEY missing in Cloudflare runtime environment",
-      details:
-        "The Pages Function executed, but ADMIN_KEY was not available from getRequestContext().env.",
     },
     {
       status: 503,
@@ -39,7 +49,40 @@ if (!config.adminKey) {
   );
 }
 
-const response = await coreFetch("/admin/logs");
+if (!coreUrl) {
+  console.error(
+    "AlphaStream /api/logs: CORE_URL is missing from Cloudflare runtime environment"
+  );
+
+  return Response.json(
+    {
+      ok: false,
+      error: "CORE_URL missing in Cloudflare runtime environment",
+    },
+    {
+      status: 503,
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    }
+  );
+}
+
+const url = `${coreUrl.replace(/\/+$/, "")}/admin/logs`;
+
+console.log(
+  `AlphaStream /api/logs: requesting ${url}`
+);
+
+const response = await fetch(url, {
+  method: "GET",
+  headers: {
+    Authorization: `Bearer ${adminKey}`,
+    Accept: "application/json",
+  },
+  cache: "no-store",
+});
+
 const body = await response.text();
 
 if (response.status === 401 || response.status === 403) {
@@ -52,7 +95,7 @@ if (response.status === 401 || response.status === 403) {
       ok: false,
       error: "Core authorization failed",
       details:
-        "ADMIN_KEY exists in the Cloudflare runtime but Core rejected it. Verify that Pages ADMIN_KEY exactly matches Core ADMIN_KEY.",
+        "Cloudflare has ADMIN_KEY, but AlphaStream Core rejected it. Verify that Pages ADMIN_KEY exactly matches Core ADMIN_KEY.",
       status: response.status,
     },
     {
@@ -76,12 +119,15 @@ return new Response(body, {
 });
 
 } catch (error) {
-console.error("Logs proxy error:", error);
+console.error(
+"AlphaStream /api/logs proxy error:",
+error
+);
 
 const message =
   error instanceof Error
     ? error.message
-    : "Unknown error";
+    : String(error);
 
 return Response.json(
   {
