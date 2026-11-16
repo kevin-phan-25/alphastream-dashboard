@@ -1,3 +1,4 @@
+import { requireOperator } from "@/lib/operator";
 /**
  * Date: 2026-08-15
  * File: src/app/api/ml/autonomy/train/route.ts
@@ -12,7 +13,9 @@ import { mlFetch } from "@/lib/core";
 
 export const runtime = "edge";
 
-export async function POST() {
+export async function POST(request: Request) {
+  const denied = await requireOperator(request);
+  if (denied) return denied;
   try {
     const res = await mlFetch("/autonomy/train", {
       method: "POST",

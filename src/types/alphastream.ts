@@ -34,23 +34,10 @@ export type AlphaStreamAutonomyPhase =
   | string;
 
 export type AlphaStreamAutonomyState =
-  | "DISABLED"
-  | "IDLE"
-  | "RUNNING"
-  | "PAUSED"
-  | "DEGRADED"
-  | "ERROR"
-  | string;
+  "DISABLED" | "IDLE" | "RUNNING" | "PAUSED" | "DEGRADED" | "ERROR" | string;
 
 export type AlphaStreamAutonomyDecision =
-  | "BUY"
-  | "SELL"
-  | "EXIT"
-  | "HOLD"
-  | "SKIP"
-  | "WAIT"
-  | "NONE"
-  | string;
+  "BUY" | "SELL" | "EXIT" | "HOLD" | "SKIP" | "WAIT" | "NONE" | string;
 
 export interface AlphaStreamAutonomyDecisionTrace {
   id?: string;
@@ -349,4 +336,43 @@ export type AlphaStreamPosition = Position;
 
 export interface AlphaStreamPositions {
   positions: AlphaStreamPosition[];
+}
+
+export interface AlphaStreamReadiness {
+  ready: boolean;
+  broker?: string;
+  brokerReady?: boolean;
+  tradingEnabled?: boolean;
+  error?: string;
+  checks?: Record<string, unknown>;
+}
+
+export interface AlphaStreamStatus {
+  broker?: string;
+  symbols?: string[];
+  brokerReady?: boolean;
+  brokerError?: string;
+  assetClass?: string;
+  longOnly?: boolean;
+  liveTradingEnabled?: boolean;
+  paperTradingEnabled?: boolean;
+  entriesDisabled?: boolean;
+  lastSync?: string;
+  coinbasePendingOrderId?: string;
+}
+
+export interface Position {
+  availableQty?: number;
+  openedAt?: string;
+  mlConfidence?: number;
+  decisionId?: string;
+  stopLossPct?: number;
+  takeProfitPct?: number;
+}
+
+export interface Trade {
+  fees?: number;
+  orderId?: string;
+  holdTimeMs?: number;
+  regime?: string;
 }

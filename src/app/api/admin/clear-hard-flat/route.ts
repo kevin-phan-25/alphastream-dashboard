@@ -1,3 +1,4 @@
+import { requireOperator } from "@/lib/operator";
 /**
  * Date: 2026-08-12
  * File: src/app/api/admin/clear-hard-flat/route.ts
@@ -16,7 +17,9 @@ import { coreFetch } from "@/lib/core";
 
 export const runtime = "edge";
 
-export async function POST() {
+export async function POST(request: Request) {
+  const denied = await requireOperator(request);
+  if (denied) return denied;
   try {
     const response = await coreFetch("/admin/clear-hard-flat", {
       method: "POST",

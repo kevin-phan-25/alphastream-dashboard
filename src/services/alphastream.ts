@@ -23,13 +23,14 @@ import type {
   AlphaStreamMLAutonomyStatus,
 } from "@/types/alphastream";
 
-async function apiFetch<T>(
+export async function apiFetch<T>(
   endpoint: string,
-  options?: RequestInit
+  options?: RequestInit,
 ): Promise<T> {
   const response = await fetch(endpoint, {
     ...options,
     cache: "no-store",
+    signal: options?.signal ?? AbortSignal.timeout(20_000),
     headers: {
       Accept: "application/json",
       ...(options?.headers || {}),
@@ -110,7 +111,7 @@ export async function getPositions(): Promise<AlphaStreamPosition[]> {
     return data.positions;
   }
 
-  return [];
+  throw new Error("Unexpected list response from service");
 }
 
 export async function getTrades(): Promise<AlphaStreamTrade[]> {
@@ -126,7 +127,7 @@ export async function getTrades(): Promise<AlphaStreamTrade[]> {
     return data.trades;
   }
 
-  return [];
+  throw new Error("Unexpected list response from service");
 }
 
 export async function getLogs(): Promise<(AlphaStreamLog | string)[]> {
@@ -142,7 +143,7 @@ export async function getLogs(): Promise<(AlphaStreamLog | string)[]> {
     return data.logs;
   }
 
-  return [];
+  throw new Error("Unexpected list response from service");
 }
 
 export async function getMLStatus(): Promise<AlphaStreamMLStatus> {
@@ -173,4 +174,24 @@ export async function triggerAutonomyTrain(): Promise<unknown> {
     },
     body: JSON.stringify({}),
   });
+}
+
+/** A 503 with a readiness body is a valid not-ready observation. */
+export async function getReadiness(
+  endpoint: string,
+): Promise<import("@/types/alphastream").AlphaStreamReadiness> {
+  const response = await fetch(endpoint, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
+  });
+  const raw = await response.json();
+  const data = raw?.detail && typeof raw.detail === "object" ? raw.detail : raw;
+  if (
+    (response.ok || response.status === 503) &&
+    typeof data?.ready === "boolean"
+  )
+    return data;
+  throw new Error(
+    data?.error || `Readiness request failed (${response.status})`,
+  );
 }

@@ -22,11 +22,16 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify dashboard
+        run: |
+          npm run typecheck
+          npm test
 
       - name: Build for Cloudflare Pages
         run: npm run pages:build

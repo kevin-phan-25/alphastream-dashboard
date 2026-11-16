@@ -3,3 +3,12 @@ dist
 .env
 .env.local
 .DS_Store
+
+.local-tools/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
+.vercel/
+.wrangler/
+.dev.vars

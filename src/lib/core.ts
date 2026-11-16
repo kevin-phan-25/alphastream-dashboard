@@ -9,34 +9,34 @@
  *
  * IMPORTANT:
  * ADMIN_KEY is NEVER exposed to the browser.
- * It is read only from the Cloudflare request context.
+ * It is read from Cloudflare bindings, or process.env for local development.
  */
 
 import { getRequestContext } from "@cloudflare/next-on-pages";
 
-const FALLBACK_CORE =
-  "https://alphastream-core-1017433009054.us-east1.run.app";
+const FALLBACK_CORE = "https://alphastream-core-1017433009054.us-east1.run.app";
 
-const FALLBACK_ML =
-  "https://alphastream-ml-1017433009054.us-east1.run.app";
+const FALLBACK_ML = "https://alphastream-ml-1017433009054.us-east1.run.app";
 
 type CloudflareEnv = {
   ADMIN_KEY?: string;
   ML_ADMIN_KEY?: string;
   CORE_URL?: string;
   ML_URL?: string;
+  DASHBOARD_OPERATOR_KEY?: string;
 };
 
 function getCloudflareEnv(): CloudflareEnv {
-  const { env } = getRequestContext();
-
-  return env as CloudflareEnv;
+  try {
+    const { env } = getRequestContext();
+    return env as CloudflareEnv;
+  } catch {
+    // next dev has no Cloudflare request context.
+    return process.env as CloudflareEnv;
+  }
 }
 
-function getEnvValue(
-  env: CloudflareEnv,
-  name: keyof CloudflareEnv
-): string {
+function getEnvValue(env: CloudflareEnv, name: keyof CloudflareEnv): string {
   const value = env[name];
 
   if (typeof value !== "string") {
@@ -51,16 +51,14 @@ export function getRuntimeConfig() {
 
   const adminKey = getEnvValue(env, "ADMIN_KEY");
 
-  const mlAdminKey =
-    getEnvValue(env, "ML_ADMIN_KEY") || adminKey;
+  const mlAdminKey = getEnvValue(env, "ML_ADMIN_KEY") || adminKey;
 
-  const coreUrl =
-    getEnvValue(env, "CORE_URL") || FALLBACK_CORE;
+  const coreUrl = getEnvValue(env, "CORE_URL") || FALLBACK_CORE;
 
-  const mlUrl =
-    getEnvValue(env, "ML_URL") || FALLBACK_ML;
+  const mlUrl = getEnvValue(env, "ML_URL") || FALLBACK_ML;
 
   return {
+    operatorKey: getEnvValue(env, "DASHBOARD_OPERATOR_KEY"),
     adminKey,
     mlAdminKey,
     coreUrl: coreUrl.replace(/\/$/, ""),
@@ -74,7 +72,7 @@ export function hasAdminKey(): boolean {
 
 export async function coreFetch(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<Response> {
   const config = getRuntimeConfig();
 
@@ -87,12 +85,11 @@ export async function coreFetch(
     headers.set("Authorization", `Bearer ${config.adminKey}`);
   }
 
-  const url = `${config.coreUrl}${
-    path.startsWith("/") ? path : `/${path}`
-  }`;
+  const url = `${config.coreUrl}${path.startsWith("/") ? path : `/${path}`}`;
 
   return fetch(url, {
     ...options,
+    signal: options.signal ?? AbortSignal.timeout(15_000),
     headers,
     cache: "no-store",
   });
@@ -100,7 +97,7 @@ export async function coreFetch(
 
 export async function mlFetch(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<Response> {
   const config = getRuntimeConfig();
 
@@ -113,12 +110,11 @@ export async function mlFetch(
     headers.set("Authorization", `Bearer ${config.mlAdminKey}`);
   }
 
-  const url = `${config.mlUrl}${
-    path.startsWith("/") ? path : `/${path}`
-  }`;
+  const url = `${config.mlUrl}${path.startsWith("/") ? path : `/${path}`}`;
 
   return fetch(url, {
     ...options,
+    signal: options.signal ?? AbortSignal.timeout(15_000),
     headers,
     cache: "no-store",
   });

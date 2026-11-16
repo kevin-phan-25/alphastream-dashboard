@@ -14,7 +14,7 @@ export async function GET() {
 
         hasAdminKey: config.adminKey.length > 0,
 
-        adminKeyLength: config.adminKey.length,
+        operatorAccessConfigured: config.operatorKey.length >= 32,
 
         hasCoreUrl: config.coreUrl.length > 0,
 
