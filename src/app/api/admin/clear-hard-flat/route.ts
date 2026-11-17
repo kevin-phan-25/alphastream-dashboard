@@ -35,8 +35,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Clear hard-flat proxy error:", error);
-    const message =
-      error instanceof Error ? error.message : "Unknown error";
+    const message = error instanceof Error ? error.message : "Unknown error";
 
     return Response.json(
       {
@@ -46,7 +45,7 @@ export async function POST(request: Request) {
       {
         status: 502,
         headers: { "Cache-Control": "no-store" },
-      }
+      },
     );
   }
 }

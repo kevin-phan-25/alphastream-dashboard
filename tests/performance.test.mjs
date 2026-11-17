@@ -69,3 +69,14 @@ test("CSV preserves fractional quantities, quotes, and neutralizes spreadsheet f
   assert.ok(csv.includes('"\'=HYPERLINK(""bad"")"'));
   assert.ok(csv.includes('"reason, with ""quotes"""'));
 });
+
+test("exit reasons cannot modify object prototypes", () => {
+  const summary = summarizeTrades([
+    trade(3, undefined, { exitReason: "__proto__" }),
+    trade(-1, undefined, { exitReason: "constructor" }),
+  ]);
+  assert.equal(summary.byReason.__proto__.count, 1);
+  assert.equal(summary.byReason.constructor.pnl, -1);
+  assert.equal(Object.prototype.count, undefined);
+  assert.equal(Object.prototype.pnl, undefined);
+});

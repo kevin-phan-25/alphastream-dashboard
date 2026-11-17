@@ -1,3 +1,4 @@
+import { parseTelemetry } from "@/lib/validation";
 /**
  * AlphaStream API service
  *
@@ -27,14 +28,14 @@ export async function apiFetch<T>(
   endpoint: string,
   options?: RequestInit,
 ): Promise<T> {
+  const requestHeaders = new Headers(options?.headers);
+  if (!requestHeaders.has("Accept"))
+    requestHeaders.set("Accept", "application/json");
   const response = await fetch(endpoint, {
     ...options,
     cache: "no-store",
     signal: options?.signal ?? AbortSignal.timeout(20_000),
-    headers: {
-      Accept: "application/json",
-      ...(options?.headers || {}),
-    },
+    headers: requestHeaders,
   });
 
   const body = await response.text();
@@ -76,82 +77,103 @@ export async function apiFetch<T>(
   return data as T;
 }
 
-export async function getHealth(): Promise<AlphaStreamHealth> {
-  return apiFetch<AlphaStreamHealth>("/api/health");
+async function telemetry<T>(
+  endpoint: Parameters<typeof parseTelemetry>[0],
+  path: string,
+  signal?: AbortSignal,
+): Promise<T> {
+  return parseTelemetry(
+    endpoint,
+    await apiFetch<unknown>(path, { signal }),
+  ) as T;
 }
 
-export async function getStatus(): Promise<AlphaStreamStatus> {
-  return apiFetch<AlphaStreamStatus>("/api/status");
+export async function getHealth(
+  signal?: AbortSignal,
+): Promise<AlphaStreamHealth> {
+  return telemetry<AlphaStreamHealth>("health", "/api/health", signal);
 }
 
-export async function getMetrics(): Promise<AlphaStreamMetrics> {
-  return apiFetch<AlphaStreamMetrics>("/api/metrics");
+export async function getStatus(
+  signal?: AbortSignal,
+): Promise<AlphaStreamStatus> {
+  return telemetry<AlphaStreamStatus>("status", "/api/status", signal);
+}
+
+export async function getMetrics(
+  signal?: AbortSignal,
+): Promise<AlphaStreamMetrics> {
+  return telemetry<AlphaStreamMetrics>("metrics", "/api/metrics", signal);
 }
 
 /** Core autonomy (entry window, daily entries, scan reason) */
-export async function getAutonomyStatus(): Promise<AlphaStreamAutonomyStatus> {
-  return apiFetch<AlphaStreamAutonomyStatus>("/api/autonomy/status");
+export async function getAutonomyStatus(
+  signal?: AbortSignal,
+): Promise<AlphaStreamAutonomyStatus> {
+  return telemetry<AlphaStreamAutonomyStatus>(
+    "autonomy",
+    "/api/autonomy/status",
+    signal,
+  );
 }
 
 /** ML autonomy (canTrain, challenger, lifecycle, strategy, watchdog) */
-export async function getMLAutonomyStatus(): Promise<AlphaStreamMLAutonomyStatus> {
-  return apiFetch<AlphaStreamMLAutonomyStatus>("/api/ml/autonomy/status");
+export async function getMLAutonomyStatus(
+  signal?: AbortSignal,
+): Promise<AlphaStreamMLAutonomyStatus> {
+  return telemetry<AlphaStreamMLAutonomyStatus>(
+    "mlAutonomy",
+    "/api/ml/autonomy/status",
+    signal,
+  );
 }
 
-export async function getPositions(): Promise<AlphaStreamPosition[]> {
-  const data = await apiFetch<
-    AlphaStreamPosition[] | { positions?: AlphaStreamPosition[] } | null
-  >("/api/positions");
-
-  if (Array.isArray(data)) {
-    return data;
-  }
-
-  if (data && typeof data === "object" && Array.isArray(data.positions)) {
-    return data.positions;
-  }
-
-  throw new Error("Unexpected list response from service");
+export async function getPositions(
+  signal?: AbortSignal,
+): Promise<AlphaStreamPosition[]> {
+  const data = await apiFetch<unknown>("/api/positions", { signal });
+  const list =
+    data &&
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    "positions" in data
+      ? (data as { positions: unknown }).positions
+      : data;
+  return parseTelemetry("positions", list) as AlphaStreamPosition[];
 }
 
-export async function getTrades(): Promise<AlphaStreamTrade[]> {
-  const data = await apiFetch<
-    AlphaStreamTrade[] | { trades?: AlphaStreamTrade[] } | null
-  >("/api/trades");
-
-  if (Array.isArray(data)) {
-    return data;
-  }
-
-  if (data && typeof data === "object" && Array.isArray(data.trades)) {
-    return data.trades;
-  }
-
-  throw new Error("Unexpected list response from service");
+export async function getTrades(
+  signal?: AbortSignal,
+): Promise<AlphaStreamTrade[]> {
+  const data = await apiFetch<unknown>("/api/trades", { signal });
+  const list =
+    data && typeof data === "object" && !Array.isArray(data) && "trades" in data
+      ? (data as { trades: unknown }).trades
+      : data;
+  return parseTelemetry("trades", list) as AlphaStreamTrade[];
 }
 
-export async function getLogs(): Promise<(AlphaStreamLog | string)[]> {
-  const data = await apiFetch<
-    (AlphaStreamLog | string)[] | { logs?: (AlphaStreamLog | string)[] } | null
-  >("/api/logs");
-
-  if (Array.isArray(data)) {
-    return data;
-  }
-
-  if (data && typeof data === "object" && Array.isArray(data.logs)) {
-    return data.logs;
-  }
-
-  throw new Error("Unexpected list response from service");
+export async function getLogs(
+  signal?: AbortSignal,
+): Promise<(AlphaStreamLog | string)[]> {
+  const data = await apiFetch<unknown>("/api/logs", { signal });
+  const list =
+    data && typeof data === "object" && !Array.isArray(data) && "logs" in data
+      ? (data as { logs: unknown }).logs
+      : data;
+  return parseTelemetry("logs", list) as (AlphaStreamLog | string)[];
 }
 
-export async function getMLStatus(): Promise<AlphaStreamMLStatus> {
-  return apiFetch<AlphaStreamMLStatus>("/api/ml/status");
+export async function getMLStatus(
+  signal?: AbortSignal,
+): Promise<AlphaStreamMLStatus> {
+  return telemetry<AlphaStreamMLStatus>("mlStatus", "/api/ml/status", signal);
 }
 
-export async function getMLHealth(): Promise<AlphaStreamMLHealth> {
-  return apiFetch<AlphaStreamMLHealth>("/api/ml/health");
+export async function getMLHealth(
+  signal?: AbortSignal,
+): Promise<AlphaStreamMLHealth> {
+  return telemetry<AlphaStreamMLHealth>("mlHealth", "/api/ml/health", signal);
 }
 
 /** Plain GLOBAL train → POST /api/ml/train → ML /train */
@@ -179,10 +201,11 @@ export async function triggerAutonomyTrain(): Promise<unknown> {
 /** A 503 with a readiness body is a valid not-ready observation. */
 export async function getReadiness(
   endpoint: string,
+  signal?: AbortSignal,
 ): Promise<import("@/types/alphastream").AlphaStreamReadiness> {
   const response = await fetch(endpoint, {
     cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
+    signal: signal ?? AbortSignal.timeout(20_000),
   });
   const raw = await response.json();
   const data = raw?.detail && typeof raw.detail === "object" ? raw.detail : raw;
@@ -190,7 +213,10 @@ export async function getReadiness(
     (response.ok || response.status === 503) &&
     typeof data?.ready === "boolean"
   )
-    return data;
+    return parseTelemetry(
+      "ready",
+      data,
+    ) as import("@/types/alphastream").AlphaStreamReadiness;
   throw new Error(
     data?.error || `Readiness request failed (${response.status})`,
   );

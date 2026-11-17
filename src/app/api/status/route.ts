@@ -23,12 +23,11 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Status proxy error:", error);
-    const message =
-      error instanceof Error ? error.message : "Unknown error";
+    const message = error instanceof Error ? error.message : "Unknown error";
 
     return Response.json(
       { error: "Failed to fetch status from Core", details: message },
-      { status: 502, headers: { "Cache-Control": "no-store" } }
+      { status: 502, headers: { "Cache-Control": "no-store" } },
     );
   }
 }

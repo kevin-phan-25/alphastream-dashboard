@@ -1,16 +1,28 @@
 "use client";
+import {
+  Badge,
+  Stat,
+  Panel,
+  Empty,
+  JsonDetails,
+} from "@/components/dashboard/primitives";
+import { History } from "@/components/dashboard/tables";
+import { money, number, percent, yesNo, timestamp, ago } from "@/lib/display";
+import {
+  ACTIONS,
+  HISTORY_KEY,
+  type Action,
+  type ActionLog,
+} from "@/lib/operator-actions";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Activity,
-  ArrowDownToLine,
   ArrowUpRight,
   BarChart3,
   BrainCircuit,
   ChevronRight,
-  HelpCircle,
   Clock3,
-  Database,
   LayoutDashboard,
   LockKeyhole,
   RefreshCw,
@@ -21,17 +33,16 @@ import {
   X,
 } from "lucide-react";
 import { useAlphaStream, type Endpoint } from "@/hooks/useAlphaStream";
+import { useOperatorSession } from "@/hooks/useOperatorSession";
 import { apiFetch } from "@/services/alphastream";
 import { CoinbaseConnection } from "@/components/coinbase/CoinbaseConnection";
-import { TradePerformanceCharts } from "@/components/charts/TradePerformanceCharts";
-import {
-  MAG7,
-  filterTrades,
-  pnlOf,
-  summarizeTrades,
-  tradesCsv,
-} from "@/lib/performance";
-import type { AlphaStreamMLStatus, Trade } from "@/types/alphastream";
+import dynamic from "next/dynamic";
+const PerformanceView = dynamic(
+  () => import("@/components/dashboard/PerformanceView"),
+  { loading: () => <p role="status">Loading performance…</p> },
+);
+import { MAG7 } from "@/lib/performance";
+import type { AlphaStreamMLStatus } from "@/types/alphastream";
 
 const VIEWS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -43,155 +54,6 @@ const VIEWS = [
   { id: "operations", label: "Operations", icon: Settings2 },
 ] as const;
 type View = (typeof VIEWS)[number]["id"];
-type Action = "scan" | "train" | "clear-hard-flat" | "clear-blacklist";
-type ActionLog = {
-  id: string;
-  time: string;
-  action: string;
-  outcome: string;
-  message: string;
-};
-const HISTORY_KEY = "alphastream.operator-history.v1";
-const ACTIONS: Record<
-  Action,
-  { title: string; description: string; path: string }
-> = {
-  scan: {
-    title: "Request a scan",
-    description:
-      "Core will request a trading cycle. Existing risk, session and entry checks still apply. A successful request does not confirm an order or a completed scan.",
-    path: "/api/admin/scan",
-  },
-  train: {
-    title: "Run autonomy training",
-    description:
-      "Request a training cycle. Depending on the configured challenger mode, this may update the serving model. Promotion is based on replay diagnostics.",
-    path: "/api/ml/autonomy/train",
-  },
-  "clear-hard-flat": {
-    title: "Clear trading halt",
-    description:
-      "Clear Core’s hard-flat and degraded flags. Reconcile uncertain orders first. Core will reject this request when a pending Coinbase order exists.",
-    path: "/api/admin/clear-hard-flat",
-  },
-  "clear-blacklist": {
-    title: "Clear symbol cooldowns",
-    description:
-      "Remove all symbol blacklists. This allows cooled-down stocks to be considered again when other entry checks pass.",
-    path: "/api/admin/clear-blacklist",
-  },
-};
-const money = (value: unknown) =>
-  typeof value === "number" && Number.isFinite(value)
-    ? value.toLocaleString("en-US", {
-        style: "currency",
-        currency: "USD",
-        maximumFractionDigits: 2,
-      })
-    : "—";
-const number = (value: unknown, digits = 2) =>
-  typeof value === "number" && Number.isFinite(value)
-    ? value.toLocaleString("en-US", { maximumFractionDigits: digits })
-    : "—";
-const percent = (value: unknown) =>
-  typeof value === "number" && Number.isFinite(value)
-    ? `${value.toFixed(1)}%`
-    : "—";
-const yesNo = (value: unknown) =>
-  typeof value === "boolean" ? (value ? "Yes" : "No") : "Unavailable";
-function timestamp(value: unknown) {
-  if (typeof value !== "string" || !Number.isFinite(Date.parse(value)))
-    return "Unavailable";
-  return new Date(value).toLocaleString();
-}
-function ago(value: string | null | undefined, now: number) {
-  if (!value || !now || !Number.isFinite(Date.parse(value)))
-    return "No observation";
-  const seconds = Math.max(0, Math.floor((now - Date.parse(value)) / 1000));
-  return seconds < 60
-    ? `${seconds}s ago`
-    : seconds < 3600
-      ? `${Math.floor(seconds / 60)}m ago`
-      : `${Math.floor(seconds / 3600)}h ago`;
-}
-function Badge({
-  children,
-  tone = "muted",
-}: {
-  children: ReactNode;
-  tone?: "good" | "warn" | "bad" | "muted";
-}) {
-  return (
-    <span className={`badge badge-${tone}`}>
-      <span className="badge-dot" />
-      {children}
-    </span>
-  );
-}
-function Stat({
-  label,
-  value,
-  note,
-  tone,
-}: {
-  label: string;
-  value: ReactNode;
-  note?: string;
-  tone?: string;
-}) {
-  return (
-    <div className="stat">
-      <p>{label}</p>
-      <strong className={tone}>{value}</strong>
-      {note && <small>{note}</small>}
-    </div>
-  );
-}
-function Panel({
-  title,
-  subtitle,
-  children,
-  aside,
-}: {
-  title: string;
-  subtitle?: string;
-  children: ReactNode;
-  aside?: ReactNode;
-}) {
-  return (
-    <section className="panel">
-      <div className="panel-heading">
-        <div>
-          <h2>{title}</h2>
-          {subtitle && <p>{subtitle}</p>}
-        </div>
-        {aside}
-      </div>
-      {children}
-    </section>
-  );
-}
-function Empty({ children }: { children: ReactNode }) {
-  return (
-    <div className="empty">
-      <HelpCircle size={22} />
-      <p>{children}</p>
-    </div>
-  );
-}
-function JsonDetails({ label, value }: { label: string; value: unknown }) {
-  return (
-    <details className="json-details">
-      <summary>{label}</summary>
-      <pre>
-        {value == null
-          ? "Unavailable from service"
-          : JSON.stringify(value, null, 2)}
-      </pre>
-    </details>
-  );
-}
-
 export default function DashboardPage() {
   const stream = useAlphaStream();
   const {
@@ -213,13 +75,13 @@ export default function DashboardPage() {
   } = stream;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [view, setView] = useState<View>("overview");
-  const [symbol, setSymbol] = useState("ALL");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [operator, setOperator] = useState(false);
-  const [operatorConfigured, setOperatorConfigured] = useState<boolean | null>(
-    null,
-  );
+  const {
+    operator,
+    operatorConfigured,
+    setOperator,
+    signIn: unlockSession,
+    signOut: lockSession,
+  } = useOperatorSession();
   const [unlock, setUnlock] = useState(false);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -246,14 +108,6 @@ export default function DashboardPage() {
       if (VIEWS.some((item) => item.id === next)) setView(next as View);
     };
     window.addEventListener("hashchange", onHash);
-    void apiFetch<{ authenticated: boolean; configured: boolean }>(
-      "/api/session",
-    )
-      .then((value) => {
-        setOperator(value.authenticated);
-        setOperatorConfigured(value.configured);
-      })
-      .catch(() => setOperatorConfigured(null));
     try {
       const saved: unknown = JSON.parse(
         localStorage.getItem(HISTORY_KEY) || "[]",
@@ -302,9 +156,6 @@ export default function DashboardPage() {
   const staleCount = (Object.keys(endpoints) as Endpoint[]).filter((key) =>
     isStale(key),
   ).length;
-  const rangeInvalid = Boolean(from && to && from > to);
-  const filtered = rangeInvalid ? [] : filterTrades(trades, symbol, from, to);
-  const stats = summarizeTrades(filtered);
   const positionKnown = Boolean(endpoints.positions.lastSuccess);
   const tradeKnown = Boolean(endpoints.trades.lastSuccess);
   const exposure =
@@ -356,12 +207,7 @@ export default function DashboardPage() {
     setBusy(true);
     setNotice(null);
     try {
-      await apiFetch("/api/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      setOperator(true);
+      await unlockSession(password);
       setUnlock(false);
       setPassword("");
       setNotice({
@@ -380,8 +226,7 @@ export default function DashboardPage() {
   async function lock() {
     setBusy(true);
     try {
-      await apiFetch("/api/session", { method: "DELETE" });
-      setOperator(false);
+      await lockSession();
     } catch {
       setNotice({
         message: "Could not end the operator session. Try again.",
@@ -440,17 +285,6 @@ export default function DashboardPage() {
       setConfirm(null);
       void refresh();
     }
-  }
-  function exportTrades() {
-    const blob = new Blob([tradesCsv(filtered)], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob),
-      anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `alphastream-${symbol.toLowerCase()}-${from || "start"}-${to || "latest"}.csv`;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   const actionButton = (action: Action, label: string) => (
     <button
@@ -546,15 +380,15 @@ export default function DashboardPage() {
                   ? "A clear view of your trading system, from readiness to results."
                   : view === "connection"
                     ? "Secure credentials, portfolio selection and read-only account checks."
-                  : view === "mag7"
-                    ? "The fixed universe and the evidence behind each decision."
-                    : view === "portfolio"
-                      ? "Bot-managed positions, capital allocation and available shares."
-                      : view === "performance"
-                        ? "Closed-trade outcomes with explicit history coverage."
-                        : view === "models"
-                          ? "Learning activity, serving policy and model lifecycle."
-                          : "Service health, recovery controls and request history."}
+                    : view === "mag7"
+                      ? "The fixed universe and the evidence behind each decision."
+                      : view === "portfolio"
+                        ? "Bot-managed positions, capital allocation and available shares."
+                        : view === "performance"
+                          ? "Closed-trade outcomes with explicit history coverage."
+                          : view === "models"
+                            ? "Learning activity, serving policy and model lifecycle."
+                            : "Service health, recovery controls and request history."}
               </p>
             </div>
             <button
@@ -594,7 +428,12 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {view === "connection" && <CoinbaseConnection operator={operator} onUnlock={() => setUnlock(true)} />}
+          {view === "connection" && (
+            <CoinbaseConnection
+              operator={operator}
+              onUnlock={() => setUnlock(true)}
+            />
+          )}
 
           {view === "overview" && (
             <>
@@ -1093,175 +932,11 @@ export default function DashboardPage() {
           )}
 
           {view === "performance" && (
-            <>
-              <div className="filter-bar">
-                <label>
-                  Symbol
-                  <select
-                    value={symbol}
-                    onChange={(e) => setSymbol(e.target.value)}
-                  >
-                    <option value="ALL">All symbols</option>
-                    {Array.from(
-                      new Set([...MAG7, ...trades.map((t) => t.symbol)]),
-                    ).map((ticker) => (
-                      <option key={ticker}>{ticker}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  From (UTC)
-                  <input
-                    type="date"
-                    value={from}
-                    onChange={(e) => setFrom(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Through (UTC)
-                  <input
-                    type="date"
-                    value={to}
-                    min={from || undefined}
-                    onChange={(e) => setTo(e.target.value)}
-                  />
-                </label>
-                <button
-                  className="button button-quiet"
-                  onClick={() => {
-                    setSymbol("ALL");
-                    setFrom("");
-                    setTo("");
-                  }}
-                >
-                  Reset
-                </button>
-                <button
-                  className="button export-button"
-                  onClick={exportTrades}
-                  disabled={!filtered.length || rangeInvalid}
-                >
-                  <ArrowDownToLine size={15} />
-                  Export CSV
-                </button>
-              </div>
-              {rangeInvalid && (
-                <p className="negative" role="alert">
-                  The start date must be on or before the end date.
-                </p>
-              )}
-              <p className="coverage-note">
-                <Database size={14} />
-                {tradeKnown
-                  ? `${trades.length} retained closed trades · ${filtered.length} selected · Core retains up to 500`
-                  : "Trade history unavailable"}
-                {stats.excluded > 0
-                  ? ` · ${stats.excluded} outcomes excluded because PnL is missing or invalid`
-                  : ""}
-              </p>
-              {freshness("trades")}
-              <div className="stats-grid">
-                <Stat
-                  label="Realized PnL"
-                  value={money(stats.netPnl)}
-                  tone={
-                    stats.netPnl != null && stats.netPnl < 0
-                      ? "negative"
-                      : "positive"
-                  }
-                />
-                <Stat
-                  label="Win rate"
-                  value={percent(stats.winRate)}
-                  note={`${stats.wins} wins / ${stats.n} valid outcomes`}
-                />
-                <Stat
-                  label="Expectancy per trade"
-                  value={money(stats.expectancy)}
-                />
-                <Stat
-                  label="Average win / average loss"
-                  value={
-                    stats.payoffRatio === null
-                      ? "—"
-                      : `${number(stats.payoffRatio)} : 1`
-                  }
-                  note="Observed payoff ratio"
-                />
-              </div>
-              <TradePerformanceCharts trades={filtered} />
-              <div className="two-columns">
-                <Panel
-                  title="Exit reasons"
-                  subtitle="Selected trades with valid realized PnL"
-                >
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Reason</th>
-                          <th>Count</th>
-                          <th>Net PnL</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries(stats.byReason)
-                          .sort((a, b) => b[1].count - a[1].count)
-                          .map(([reason, value]) => (
-                            <tr key={reason}>
-                              <td>{reason.replace(/_/g, " ")}</td>
-                              <td>{value.count}</td>
-                              <td
-                                className={
-                                  value.pnl < 0 ? "negative" : "positive"
-                                }
-                              >
-                                {money(value.pnl)}
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {!stats.n && <Empty>No outcomes in this selection.</Empty>}
-                </Panel>
-                <Panel
-                  title="Performance context"
-                  subtitle="Coverage and accounting"
-                >
-                  <dl className="detail-list">
-                    <div>
-                      <dt>Average win</dt>
-                      <dd>{money(stats.avgWin)}</dd>
-                    </div>
-                    <div>
-                      <dt>Average loss</dt>
-                      <dd>{money(stats.avgLoss)}</dd>
-                    </div>
-                    <div>
-                      <dt>Reported exit fees</dt>
-                      <dd>{money(stats.fees)}</dd>
-                    </div>
-                  </dl>
-                  <p className="footnote">
-                    Core’s realized PnL includes allocated entry fees and exit
-                    fees. Reported exit fees are shown separately and are not
-                    subtracted again.
-                  </p>
-                  <p className="footnote">
-                    This is retained trade history, not a complete account
-                    ledger. Historical account-equity snapshots and
-                    cash-flow-adjusted returns are not available.
-                  </p>
-                </Panel>
-              </div>
-              <Panel
-                title="Closed-trade ledger"
-                subtitle="All trades in the current selection"
-              >
-                <TradeTable trades={filtered} known={tradeKnown} />
-              </Panel>
-            </>
+            <PerformanceView
+              trades={trades}
+              tradeKnown={tradeKnown}
+              freshness={freshness("trades")}
+            />
           )}
 
           {view === "models" && (
@@ -1704,115 +1379,5 @@ export default function DashboardPage() {
         </div>
       )}
     </div>
-  );
-}
-
-function TradeTable({ trades, known }: { trades: Trade[]; known: boolean }) {
-  if (!known) return <Empty>Trade history is unavailable.</Empty>;
-  if (!trades.length) return <Empty>No closed trades in this selection.</Empty>;
-  return (
-    <div className="table-wrap ledger">
-      <table>
-        <thead>
-          <tr>
-            <th>Closed</th>
-            <th>Symbol</th>
-            <th>Quantity</th>
-            <th>Exit fill</th>
-            <th>Realized PnL</th>
-            <th>Exit fees</th>
-            <th>Exit reason / order</th>
-          </tr>
-        </thead>
-        <tbody>
-          {trades
-            .slice()
-            .sort(
-              (a, b) =>
-                (Date.parse(b.timestamp) || 0) - (Date.parse(a.timestamp) || 0),
-            )
-            .map((trade, index) => (
-              <tr key={trade.orderId || trade.id || index}>
-                <td>{timestamp(trade.timestamp)}</td>
-                <td>
-                  <strong>{trade.symbol}</strong>
-                </td>
-                <td>{number(trade.qty, 8)}</td>
-                <td>{money(trade.price)}</td>
-                <td
-                  className={(pnlOf(trade) ?? 0) < 0 ? "negative" : "positive"}
-                >
-                  {money(pnlOf(trade))}
-                </td>
-                <td>{money(trade.fees)}</td>
-                <td>
-                  {trade.exitReason ?? trade.ExitReason ?? "Unavailable"}
-                  <small className="cell-note order-id">
-                    {trade.orderId || "Order ID unavailable"}
-                  </small>
-                </td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-function History({
-  history,
-  storageError,
-}: {
-  history: ActionLog[];
-  storageError: boolean;
-}) {
-  return (
-    <Panel
-      title="Operator request history"
-      subtitle="Up to 50 requests retained in this browser · not a server audit log"
-    >
-      {storageError && (
-        <p className="warning">
-          Browser storage unavailable. History may not survive a reload.
-        </p>
-      )}
-      {history.length ? (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Request</th>
-                <th>Outcome</th>
-                <th>Service response</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.map((item) => (
-                <tr key={item.id}>
-                  <td>{timestamp(item.time)}</td>
-                  <td>{item.action}</td>
-                  <td>
-                    <Badge
-                      tone={
-                        item.outcome === "Failed"
-                          ? "bad"
-                          : item.outcome === "Skipped / rejected"
-                            ? "warn"
-                            : "good"
-                      }
-                    >
-                      {item.outcome}
-                    </Badge>
-                  </td>
-                  <td>{item.message}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <Empty>No operator requests recorded on this device.</Empty>
-      )}
-    </Panel>
   );
 }

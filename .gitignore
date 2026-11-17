@@ -12,3 +12,6 @@ next-env.d.ts
 .vercel/
 .wrangler/
 .dev.vars
+
+.env.*
+!.env.example

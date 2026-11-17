@@ -23,7 +23,7 @@ export async function GET() {
     console.error("Metrics proxy error:", error);
     return Response.json(
       { error: "Failed to fetch metrics from Core" },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }

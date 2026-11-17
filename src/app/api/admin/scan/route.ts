@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     console.error("Scan proxy error:", error);
     return Response.json(
       { error: "Failed to trigger scan on Core" },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }

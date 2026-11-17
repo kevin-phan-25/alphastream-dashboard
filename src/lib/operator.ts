@@ -1,3 +1,4 @@
+import { readJsonBody, RequestBodyError } from "@/lib/request-body";
 import { getRuntimeConfig } from "@/lib/core";
 
 import {
@@ -78,9 +79,16 @@ export async function login(request: Request) {
     );
   let password: unknown;
   try {
-    password = (await request.json()).password;
-  } catch {
-    return Response.json({ error: "Invalid request" }, { status: 400 });
+    const input = await readJsonBody(request, 4096);
+    password =
+      input && typeof input === "object" && "password" in input
+        ? input.password
+        : undefined;
+  } catch (error) {
+    return Response.json(
+      { error: "Invalid request" },
+      { status: error instanceof RequestBodyError ? error.status : 400 },
+    );
   }
   if (
     typeof password !== "string" ||

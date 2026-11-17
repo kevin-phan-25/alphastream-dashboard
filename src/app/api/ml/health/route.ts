@@ -17,7 +17,7 @@ export async function GET() {
     console.error("ML health proxy error:", error);
     return Response.json(
       { status: "error", service: "alphastream-ml" },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }

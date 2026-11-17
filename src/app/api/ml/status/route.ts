@@ -17,7 +17,7 @@ export async function GET() {
     console.error("ML status proxy error:", error);
     return Response.json(
       { error: "Failed to reach ML service" },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }

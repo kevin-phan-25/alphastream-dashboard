@@ -25,14 +25,13 @@ export async function GET() {
     });
   } catch (error) {
     console.error("ML autonomy status proxy error:", error);
-    const message =
-      error instanceof Error ? error.message : "Unknown error";
+    const message = error instanceof Error ? error.message : "Unknown error";
     return Response.json(
       {
         error: "Failed to fetch autonomy status from ML",
         details: message,
       },
-      { status: 502, headers: { "Cache-Control": "no-store" } }
+      { status: 502, headers: { "Cache-Control": "no-store" } },
     );
   }
 }

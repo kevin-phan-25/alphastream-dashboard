@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["../src/*"],
+      "@cloudflare/next-on-pages": ["./fixtures/cloudflare.ts"]
+    },
+    "jsx": "react-jsx"
+  }
+}

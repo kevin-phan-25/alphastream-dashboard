@@ -23,7 +23,7 @@ export async function GET() {
     console.error("Positions proxy error:", error);
     return Response.json(
       { error: "Failed to fetch positions from Core" },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }

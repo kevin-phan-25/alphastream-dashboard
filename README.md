@@ -4,11 +4,15 @@ Next.js operations dashboard for the Go Core and Python ML services in `../alpha
 
 ## Development
 
-Use Node.js 22.6+ (Node 22 recommended; tests use built-in TypeScript stripping).
+Use Node.js 22.6+ (Node 22 recommended). Tests use `tsx` for TypeScript and path-alias support.
 
 ```sh
 npm ci
+cp .env.example .env.local
+# Fill in .env.local before starting the dashboard.
 npm run dev
+npm run lint
+npm run format:check
 npm run typecheck
 npm test
 npm run build
@@ -24,7 +28,7 @@ ML_ADMIN_KEY=your-ml-service-key
 DASHBOARD_OPERATOR_KEY=a-separate-random-secret-of-at-least-32-characters
 ```
 
-Never use a `NEXT_PUBLIC_` prefix for service or operator keys. `ML_ADMIN_KEY` falls back to `ADMIN_KEY`. Existing Core/ML URL defaults are retained; set explicit URLs for each environment. Use deployment secrets for credentials. No credential values are committed by this update.
+Never use a `NEXT_PUBLIC_` prefix for service or operator keys. `ML_ADMIN_KEY` falls back to `ADMIN_KEY`. Existing Core/ML URL defaults are retained; set explicit URLs for each environment. Use deployment secrets for credentials. `.env.*` files are ignored except for the credential-free `.env.example`. The previously tracked `.env.production` has been removed. Its service key remains in existing Git history: rotate that key in Core and dashboard deployment bindings before deploying this update. Removing the file does not revoke the old key. Configure production URLs and keys explicitly through Cloudflare bindings.
 
 ## Views
 
@@ -35,7 +39,7 @@ Never use a `NEXT_PUBLIC_` prefix for service or operator keys. `ML_ADMIN_KEY` f
 - **Models:** direct ML status, policy mismatch reporting, registry/challenger results, watchdog, readiness and persistence observations.
 - **Operations:** endpoint health/freshness, recovery controls, local request history and Core log feed.
 
-Each endpoint refreshes independently every 30 seconds while the tab is visible. Returning to the tab requests a refresh. Requests have timeouts; concurrent refreshes share one in-flight cycle. Failed requests retain the previous value and mark it stale. Successful receipt older than 60 seconds is also stale. A valid 503 readiness body is shown as a not-ready observation rather than a transport failure. Dashboard receipt time is not market-data freshness.
+Each endpoint is fetched concurrently on a 30-second cycle while the tab is visible. Runtime schemas validate recognized fields and list records before accepting a response; optional telemetry can remain absent, and additive fields remain compatible. Invalid responses retain the last valid value and mark it stale. In-flight polling requests are aborted on unmount. Returning to the tab requests a refresh. Requests have timeouts; concurrent refreshes share one in-flight cycle. Failed requests retain the previous value and mark it stale. Successful receipt older than 60 seconds is also stale. A valid 503 readiness body is shown as a not-ready observation rather than a transport failure. Dashboard receipt time is not market-data freshness.
 
 ## Operator access
 
@@ -61,14 +65,24 @@ The logs proxy uses Core's required `x-admin-key` via `coreFetch`. The current b
 npm run pages:build
 ```
 
-The existing workflow deploys pushes to `main`/`master`. Configure runtime bindings in Cloudflare, including the new operator key, before using mutation controls. This source update does not deploy or change the backend.
+The workflow runs lint, formatting, TypeScript checks, tests and Cloudflare packaging on pull requests. Pushes to `main`/`master` and manual runs also deploy; pull requests never run the deployment step. Configure runtime bindings in Cloudflare, including the new operator key, before using mutation controls. This source update does not deploy or change the backend.
 
-## Verification of this update
+## Structure and checks
 
-Validated with Node 22: TypeScript checks, five focused assertions/tests across performance and session-token suites, a production build, and Cloudflare Pages packaging. Local fixture integration checks covered readiness 503 bodies, logs authentication, all mutation guards, origin checks, login/logout cookies, accepted scan requests and recovery conflicts. Headless Chrome checks covered desktop/mobile layout, navigation, filters, direct ML status precedence, policy mismatch reporting, operator login, recovery errors and stale-data retention without runtime exceptions. Fixture tests did not contact live trading services. Temporary preview services were stopped after validation.
+The main page coordinates navigation and overview telemetry. Shared presentation and tables live in `src/components/dashboard`; the performance view loads on demand and memoizes filtered analytics. `useOperatorSession` owns login state and rechecks sessions while visible. `useAlphaStream` and `useCoinbaseStatus` own polling, cancellation and freshness. API response contracts live in `src/lib/validation.ts`.
 
-Next.js and its ESLint config were updated from 15.5.2 to 15.5.29. Dependency installation still reports 17 audit findings elsewhere in the dependency tree. The existing next-on-pages adapter is deprecated; migration and remaining dependency remediation need a separate compatibility review. No live deployment was performed.
+```sh
+npm run lint
+npm run format:check
+npm run typecheck
+npm test
+npm run build
+npm run pages:build
+```
 
+Tests use fixture responses and do not contact live trading services. They cover financial calculations, credential imports, origin/session guards, bounded request bodies, proxy credential filtering, upstream failures, runtime response validation, and polling retention, recovery and cancellation. Route tests replace only the Cloudflare context provider to exercise the real local environment fallback; Cloudflare packaging checks the production adapter. These checks do not validate live Core/ML contracts, edge access policies or credential rotation.
+
+Unused Axios, Chart.js, React Chart.js, clsx and tailwind-merge dependencies have been removed. The existing `next-on-pages` adapter is deprecated; an OpenNext migration and remaining dependency advisories still require a separate compatibility review.
 
 ## Coinbase setup from the dashboard
 
@@ -82,5 +96,7 @@ One-time cloud administrator setup:
 2. Grant Core's runtime service account **Secret Manager Secret Accessor** and **Secret Manager Secret Version Adder** on that single secret.
 3. Set Core environment variable `COINBASE_CREDENTIALS_SECRET=projects/alphastream-2025/secrets/alphastream-coinbase-credentials`. If deploying through the Core workflow, set the repository variable of the same name too.
 4. Deploy the matching Core and dashboard updates. Keep `ENTRIES_DISABLED=true`, `LIVE_TRADING_ENABLED=false`, and `PAPER_TRADING_ENABLED=true`. Existing dashboard operator/service secrets are still required.
+
+Connection status refreshes every five seconds while visible and when returning to the tab. Failures or observations older than 15 seconds mark the status stale, remove the connected indicator, and disable setup actions until a successful refresh. Overlapping refreshes share one request, and locking operator access clears the credential form.
 
 The screen shows a setup prerequisite when Core storage is not configured and rejects unsupported older Core responses. Coinbase setup routes require operator authentication even for status, plus same-origin protection for mutations. Bodies are capped at 16 KB. The proxy forwards only known credential fields to a configured HTTPS Core URL and returns only masked status/acknowledgments. Secrets, request bodies, and uploaded file contents are not logged. An account connection or passing read-only checks does not qualify a strategy for live operation.

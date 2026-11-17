@@ -38,7 +38,7 @@ export async function POST(request: Request) {
           status: res.status,
           detail: body,
         },
-        { status: res.status >= 500 ? 502 : res.status }
+        { status: res.status >= 500 ? 502 : res.status },
       );
     }
 
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     console.error("ML /autonomy/train proxy error", err);
     return Response.json(
       { error: "Failed to reach ML service", detail: message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -29,7 +29,7 @@ export async function GET() {
         headers: {
           "Cache-Control": "no-store",
         },
-      }
+      },
     );
   } catch (error) {
     console.error("Runtime configuration error:", error);
@@ -47,7 +47,7 @@ export async function GET() {
         headers: {
           "Cache-Control": "no-store",
         },
-      }
+      },
     );
   }
 }

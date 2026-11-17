@@ -1,12 +1,16 @@
 "use client";
-import { useState } from "react";
+import { memo, useMemo, useState } from "react";
 import type { Trade } from "@/types/alphastream";
 import { cumulativePnl, summarizeTrades } from "@/lib/performance";
 
-export function TradePerformanceCharts({ trades }: { trades: Trade[] }) {
+export const TradePerformanceCharts = memo(function TradePerformanceCharts({
+  trades,
+}: {
+  trades: Trade[];
+}) {
   const [selected, setSelected] = useState<number | null>(null);
-  const points = cumulativePnl(trades);
-  const stats = summarizeTrades(trades);
+  const points = useMemo(() => cumulativePnl(trades), [trades]);
+  const stats = useMemo(() => summarizeTrades(trades), [trades]);
   const values = [0, ...points.map((point) => point.value)];
   const low = Math.min(...values),
     high = Math.max(...values);
@@ -17,7 +21,8 @@ export function TradePerformanceCharts({ trades }: { trades: Trade[] }) {
     .map((value, index) => `${index ? "L" : "M"}${x(index)},${y(value)}`)
     .join(" ");
   const active =
-    selected !== null ? points[selected] : points[points.length - 1];
+    (selected !== null ? points[selected] : undefined) ??
+    points[points.length - 1];
   const money = (value: number) =>
     value.toLocaleString("en-US", { style: "currency", currency: "USD" });
   return (
@@ -134,4 +139,4 @@ export function TradePerformanceCharts({ trades }: { trades: Trade[] }) {
       </section>
     </div>
   );
-}
+});

@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     console.error("Clear blacklist proxy error:", error);
     return Response.json(
       { error: "Failed to clear blacklist on Core" },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }

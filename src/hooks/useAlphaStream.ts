@@ -1,5 +1,6 @@
 "use client";
 
+import { observationIsStale } from "@/lib/freshness";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getHealth,
@@ -74,8 +75,8 @@ const loaders = {
   logs: getLogs,
   mlStatus: getMLStatus,
   mlHealth: getMLHealth,
-  ready: () => getReadiness("/api/ready"),
-  mlReady: () => getReadiness("/api/ml/ready"),
+  ready: (signal?: AbortSignal) => getReadiness("/api/ready", signal),
+  mlReady: (signal?: AbortSignal) => getReadiness("/api/ml/ready", signal),
 };
 const keys = Object.keys(loaders) as Endpoint[];
 const initialEndpoints = Object.fromEntries(
@@ -91,21 +92,27 @@ export function useAlphaStream(pollIntervalMs = 30_000) {
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(0);
   const alive = useRef(false);
+  const controller = useRef<AbortController | null>(null);
+  const generation = useRef(0);
   const inFlight = useRef<Promise<void> | null>(null);
 
   const refresh = useCallback(() => {
     if (inFlight.current) return inFlight.current;
+    const current = generation.current;
+    const abort = new AbortController();
+    controller.current = abort;
+    const signal = AbortSignal.any([abort.signal, AbortSignal.timeout(20_000)]);
     const run = async () => {
-      if (!alive.current) return;
+      if (!alive.current || generation.current !== current) return;
       setRefreshing(true);
       await Promise.allSettled(
         keys.map(async (key) => {
           const attempt = new Date().toISOString();
           try {
-            const value = await loaders[key]();
+            const value = await loaders[key](signal);
             if (value === null || typeof value !== "object")
               throw new Error("Invalid service response");
-            if (!alive.current) return;
+            if (!alive.current || generation.current !== current) return;
             setData((previous) => ({ ...previous, [key]: value }));
             setEndpoints((previous) => ({
               ...previous,
@@ -116,7 +123,7 @@ export function useAlphaStream(pollIntervalMs = 30_000) {
               },
             }));
           } catch (error) {
-            if (!alive.current) return;
+            if (!alive.current || generation.current !== current) return;
             setEndpoints((previous) => ({
               ...previous,
               [key]: {
@@ -129,19 +136,23 @@ export function useAlphaStream(pollIntervalMs = 30_000) {
           }
         }),
       );
-      if (alive.current) {
+      if (alive.current && generation.current === current) {
         setRefreshing(false);
         setNow(Date.now());
       }
     };
     const promise = run().finally(() => {
-      inFlight.current = null;
+      if (generation.current === current) {
+        inFlight.current = null;
+        controller.current = null;
+      }
     });
     inFlight.current = promise;
     return promise;
   }, []);
 
   useEffect(() => {
+    generation.current++;
     alive.current = true;
     setNow(Date.now());
     void refresh();
@@ -155,6 +166,9 @@ export function useAlphaStream(pollIntervalMs = 30_000) {
     document.addEventListener("visibilitychange", visible);
     return () => {
       alive.current = false;
+      controller.current?.abort();
+      controller.current = null;
+      inFlight.current = null;
       clearInterval(poll);
       clearInterval(tick);
       document.removeEventListener("visibilitychange", visible);
@@ -162,9 +176,14 @@ export function useAlphaStream(pollIntervalMs = 30_000) {
   }, [refresh, pollIntervalMs]);
 
   const isStale = (key: Endpoint) =>
-    !endpoints[key].lastSuccess ||
-    Boolean(endpoints[key].error) ||
-    now - Date.parse(endpoints[key].lastSuccess!) > pollIntervalMs * 2;
+    observationIsStale(
+      endpoints[key].lastSuccess
+        ? Date.parse(endpoints[key].lastSuccess!)
+        : null,
+      endpoints[key].error,
+      now,
+      pollIntervalMs * 2,
+    );
   return {
     ...data,
     endpoints,

@@ -7,7 +7,10 @@ export async function GET() {
     const response = await coreFetch("/admin/logs");
     return new Response(await response.text(), {
       status: response.status,
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      },
     });
   } catch {
     return Response.json(

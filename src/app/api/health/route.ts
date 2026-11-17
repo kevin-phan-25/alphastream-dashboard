@@ -29,7 +29,7 @@ export async function GET() {
         service: "alphastream-dashboard",
         message: "Failed to reach Core service",
       },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }

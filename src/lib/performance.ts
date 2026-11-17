@@ -40,7 +40,8 @@ export function summarizeTrades(trades: Trade[]) {
   const avgLoss = losses.length
     ? -losses.reduce((sum, trade) => sum + pnlOf(trade)!, 0) / losses.length
     : null;
-  const byReason: Record<string, { count: number; pnl: number }> = {};
+  const byReason: Record<string, { count: number; pnl: number }> =
+    Object.create(null);
   for (const trade of valid) {
     const reason =
       (trade.exitReason ?? trade.ExitReason ?? "unknown").split(" ")[0] ||
