@@ -176,7 +176,29 @@ export default function DashboardPage() {
           0,
         )
       : null;
-  const policyMismatch = status?.longOnly === true && ml?.longOnly === false;
+  const coreSchema = isStale("status")
+    ? undefined
+    : status?.featureSchemaVersion;
+  const mlSchema = isStale("mlStatus")
+    ? undefined
+    : mlStatus?.featureSchemaVersion;
+  const schemaMismatch = !!coreSchema && !!mlSchema && coreSchema !== mlSchema;
+  const modelReadiness = !isStale("mlReady") ? mlReady : null;
+  const policyMismatch =
+    !isStale("status") &&
+    !isStale("mlStatus") &&
+    typeof status?.longOnly === "boolean" &&
+    typeof mlStatus?.longOnly === "boolean" &&
+    status.longOnly !== mlStatus.longOnly;
+  const inferenceStatus = !modelReadiness
+    ? "Unavailable"
+    : !modelReadiness.ready
+      ? "Service not ready"
+      : modelReadiness.inferenceReady === true
+        ? "Trained inference ready"
+        : modelReadiness.inferenceReady === false
+          ? "Hold only"
+          : "Model readiness unreported";
   const modelAuto = mlAutonomy ?? ml?.autonomy;
   const title = VIEWS.find((item) => item.id === view)!.label;
 
@@ -629,15 +651,14 @@ export default function DashboardPage() {
                     note="Shared models across MAG7"
                   />
                   <Stat
-                    label="ML readiness"
-                    value={
-                      !isStale("mlReady") && mlReady
-                        ? mlReady.ready
-                          ? "Ready"
-                          : "Not ready"
-                        : "Unavailable"
+                    label="ML inference"
+                    value={inferenceStatus}
+                    note={
+                      modelReadiness?.ready &&
+                      modelReadiness.inferenceReady === false
+                        ? "Waiting for a trained entry model"
+                        : undefined
                     }
-                    note="Service readiness, not performance validation"
                   />
                 </div>
               </Panel>
@@ -945,9 +966,14 @@ export default function DashboardPage() {
             <>
               {policyMismatch && (
                 <div className="notice notice-error" role="alert">
-                  Policy mismatch: Core reports long-only execution, while ML
-                  status reports longOnly=false. The ML status contract needs
-                  correction.
+                  Execution policy mismatch. Core and ML report different
+                  trading directions.
+                </div>
+              )}
+              {schemaMismatch && (
+                <div className="notice notice-error" role="alert">
+                  Feature schema mismatch. Core expects {coreSchema}; ML reports{" "}
+                  {mlSchema}.
                 </div>
               )}
               <div className="stats-grid">
@@ -982,6 +1008,18 @@ export default function DashboardPage() {
                   subtitle="Direct ML status takes precedence over Core’s summary"
                 >
                   <dl className="detail-list">
+                    <div>
+                      <dt>Entry inference</dt>
+                      <dd>{inferenceStatus}</dd>
+                    </div>
+                    <div>
+                      <dt>Core feature schema</dt>
+                      <dd>{coreSchema ?? "Unavailable"}</dd>
+                    </div>
+                    <div>
+                      <dt>ML feature schema</dt>
+                      <dd>{mlSchema ?? "Unavailable"}</dd>
+                    </div>
                     <div>
                       <dt>Scope</dt>
                       <dd>{ml?.modelScope ?? "Unavailable"}</dd>

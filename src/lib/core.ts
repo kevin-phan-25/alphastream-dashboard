@@ -70,6 +70,24 @@ export function hasAdminKey(): boolean {
   return getRuntimeConfig().adminKey.length > 0;
 }
 
+async function fetchService(url: string, options: RequestInit) {
+  const response = await fetch(url, {
+    ...options,
+    signal: options.signal ?? AbortSignal.timeout(35_000),
+    // Workers supports manual redirects. Never forward admin headers to a redirected URL.
+    redirect: "manual",
+    cache: "no-store",
+  });
+  if (
+    response.type === "opaqueredirect" ||
+    (response.status >= 300 && response.status < 400)
+  ) {
+    await response.body?.cancel();
+    throw new Error("Service URL returned an unexpected redirect");
+  }
+  return response;
+}
+
 export async function coreFetch(
   path: string,
   options: RequestInit = {},
@@ -86,13 +104,7 @@ export async function coreFetch(
 
   const url = `${config.coreUrl}${path.startsWith("/") ? path : `/${path}`}`;
 
-  return fetch(url, {
-    ...options,
-    signal: options.signal ?? AbortSignal.timeout(35_000),
-    redirect: "error",
-    headers,
-    cache: "no-store",
-  });
+  return fetchService(url, { ...options, headers });
 }
 
 export async function mlFetch(
@@ -111,11 +123,5 @@ export async function mlFetch(
 
   const url = `${config.mlUrl}${path.startsWith("/") ? path : `/${path}`}`;
 
-  return fetch(url, {
-    ...options,
-    signal: options.signal ?? AbortSignal.timeout(35_000),
-    redirect: "error",
-    headers,
-    cache: "no-store",
-  });
+  return fetchService(url, { ...options, headers });
 }

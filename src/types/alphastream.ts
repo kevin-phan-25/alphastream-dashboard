@@ -164,6 +164,7 @@ export interface AlphaStreamMLAutonomySummary {
 }
 
 export interface AlphaStreamMLStatus {
+  featureSchemaVersion?: string;
   ok: boolean;
   version?: string;
   entryBufferSize: number;
@@ -248,6 +249,7 @@ export interface MLTrainingLogEntry {
 // STATUS (Core)
 // ======================================================
 export interface AlphaStreamStatus {
+  featureSchemaVersion?: string;
   ok: boolean;
   equity: number;
   peakEquity: number;
@@ -340,6 +342,7 @@ export interface AlphaStreamPositions {
 
 export interface AlphaStreamReadiness {
   ready: boolean;
+  inferenceReady?: boolean;
   reason?: string;
   broker?: string;
   brokerReady?: boolean;

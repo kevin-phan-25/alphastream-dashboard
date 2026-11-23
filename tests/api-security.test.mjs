@@ -175,8 +175,13 @@ test("Coinbase proxy validates input, strips credentials from output and preserv
       "fixture-service-key",
     );
     assert.equal(new Headers(options.headers).get("authorization"), null);
-    assert.equal(options.redirect, "error");
+    assert.equal(options.redirect, "manual");
     if (options.body) assert.deepEqual(JSON.parse(options.body), draft);
+    if (upstreamStatus === 302)
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://other.example" },
+      });
     return Response.json(result, { status: upstreamStatus });
   });
   const context = { params: Promise.resolve({ action: ["credentials"] }) };
@@ -211,6 +216,15 @@ test("Coinbase proxy validates input, strips credentials from output and preserv
   );
   assert.equal(saved.status, 200);
   assert.deepEqual(await saved.json(), { ok: true, saved: true });
+  upstreamStatus = 302;
+  const callsBeforeRedirect = calls;
+  const redirect = await coinbaseAction(
+    await request("/api/coinbase/credentials", { body: draft }),
+    context,
+  );
+  assert.equal(redirect.status, 502);
+  assert.equal(calls, callsBeforeRedirect + 1);
+  assert.ok(!(await redirect.text()).includes("other.example"));
   upstreamStatus = 409;
   result = { error: "DO-NOT-RETURN" };
   const conflict = await coinbaseAction(

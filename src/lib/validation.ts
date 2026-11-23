@@ -173,6 +173,7 @@ const mlAutonomy = z
   .passthrough();
 const mlStatus = z
   .object({
+    featureSchemaVersion: s.nullish().transform((value) => value ?? undefined),
     ok: b.nullish().transform((value) => value ?? undefined),
     trainingEnabled: b.nullish().transform((value) => value ?? undefined),
     longOnly: b.nullish().transform((value) => value ?? undefined),
@@ -195,6 +196,7 @@ const mlStatus = z
   .passthrough();
 const status = z
   .object({
+    featureSchemaVersion: s.nullish().transform((value) => value ?? undefined),
     ok: b.nullish().transform((value) => value ?? undefined),
     hardFlat: b.nullish().transform((value) => value ?? undefined),
     tradingEnabled: b.nullish().transform((value) => value ?? undefined),
@@ -323,6 +325,7 @@ const mlHealth = z
 export const readinessSchema = z
   .object({
     ready: b,
+    inferenceReady: b.nullish().transform((value) => value ?? undefined),
     reason: s.optional(),
     broker: s.nullish().transform((value) => value ?? undefined),
     brokerReady: b.nullish().transform((value) => value ?? undefined),
