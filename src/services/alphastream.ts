@@ -65,10 +65,42 @@ export async function apiFetch<T>(
     } else if (
       data &&
       typeof data === "object" &&
+      "detail" in data &&
+      typeof (data as { detail: unknown }).detail === "string"
+    ) {
+      message = (data as { detail: string }).detail;
+    } else if (
+      data &&
+      typeof data === "object" &&
       "details" in data &&
       typeof (data as { details: unknown }).details === "string"
     ) {
       message = (data as { details: string }).details;
+    }
+
+    const coreTelemetry =
+      endpoint === "/api/status" ||
+      endpoint === "/api/positions" ||
+      endpoint === "/api/trades" ||
+      endpoint === "/api/metrics" ||
+      endpoint === "/api/autonomy/status";
+    if (
+      coreTelemetry &&
+      ((response.status === 401 && message === "unauthorized") ||
+        (response.status === 503 && message === "ADMIN_KEY required"))
+    ) {
+      throw new Error(
+        "Core authentication failed. Check the production CORE_URL and match the dashboard ADMIN_KEY to Core.",
+      );
+    }
+    if (
+      endpoint.startsWith("/api/ml/") &&
+      response.status === 403 &&
+      message === "admin key required"
+    ) {
+      throw new Error(
+        "ML authentication failed. Check the dashboard ML_ADMIN_KEY or its ADMIN_KEY fallback.",
+      );
     }
 
     throw new Error(message);

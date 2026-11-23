@@ -96,3 +96,14 @@ test("unavailable optional fields remain absent without discarding a valid ledge
   assert.equal(rows[0].pnl, undefined);
   assert.equal(rows[0].fees, undefined);
 });
+
+test("protected telemetry reports the corresponding service binding", async (t) => {
+  t.mock.method(globalThis, "fetch", async (path) =>
+    path.startsWith("/api/ml/")
+      ? Response.json({ detail: "admin key required" }, { status: 403 })
+      : Response.json({ error: "unauthorized" }, { status: 401 }),
+  );
+  await assert.rejects(getStatus(), /production CORE_URL.*ADMIN_KEY/);
+  await assert.rejects(apiFetch("/api/ml/status"), /ML_ADMIN_KEY/);
+  await assert.rejects(apiFetch("/api/session"), /^Error: unauthorized$/);
+});

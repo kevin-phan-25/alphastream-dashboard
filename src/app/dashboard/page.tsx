@@ -152,7 +152,16 @@ export default function DashboardPage() {
     : !isStale("status")
       ? status?.tradingEnabled
       : undefined;
-  const reason = status?.brokerError || ready?.error || auto?.reason;
+  const reason =
+    (!isStale("status") && status?.brokerError) ||
+    (!isStale("ready") && ready?.error) ||
+    (!isStale("autonomy") &&
+      auto?.entriesPaused &&
+      "New entries are paused.") ||
+    (!isStale("status") &&
+      status?.liveTradingEnabled === false &&
+      "Core is in read-only mode.") ||
+    (!isStale("autonomy") && auto?.reason);
   const staleCount = (Object.keys(endpoints) as Endpoint[]).filter((key) =>
     isStale(key),
   ).length;
