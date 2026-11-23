@@ -20,7 +20,6 @@ const FALLBACK_ML = "https://alphastream-ml-1017433009054.us-east1.run.app";
 
 type CloudflareEnv = {
   ADMIN_KEY?: string;
-  ML_ADMIN_KEY?: string;
   CORE_URL?: string;
   ML_URL?: string;
   DASHBOARD_OPERATOR_KEY?: string;
@@ -51,8 +50,6 @@ export function getRuntimeConfig() {
 
   const adminKey = getEnvValue(env, "ADMIN_KEY");
 
-  const mlAdminKey = getEnvValue(env, "ML_ADMIN_KEY") || adminKey;
-
   const coreUrl = getEnvValue(env, "CORE_URL") || FALLBACK_CORE;
 
   const mlUrl = getEnvValue(env, "ML_URL") || FALLBACK_ML;
@@ -60,7 +57,6 @@ export function getRuntimeConfig() {
   return {
     operatorKey: getEnvValue(env, "DASHBOARD_OPERATOR_KEY"),
     adminKey,
-    mlAdminKey,
     coreUrl: coreUrl.replace(/\/$/, ""),
     mlUrl: mlUrl.replace(/\/$/, ""),
   };
@@ -117,8 +113,8 @@ export async function mlFetch(
 
   headers.set("Content-Type", "application/json");
 
-  if (config.mlAdminKey) {
-    headers.set("x-admin-key", config.mlAdminKey);
+  if (config.adminKey) {
+    headers.set("x-admin-key", config.adminKey);
   }
 
   const url = `${config.mlUrl}${path.startsWith("/") ? path : `/${path}`}`;

@@ -99,7 +99,7 @@ export async function apiFetch<T>(
       message === "admin key required"
     ) {
       throw new Error(
-        "ML authentication failed. Check the dashboard ML_ADMIN_KEY or its ADMIN_KEY fallback.",
+        "ML authentication failed. Check the dashboard ADMIN_KEY binding matches the shared service key.",
       );
     }
 

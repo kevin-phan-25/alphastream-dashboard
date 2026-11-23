@@ -4,7 +4,7 @@ import { requireOperator } from "@/lib/operator";
  * File: src/app/api/ml/train/route.ts
  *
  * POST /api/ml/train → ML POST /train (plain GLOBAL train)
- * Admin key via mlFetch (ADMIN_KEY / ML_ADMIN_KEY)
+ * Admin key via mlFetch (shared ADMIN_KEY)
  *
  * Changes:
  * - Removed unused @ts-expect-error (AbortSignal.timeout is typed on current TS/DOM)

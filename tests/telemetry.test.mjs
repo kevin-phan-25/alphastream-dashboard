@@ -104,6 +104,6 @@ test("protected telemetry reports the corresponding service binding", async (t) 
       : Response.json({ error: "unauthorized" }, { status: 401 }),
   );
   await assert.rejects(getStatus(), /production CORE_URL.*ADMIN_KEY/);
-  await assert.rejects(apiFetch("/api/ml/status"), /ML_ADMIN_KEY/);
+  await assert.rejects(apiFetch("/api/ml/status"), /ADMIN_KEY/);
   await assert.rejects(apiFetch("/api/session"), /^Error: unauthorized$/);
 });

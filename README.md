@@ -24,11 +24,10 @@ npm run build
 CORE_URL=https://your-core-service
 ML_URL=https://your-ml-service
 ADMIN_KEY=your-core-service-key
-ML_ADMIN_KEY=your-ml-service-key
 DASHBOARD_OPERATOR_KEY=a-separate-random-secret-of-at-least-32-characters
 ```
 
-Never use a `NEXT_PUBLIC_` prefix for service or operator keys. `ML_ADMIN_KEY` falls back to `ADMIN_KEY`. Existing Core/ML URL defaults are retained; set explicit URLs for each environment. Use deployment secrets for credentials. `.env.*` files are ignored except for the credential-free `.env.example`. The previously tracked `.env.production` has been removed. Its service key remains in existing Git history: rotate that key in Core and dashboard deployment bindings before deploying this update. Removing the file does not revoke the old key. Configure production URLs and keys explicitly through Cloudflare bindings.
+Never use a `NEXT_PUBLIC_` prefix for service or operator keys. ML uses the same `ADMIN_KEY` binding as Core. Existing Core/ML URL defaults are retained; set explicit URLs for each environment. Use deployment secrets for credentials. `.env.*` files are ignored except for the credential-free `.env.example`. The previously tracked `.env.production` has been removed. Its service key remains in existing Git history: rotate that key in Core and dashboard deployment bindings before deploying this update. Removing the file does not revoke the old key. Configure production URLs and keys explicitly through Cloudflare bindings.
 
 ## Views
 
