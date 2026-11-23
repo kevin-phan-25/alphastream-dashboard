@@ -174,6 +174,8 @@ test("Coinbase proxy validates input, strips credentials from output and preserv
       new Headers(options.headers).get("x-admin-key"),
       "fixture-service-key",
     );
+    assert.equal(new Headers(options.headers).get("authorization"), null);
+    assert.equal(options.redirect, "error");
     if (options.body) assert.deepEqual(JSON.parse(options.body), draft);
     return Response.json(result, { status: upstreamStatus });
   });
@@ -242,6 +244,15 @@ test("Coinbase proxy validates input, strips credentials from output and preserv
   );
   assert.equal(status.status, 200);
   assert.ok(!(await status.text()).includes("DO-NOT-RETURN"));
+  result = { ok: true, verification: result.verification };
+  const verified = await coinbaseAction(await request("/api/coinbase/verify"), {
+    params: Promise.resolve({ action: ["verify"] }),
+  });
+  assert.equal(verified.status, 200);
+  assert.deepEqual((await verified.json()).verification, {
+    running: false,
+    checks: [{ name: "account", ok: true, message: "ok" }],
+  });
   result = {
     storageConfigured: true,
     readOnly: true,

@@ -340,6 +340,7 @@ export interface AlphaStreamPositions {
 
 export interface AlphaStreamReadiness {
   ready: boolean;
+  reason?: string;
   broker?: string;
   brokerReady?: boolean;
   tradingEnabled?: boolean;

@@ -82,14 +82,14 @@ export async function coreFetch(
 
   if (config.adminKey) {
     headers.set("x-admin-key", config.adminKey);
-    headers.set("Authorization", `Bearer ${config.adminKey}`);
   }
 
   const url = `${config.coreUrl}${path.startsWith("/") ? path : `/${path}`}`;
 
   return fetch(url, {
     ...options,
-    signal: options.signal ?? AbortSignal.timeout(15_000),
+    signal: options.signal ?? AbortSignal.timeout(35_000),
+    redirect: "error",
     headers,
     cache: "no-store",
   });
@@ -107,14 +107,14 @@ export async function mlFetch(
 
   if (config.mlAdminKey) {
     headers.set("x-admin-key", config.mlAdminKey);
-    headers.set("Authorization", `Bearer ${config.mlAdminKey}`);
   }
 
   const url = `${config.mlUrl}${path.startsWith("/") ? path : `/${path}`}`;
 
   return fetch(url, {
     ...options,
-    signal: options.signal ?? AbortSignal.timeout(15_000),
+    signal: options.signal ?? AbortSignal.timeout(35_000),
+    redirect: "error",
     headers,
     cache: "no-store",
   });

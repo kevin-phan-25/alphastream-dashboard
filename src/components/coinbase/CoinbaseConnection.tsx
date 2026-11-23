@@ -17,6 +17,7 @@ import { useCoinbaseStatus } from "@/hooks/useCoinbaseStatus";
 import {
   parsePortfolios,
   type CoinbasePortfolio as Portfolio,
+  type CoinbaseVerification,
 } from "@/lib/validation";
 import { apiFetch } from "@/services/alphastream";
 import {
@@ -53,6 +54,8 @@ export function CoinbaseConnection({
     null,
   );
   const [confirmSave, setConfirmSave] = useState(false);
+  const [latestVerification, setLatestVerification] =
+    useState<CoinbaseVerification>();
   const input = useRef<HTMLInputElement>(null);
   const draftGeneration = useRef(0);
   const mounted = useRef(true);
@@ -71,6 +74,7 @@ export function CoinbaseConnection({
       setPaste(false);
       setConfirmSave(false);
       setNotice(null);
+      setLatestVerification(undefined);
       if (input.current) input.current.value = "";
     }
     return () => {
@@ -188,12 +192,21 @@ export function CoinbaseConnection({
     setBusy(action);
     setNotice(null);
     try {
-      await apiFetch(`/api/coinbase/${action}`, { method: "POST" });
+      const result = await apiFetch<{ verification?: CoinbaseVerification }>(
+        `/api/coinbase/${action}`,
+        {
+          method: "POST",
+          signal: AbortSignal.timeout(action === "verify" ? 125_000 : 40_000),
+        },
+      );
       if (!mounted.current || session !== sessionGeneration.current) return;
+      if (result.verification) setLatestVerification(result.verification);
       setNotice({
         text:
           action === "verify"
-            ? "Read-only checks started. Results update automatically."
+            ? result.verification
+              ? "Read-only checks finished. Review the results below."
+              : "Read-only checks started. Results update automatically."
             : "Core is restarting to load the saved credentials. Connection status will recover automatically.",
         error: false,
       });
@@ -209,9 +222,15 @@ export function CoinbaseConnection({
     !!status?.saved &&
     !!status.fingerprint &&
     status.fingerprint === status.activeFingerprint;
+  const verification =
+    latestVerification?.fingerprint === status?.fingerprint &&
+    latestVerification?.completedAt &&
+    latestVerification.completedAt >= (status?.verification?.completedAt ?? "")
+      ? latestVerification
+      : status?.verification;
   const checks =
-    status?.verification?.fingerprint === status?.fingerprint
-      ? (status?.verification?.checks ?? [])
+    verification?.fingerprint === status?.fingerprint
+      ? (verification?.checks ?? [])
       : [];
   const failed = checks.some((check) => !check.ok);
   return (
@@ -243,8 +262,8 @@ export function CoinbaseConnection({
             title: "Read-only checks",
             done:
               !stale &&
-              !status?.verification?.running &&
-              !!status?.verification?.completedAt &&
+              !verification?.running &&
+              !!verification?.completedAt &&
               checks.length === 16 &&
               !failed,
           },
@@ -667,18 +686,16 @@ export function CoinbaseConnection({
                   !setupAvailable ||
                   !status?.saved ||
                   !!busy ||
-                  status?.verification?.running
+                  verification?.running
                 }
                 onClick={() => void act("verify")}
               >
-                {status?.verification?.running ? (
+                {verification?.running ? (
                   <Loader2 size={15} className="spin" />
                 ) : (
                   <ShieldCheck size={15} />
                 )}
-                {status?.verification?.running
-                  ? "Checking…"
-                  : "Run read-only checks"}
+                {verification?.running ? "Checking…" : "Run read-only checks"}
               </button>
             </div>
             {checks.length ? (

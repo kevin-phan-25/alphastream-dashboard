@@ -55,7 +55,7 @@ const VIEWS = [
 ] as const;
 type View = (typeof VIEWS)[number]["id"];
 export default function DashboardPage() {
-  const stream = useAlphaStream();
+  const stream = useAlphaStream(0);
   const {
     status,
     metrics,
@@ -246,13 +246,15 @@ export default function DashboardPage() {
         ACTIONS[action].path,
         {
           method: "POST",
-          signal: AbortSignal.timeout(action === "train" ? 190_000 : 20_000),
+          signal: AbortSignal.timeout(
+            action === "scan" ? 250_000 : action === "train" ? 190_000 : 20_000,
+          ),
         },
       );
       const failed = result.ok === false || typeof result.error === "string";
       outcome = failed
         ? "Skipped / rejected"
-        : action === "scan"
+        : action === "scan" && result.completed !== true
           ? "Requested"
           : "Completed";
       message = String(
@@ -1092,8 +1094,16 @@ export default function DashboardPage() {
             <>
               <Panel
                 title="Service health"
-                subtitle="Reachability, readiness and data receipt are separate observations"
+                subtitle="Use Refresh data to check the services on demand"
               >
+                <p>
+                  Core → ML:{" "}
+                  {isStale("status") || !status?.ml
+                    ? "Unknown"
+                    : status.ml.ok
+                      ? "Authenticated"
+                      : status.ml.error || "Unavailable"}
+                </p>
                 <div className="table-wrap">
                   <table>
                     <thead>
@@ -1128,7 +1138,10 @@ export default function DashboardPage() {
                             </Badge>
                             {key === "ready" && ready && (
                               <small className="cell-note">
-                                Ready: {yesNo(ready.ready)}
+                                Ready:{" "}
+                                {ready.reason === "idle"
+                                  ? "Idle · awaiting scan"
+                                  : yesNo(ready.ready)}
                               </small>
                             )}
                             {key === "mlReady" && mlReady && (

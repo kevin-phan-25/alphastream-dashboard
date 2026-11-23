@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { coinbaseStatusSchema, portfoliosSchema } from "@/lib/validation";
+import {
+  coinbaseStatusSchema,
+  coinbaseVerificationSchema,
+  portfoliosSchema,
+} from "@/lib/validation";
 import { readJsonBody, RequestBodyError } from "@/lib/request-body";
 import { validateCredentialDraft } from "@/lib/coinbase-credentials";
 import { coreFetch, getRuntimeConfig } from "@/lib/core";
@@ -32,6 +36,10 @@ const acknowledgment = z
   );
 function safeResponse(data: unknown, action: string) {
   if (action === "portfolios") return portfoliosSchema.parse(data);
+  if (action === "verify")
+    return acknowledgment
+      .and(z.object({ verification: coinbaseVerificationSchema.optional() }))
+      .parse(data);
   if (action) return acknowledgment.parse(data);
   // Replace storage diagnostics before schema parsing so raw backend details never escape.
   const input =
@@ -120,7 +128,14 @@ async function proxy(
   try {
     const upstream = await coreFetch(
       `/admin/coinbase${action ? `/${action}` : ""}`,
-      { method: request.method, body, signal: AbortSignal.timeout(25_000) },
+      {
+        method: request.method,
+        body,
+        signal: AbortSignal.any([
+          request.signal,
+          AbortSignal.timeout(action === "verify" ? 120_000 : 35_000),
+        ]),
+      },
     );
     if (!upstream.ok) {
       const messages: Record<number, string> = {

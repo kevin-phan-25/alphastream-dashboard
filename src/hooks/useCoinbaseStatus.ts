@@ -29,7 +29,7 @@ export function useCoinbaseStatus(operator: boolean) {
           await apiFetch<unknown>("/api/coinbase", {
             signal: AbortSignal.any([
               controller.signal,
-              AbortSignal.timeout(20_000),
+              AbortSignal.timeout(40_000),
             ]),
           }),
         );
@@ -75,7 +75,7 @@ export function useCoinbaseStatus(operator: boolean) {
     const tick = window.setInterval(() => {
       setNow(Date.now());
       if (document.visibilityState === "visible") void refresh();
-    }, 5_000);
+    }, 30_000);
     const visible = () => {
       if (document.visibilityState === "visible") {
         setNow(Date.now());
@@ -94,6 +94,6 @@ export function useCoinbaseStatus(operator: boolean) {
   }, [refresh]);
 
   const stale =
-    !operator || observationIsStale(lastSuccess, error, now, 15_000);
+    !operator || observationIsStale(lastSuccess, error, now, 65_000);
   return { status, lastSuccess, error, stale, refreshing, refresh };
 }

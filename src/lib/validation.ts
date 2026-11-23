@@ -323,6 +323,7 @@ const mlHealth = z
 export const readinessSchema = z
   .object({
     ready: b,
+    reason: s.optional(),
     broker: s.nullish().transform((value) => value ?? undefined),
     brokerReady: b.nullish().transform((value) => value ?? undefined),
     tradingEnabled: b.nullish().transform((value) => value ?? undefined),
@@ -370,6 +371,14 @@ export const portfolioSchema = z.object({ name: s, uuid: s.uuid(), type: s });
 export const portfoliosSchema = z.object({
   portfolios: z.array(portfolioSchema),
 });
+export const coinbaseVerificationSchema = z.object({
+  running: b,
+  fingerprint: s.nullish().transform((value) => value ?? undefined),
+  completedAt: s.nullish().transform((value) => value ?? undefined),
+  checks: z.array(z.object({ name: s, ok: b, message: s })),
+});
+export type CoinbaseVerification = z.infer<typeof coinbaseVerificationSchema>;
+
 export const coinbaseStatusSchema = z.object({
   storageConfigured: b,
   readOnly: b,
@@ -382,13 +391,7 @@ export const coinbaseStatusSchema = z.object({
   savedAt: s.nullish().transform((value) => value ?? undefined),
   storageError: s.nullish().transform((value) => value ?? undefined),
   brokerError: s.nullish().transform((value) => value ?? undefined),
-  verification: z
-    .object({
-      running: b,
-      fingerprint: s.nullish().transform((value) => value ?? undefined),
-      completedAt: s.nullish().transform((value) => value ?? undefined),
-      checks: z.array(z.object({ name: s, ok: b, message: s })),
-    })
+  verification: coinbaseVerificationSchema
     .nullish()
     .transform((value) => value ?? undefined),
 });

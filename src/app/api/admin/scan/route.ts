@@ -18,6 +18,7 @@ export async function POST(request: Request) {
   try {
     const response = await coreFetch("/admin/scan", {
       method: "POST",
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(245_000)]),
     });
 
     const data = await response.json().catch(() => ({}));

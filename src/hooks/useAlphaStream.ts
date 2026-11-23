@@ -101,7 +101,7 @@ export function useAlphaStream(pollIntervalMs = 30_000) {
     const current = generation.current;
     const abort = new AbortController();
     controller.current = abort;
-    const signal = AbortSignal.any([abort.signal, AbortSignal.timeout(20_000)]);
+    const signal = AbortSignal.any([abort.signal, AbortSignal.timeout(40_000)]);
     const run = async () => {
       if (!alive.current || generation.current !== current) return;
       setRefreshing(true);
@@ -156,14 +156,18 @@ export function useAlphaStream(pollIntervalMs = 30_000) {
     alive.current = true;
     setNow(Date.now());
     void refresh();
-    const poll = window.setInterval(() => {
-      if (document.visibilityState === "visible") void refresh();
-    }, pollIntervalMs);
+    const poll =
+      pollIntervalMs > 0
+        ? window.setInterval(() => {
+            if (document.visibilityState === "visible") void refresh();
+          }, pollIntervalMs)
+        : undefined;
     const tick = window.setInterval(() => setNow(Date.now()), 5_000);
     const visible = () => {
       if (document.visibilityState === "visible") void refresh();
     };
-    document.addEventListener("visibilitychange", visible);
+    if (pollIntervalMs > 0)
+      document.addEventListener("visibilitychange", visible);
     return () => {
       alive.current = false;
       controller.current?.abort();
@@ -182,7 +186,7 @@ export function useAlphaStream(pollIntervalMs = 30_000) {
         : null,
       endpoints[key].error,
       now,
-      pollIntervalMs * 2,
+      pollIntervalMs > 0 ? pollIntervalMs * 2 : 120_000,
     );
   return {
     ...data,
