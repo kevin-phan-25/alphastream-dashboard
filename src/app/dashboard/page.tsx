@@ -320,7 +320,7 @@ export default function DashboardPage() {
           ? isStale("status")
           : action === "train"
             ? isStale("mlStatus")
-            : isStale("ready"))
+            : action !== "pause-entries" && isStale("ready"))
       }
       onClick={() => setConfirm(action)}
     >
@@ -1222,6 +1222,8 @@ export default function DashboardPage() {
                   )}
                   <div className="control-list">
                     {actionButton("scan", "Request scan")}
+                    {actionButton("pause-entries", "Pause new entries")}
+                    {actionButton("resume-entries", "Resume entries")}
                     {actionButton("train", "Run autonomy training")}
                     {actionButton(
                       "clear-hard-flat",
@@ -1240,6 +1242,28 @@ export default function DashboardPage() {
                   subtitle="Reported service state"
                 >
                   <dl className="detail-list">
+                    <div>
+                      <dt>Orders</dt>
+                      <dd>
+                        {auto?.liveOrdersEnabled === undefined
+                          ? "Unknown"
+                          : auto.liveOrdersEnabled
+                            ? "Live capable"
+                            : "Read-only"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>New entries</dt>
+                      <dd>
+                        {auto?.entriesDisabled
+                          ? "Disabled by deployment"
+                          : auto?.entriesPaused === undefined
+                            ? "Unknown"
+                            : auto.entriesPaused
+                              ? "Paused"
+                              : "Unpaused"}
+                      </dd>
+                    </div>
                     <div>
                       <dt>Hard flat</dt>
                       <dd>{yesNo(status?.hardFlat)}</dd>

@@ -72,6 +72,9 @@ export interface AlphaStreamAutonomyStatus {
   dailyEntries?: number;
   entryWindow?: string;
   eodFlatten?: string;
+  liveOrdersEnabled?: boolean;
+  entriesPaused?: boolean;
+  entriesDisabled?: boolean;
   inEntryWindow?: boolean;
   lastScan?: string | null;
   manageOnlyOutside?: boolean;

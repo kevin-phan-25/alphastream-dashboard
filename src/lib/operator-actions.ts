@@ -1,4 +1,10 @@
-export type Action = "scan" | "train" | "clear-hard-flat" | "clear-blacklist";
+export type Action =
+  | "scan"
+  | "train"
+  | "clear-hard-flat"
+  | "clear-blacklist"
+  | "pause-entries"
+  | "resume-entries";
 export type ActionLog = {
   id: string;
   time: string;
@@ -11,6 +17,18 @@ export const ACTIONS: Record<
   Action,
   { title: string; description: string; path: string }
 > = {
+  "pause-entries": {
+    title: "Pause new entries",
+    description:
+      "Pause new entries after the active trading cycle. Position management continues.",
+    path: "/api/admin/entries/pause",
+  },
+  "resume-entries": {
+    title: "Resume entries",
+    description:
+      "Resume entry evaluation. A live revision can submit real orders when its entry and risk checks pass.",
+    path: "/api/admin/entries/resume",
+  },
   scan: {
     title: "Request a scan",
     description:

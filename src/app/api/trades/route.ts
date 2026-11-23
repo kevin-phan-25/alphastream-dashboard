@@ -18,7 +18,6 @@ export async function GET() {
     const response = await coreFetch("/trades");
     const body = await response.text();
 
-    console.log("Trades Core response:", response.status, body);
 
     return new Response(body, {
       status: response.status,
